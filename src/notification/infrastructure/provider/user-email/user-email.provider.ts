@@ -1,8 +1,8 @@
 import { InternalServerErrorException } from '@nestjs/common';
-import { IUserEmailAdapter } from '../../../../notification/domain/adapter/email.interface.adapter';
+import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
 import * as nodemailer from 'nodemailer';
 
-export class UserEmailProvier implements IUserEmailAdapter {
+export class UserEmailProvider implements IUserEmailAdapter {
   private readonly transporter: nodemailer.Transporter;
 
   constructor() {
@@ -16,7 +16,7 @@ export class UserEmailProvier implements IUserEmailAdapter {
     });
   }
 
-  async reservationEmail(email: string, name: string): Promise<any> {
+  async reservationUserEmail(email: string, name: string): Promise<any> {
     try {
       const message = {
         from: 'your-email@gmail.com',
