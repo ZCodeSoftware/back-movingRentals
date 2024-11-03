@@ -1,3 +1,4 @@
 export interface INotificationService {
-  reservationEmail(email: string, name: string): Promise<any>;
+  reservationUserEmail(email: string, name: string): Promise<any>;
+  reservationAdminEmail(email: string, adminName: string): Promise<any>;
 }

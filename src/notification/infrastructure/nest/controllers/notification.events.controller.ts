@@ -13,7 +13,18 @@ export class NotificationController {
   ) {}
 
   @OnEvent('user-email-notification')
-  async reservationEmail({ email, name }: { email: string; name: string }) {
-    await this.notificationService.reservationEmail(email, name);
+  async reservationUserEmail({ email, name }: { email: string; name: string }) {
+    await this.notificationService.reservationUserEmail(email, name);
+  }
+
+  @OnEvent('stock-admin-email-notification')
+  async reservationAdminEmail({
+    email,
+    adminName,
+  }: {
+    email: string;
+    adminName: string;
+  }) {
+    await this.notificationService.reservationAdminEmail(email, adminName);
   }
 }
