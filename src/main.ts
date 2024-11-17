@@ -1,9 +1,9 @@
-import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { json, urlencoded } from 'express';
+import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import 'dotenv/config';
+import { json, urlencoded } from 'express';
+import { AppModule } from './app.module';
 import config from './config';
 import { corsOptions } from './config/cors';
 
@@ -23,7 +23,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, documentationConfig);
-  SwaggerModule.setup('api/documentation', app, document);
+  SwaggerModule.setup('api/docs', app, document);
   await app.listen(config().app.app_port || 3000);
 }
 bootstrap()
