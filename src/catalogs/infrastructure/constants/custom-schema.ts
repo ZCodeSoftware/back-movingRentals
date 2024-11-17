@@ -1,4 +1,11 @@
-import { CatCategory, CatCategorySchema } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
+import {
+  CatCategory,
+  CatCategorySchema,
+} from '../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
+import {
+  CatDocument,
+  CatDocumentSchema,
+} from '../../../core/infrastructure/mongo/schemas/catalogs/cat-document.schema';
 import {
   CatRole,
   CatRoleSchema,
@@ -9,7 +16,11 @@ export const roleSchema = {
   schema: CatRoleSchema,
 };
 
+export const documentSchema = {
+  name: CatDocument.name,
+  schema: CatDocumentSchema,
+};
 export const categorySchema = {
   name: CatCategory.name,
   schema: CatCategorySchema,
-}
+};
