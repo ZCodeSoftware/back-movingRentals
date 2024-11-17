@@ -1,13 +1,14 @@
 import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { CoreModule } from './core/core.module';
-import { CustomCorsMiddleware } from './config/cors';
-import { NotificationModule } from './notification/notification.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
+import { CustomCorsMiddleware } from './config/cors';
+import { CoreModule } from './core/core.module';
+import { DocumentModule } from './document/document.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
-  imports: [CoreModule, NotificationModule, CatalogsModule],
+  imports: [CoreModule, NotificationModule, CatalogsModule, DocumentModule],
   controllers: [AppController],
   providers: [AppService],
 })

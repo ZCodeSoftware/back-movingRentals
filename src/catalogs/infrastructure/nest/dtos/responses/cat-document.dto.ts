@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CatDocumentResponseDTO {
+export class CatCatDocumentResponseDTO {
   @ApiProperty()
   id: string;
 
