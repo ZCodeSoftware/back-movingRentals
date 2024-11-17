@@ -1,4 +1,8 @@
 import {
+  CatCategory,
+  CatCategorySchema,
+} from '../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
+import {
   CatDocument,
   CatDocumentSchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-document.schema';
@@ -15,4 +19,8 @@ export const roleSchema = {
 export const documentSchema = {
   name: CatDocument.name,
   schema: CatDocumentSchema,
+};
+export const categorySchema = {
+  name: CatCategory.name,
+  schema: CatCategorySchema,
 };
