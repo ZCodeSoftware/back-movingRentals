@@ -3,11 +3,11 @@ import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CatDocumentModel } from '../../../domain/models/cat-document.model';
 import { ICatDocumentService } from '../../../domain/services/cat-document.interface.service';
 import SymbolsCatalogs from '../../../symbols-catalogs';
-import { CreateDocumentDTO } from '../dtos/cat-document.dto';
-import { CatDocumentResponseDTO } from '../dtos/responses/cat-document.dto';
+import { CreateCatDocumentDTO } from '../dtos/cat-document.dto';
+import { CatCatDocumentResponseDTO } from '../dtos/responses/cat-document.dto';
 
-@ApiTags('Documents')
-@Controller('document')
+@ApiTags('Cat Documents')
+@Controller('cat-document')
 export class CatDocumentController {
   constructor(
     @Inject(SymbolsCatalogs.ICatDocumentService)
@@ -15,28 +15,31 @@ export class CatDocumentController {
   ) {}
 
   @Get()
-  @ApiResponse({ status: 200, description: 'Return all documents' })
-  @ApiResponse({ status: 404, description: 'Document not found' })
-  @ApiResponse({ type: CatDocumentResponseDTO })
+  @ApiResponse({ status: 200, description: 'Return all cat documents' })
+  @ApiResponse({ status: 404, description: 'Cat Document not found' })
+  @ApiResponse({ type: CatCatDocumentResponseDTO })
   async findAll(): Promise<CatDocumentModel[]> {
     return this.catDocumentService.findAll();
   }
 
   @Get('/:name')
-  @ApiResponse({ status: 200, description: 'Return Document by name' })
-  @ApiResponse({ status: 404, description: 'Document not found' })
-  @ApiResponse({ type: CatDocumentResponseDTO })
+  @ApiResponse({ status: 200, description: 'Return Cat Document by name' })
+  @ApiResponse({ status: 404, description: 'Cat Document not found' })
+  @ApiResponse({ type: CatCatDocumentResponseDTO })
   async findById(@Param('name') name: string): Promise<CatDocumentModel> {
     return await this.catDocumentService.findByName(name);
   }
 
   @Post()
-  @ApiResponse({ status: 201, description: 'Document created' })
-  @ApiResponse({ status: 400, description: 'Document shouldn´t be created' })
-  @ApiResponse({ type: CatDocumentResponseDTO })
-  @ApiBody({ type: CreateDocumentDTO })
+  @ApiResponse({ status: 201, description: 'Cat Document created' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cat Document shouldn´t be created',
+  })
+  @ApiResponse({ type: CatCatDocumentResponseDTO })
+  @ApiBody({ type: CreateCatDocumentDTO })
   async create(
-    @Body() catDocument: CreateDocumentDTO,
+    @Body() catDocument: CreateCatDocumentDTO,
   ): Promise<CatDocumentModel> {
     return this.catDocumentService.create(catDocument);
   }

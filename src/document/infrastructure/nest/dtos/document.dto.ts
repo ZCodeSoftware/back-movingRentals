@@ -1,9 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class CreateCatDocumentDTO {
-  @IsNotEmpty({ message: 'The document name is required' })
+export class DocumentCreateDTO {
+  @IsNotEmpty()
   @ApiProperty()
   @IsString()
-  name: string;
+  value: string;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  @IsString()
+  catDocument: string;
 }
