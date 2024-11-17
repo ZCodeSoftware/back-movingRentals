@@ -2,8 +2,10 @@ import SymbolsCatalogs from 'src/catalogs/symbols-catalogs';
 import { CatRoleService } from '../../../catalogs/application/services/cat-role.service';
 import { CatCategoryService } from '../../application/services/cat-category.service';
 import { CatDocumentService } from '../../application/services/cat-document.service';
+import { CatPriceConditionService } from '../../application/services/cat-price-condition.service';
 import { CatCategoryRepository } from '../mongo/repositories/cat-category.repository';
 import { CatDocumentRepository } from '../mongo/repositories/cat-document.repository';
+import { CatPriceConditionRepository } from '../mongo/repositories/cat-price-condition.repository';
 import { CatRoleRepository } from '../mongo/repositories/cat-role.repository';
 
 export const catRoleRepository = {
@@ -34,4 +36,14 @@ export const catCategoryRepository = {
 export const catCategoryService = {
   provide: SymbolsCatalogs.ICatCategoryService,
   useClass: CatCategoryService,
+};
+
+export const catPriceConditionRepository = {
+  provide: SymbolsCatalogs.ICatPriceConditionRepository,
+  useClass: CatPriceConditionRepository,
+};
+
+export const catPriceConditionService = {
+  provide: SymbolsCatalogs.ICatPriceConditionService,
+  useClass: CatPriceConditionService,
 };
