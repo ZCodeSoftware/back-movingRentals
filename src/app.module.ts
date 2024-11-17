@@ -6,9 +6,10 @@ import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
 import { DocumentModule } from './document/document.module';
 import { NotificationModule } from './notification/notification.module';
+import { PriceModule } from './price/price.module';
 
 @Module({
-  imports: [CoreModule, NotificationModule, CatalogsModule, DocumentModule],
+  imports: [CoreModule, NotificationModule, CatalogsModule, DocumentModule, PriceModule],
   controllers: [AppController],
   providers: [AppService],
 })
