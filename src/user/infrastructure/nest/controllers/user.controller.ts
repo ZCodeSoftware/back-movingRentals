@@ -1,6 +1,8 @@
-import { Controller, Inject } from '@nestjs/common/decorators/core';
-import { Body, Get, Param, Post, Put } from '@nestjs/common/decorators/http';
+import { Controller, Inject, UseGuards } from '@nestjs/common/decorators/core';
+import { Body, Get, Post, Put, Req } from '@nestjs/common/decorators/http';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
+import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { IUserService } from '../../../domain/services/user.interface.service';
 import SymbolsUser from '../../../symbols-user';
 import { CreateUserDTO, UpdateUserDTO } from '../dtos/user.dto';
@@ -21,22 +23,28 @@ export class UserController {
     return await this.userService.create(user);
   }
 
-  @Get('detail/:id')
+  @Get('detail')
+  @UseGuards(AuthGuards)
   @ApiResponse({ status: 200, description: 'Get user by Id' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async getUserById(@Param('id') id: string): Promise<any> {
-    return await this.userService.findById(id);
+  async getUserById(@Req() req: IUserRequest): Promise<any> {
+    const { _id } = req.user;
+
+    return await this.userService.findById(_id);
   }
 
-  @Put('/:id')
+  @Put()
+  @UseGuards(AuthGuards)
   @ApiResponse({ status: 200, description: 'Update user' })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiBody({ type: UpdateUserDTO })
   async updateUser(
     @Body() user: UpdateUserDTO,
-    @Param('id') id: string,
+    @Req() req: IUserRequest,
   ): Promise<any> {
-    return await this.userService.update(id, user);
+    const { _id } = req.user;
+
+    return await this.userService.update(_id, user);
   }
 }

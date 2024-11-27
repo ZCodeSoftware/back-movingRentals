@@ -1,5 +1,8 @@
 import SymbolsCatalogs from 'src/catalogs/symbols-catalogs';
 import { CatRoleService } from '../../../catalogs/application/services/cat-role.service';
+import { UserService } from '../../../user/application/services/user.service';
+import { UserRepository } from '../../../user/infrastructure/mongo/repositories/user.repository';
+import SymbolsUser from '../../../user/symbols-user';
 import { CatCategoryService } from '../../application/services/cat-category.service';
 import { CatDocumentService } from '../../application/services/cat-document.service';
 import { CatPriceConditionService } from '../../application/services/cat-price-condition.service';
@@ -46,4 +49,14 @@ export const catPriceConditionRepository = {
 export const catPriceConditionService = {
   provide: SymbolsCatalogs.ICatPriceConditionService,
   useClass: CatPriceConditionService,
+};
+
+export const userService = {
+  provide: SymbolsUser.IUserService,
+  useClass: UserService,
+};
+
+export const userRepository = {
+  provide: SymbolsUser.IUserRepository,
+  useClass: UserRepository,
 };

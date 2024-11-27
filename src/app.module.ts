@@ -2,6 +2,7 @@ import { MiddlewareConsumer } from '@nestjs/common';
 import { Module } from '@nestjs/common/decorators/modules';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
@@ -18,6 +19,7 @@ import { UserModule } from './user/user.module';
     DocumentModule,
     PriceModule,
     UserModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

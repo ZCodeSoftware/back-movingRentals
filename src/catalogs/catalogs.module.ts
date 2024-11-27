@@ -9,12 +9,15 @@ import {
   catPriceConditionService,
   catRoleRepository,
   catRoleService,
+  userRepository,
+  userService,
 } from './infrastructure/constants/custom-provider';
 import {
   categorySchema,
   documentSchema,
   priceConditionSchema,
   roleSchema,
+  userSchema,
 } from './infrastructure/constants/custom-schema';
 import { CatCategoryController } from './infrastructure/nest/controllers/cat-category.controller';
 import { CatDocumentController } from './infrastructure/nest/controllers/cat-document.controller';
@@ -27,14 +30,15 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
       roleSchema,
       documentSchema,
       categorySchema,
-      priceConditionSchema
+      priceConditionSchema,
+      userSchema,
     ]),
   ],
   controllers: [
     CatRoleController,
     CatDocumentController,
     CatCategoryController,
-    CatPriceConditionController
+    CatPriceConditionController,
   ],
   providers: [
     catRoleRepository,
@@ -45,7 +49,9 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     catCategoryService,
     catPriceConditionRepository,
     catPriceConditionService,
+    userRepository,
+    userService,
   ],
   exports: [],
 })
-export class CatalogsModule { }
+export class CatalogsModule {}
