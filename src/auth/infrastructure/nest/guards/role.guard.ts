@@ -1,24 +1,41 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  HttpStatus,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
+import SymbolsUser from '../../../../user/symbols-user';
+import { IUserService } from '../../../domain/services/user.interface.service';
 
 @Injectable()
 export class RoleGuards implements CanActivate {
-  constructor() {} // private readonly userService: IUserService, // @Inject(SymbolsUser.IUserService)
-
+  constructor(
+    @Inject(SymbolsUser.IUserService)
+    private readonly userService: IUserService,
+  ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
     if (!user) {
-      throw new Error('Usuario no autenticado');
+      throw new BaseErrorException(
+        'Unauthenticated user',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
-    // const findRole = await this.userService.findById(user._id);
+    const findRole = await this.userService.findById(user._id);
 
-    if (user.role.name === TypeRoles.ADMIN) {
+    if (findRole.toJSON().role.name === TypeRoles.ADMIN) {
       return true;
     } else {
-      throw new Error('Acceso denegado: No tienes el rol necesario');
+      throw new BaseErrorException(
+        'Access denied: You do not have the required role.',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
   }
 }
