@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
+import { CompanyModule } from './company/company.module';
 import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
 import { DocumentModule } from './document/document.module';
@@ -20,6 +21,7 @@ import { UserModule } from './user/user.module';
     PriceModule,
     UserModule,
     AuthModule,
+    CompanyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
