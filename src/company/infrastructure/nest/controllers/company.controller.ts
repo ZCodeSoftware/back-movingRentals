@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
+import { RoleGuards } from '../../../../auth/infrastructure/nest/guards/role.guard';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { CompanyModel } from '../../../domain/models/company.model';
 import { ICompanyService } from '../../../domain/services/company.interface.service';
@@ -24,6 +25,7 @@ export class CompanyController {
   ) {}
 
   @Post()
+  @UseGuards(AuthGuards, RoleGuards)
   @ApiResponse({ status: 201, description: 'Create a new company' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiBody({ type: CreateCompanyDTO })
@@ -32,6 +34,7 @@ export class CompanyController {
   }
 
   @Get()
+  @UseGuards(AuthGuards)
   @ApiResponse({ status: 200, description: 'Get all companies' })
   @ApiResponse({ status: 404, description: 'Table is empty' })
   async findAll(): Promise<CompanyModel[]> {

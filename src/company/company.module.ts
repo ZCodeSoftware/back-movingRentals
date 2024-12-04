@@ -4,6 +4,7 @@ import {
   companyRepository,
   companyService,
   userRepository,
+  userService,
 } from './infrastructure/nest/constants/custom-provider';
 import {
   companySchema,
@@ -14,6 +15,6 @@ import { CompanyController } from './infrastructure/nest/controllers/company.con
 @Module({
   imports: [MongooseModule.forFeature([companySchema, userSchema])],
   controllers: [CompanyController],
-  providers: [companyService, companyRepository, userRepository],
+  providers: [companyService, companyRepository, userService, userRepository],
 })
 export class CompanyModule {}

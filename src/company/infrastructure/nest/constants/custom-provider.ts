@@ -1,3 +1,4 @@
+import { UserService } from '../../../../auth/application/services/user.service';
 import SymbolsUser from '../../../../user/symbols-user';
 import { CompanyService } from '../../../application/services/company.service';
 import SymbolsCompany from '../../../symbols-company';
@@ -17,4 +18,9 @@ export const companyRepository = {
 export const userRepository = {
   provide: SymbolsUser.IUserRepository,
   useClass: UserRepository,
+};
+
+export const userService = {
+  provide: SymbolsUser.IUserService,
+  useClass: UserService,
 };
