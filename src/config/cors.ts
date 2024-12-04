@@ -9,7 +9,7 @@ if (config().app.env === 'dev') {
 }
 
 const whiteList = [
-    'https://front-moving-rentals.vercel.app/',
+    'https://front-moving-rentals.vercel.app',
     ...whiteListDev,
 ];
 
