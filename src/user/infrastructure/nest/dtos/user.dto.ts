@@ -14,23 +14,6 @@ import {
 } from '../../../../core/domain/utils/regex/regex.utils';
 
 export class CreateUserDTO {
-  @IsString()
-  @ApiProperty()
-  @Matches(ONLY_LETTERS_REGEX, {
-    message: 'The user name can only contain letters (including accents and ñ)',
-  })
-  @IsNotEmpty({ message: 'The user name is required' })
-  name: string;
-
-  @IsString()
-  @ApiProperty()
-  @Matches(ONLY_LETTERS_REGEX, {
-    message:
-      'The user last name can only contain letters (including accents and ñ)',
-  })
-  @IsNotEmpty({ message: 'The user name is required' })
-  lastName: string;
-
   @IsEmail()
   @ApiProperty()
   @IsNotEmpty({ message: 'The user email is required' })
