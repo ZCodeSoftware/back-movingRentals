@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { CatRole } from '../catalogs/cat-role.schema';
+import { Company } from './company.schema';
 import { Document } from './documet.schema';
 
 export type UserDocument = HydratedDocument<User>;
@@ -27,6 +28,9 @@ export class User {
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Document' })
   documentation: Document[];
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Company' })
+  company: Company;
 
   @Prop({ default: true })
   isActive: boolean;
