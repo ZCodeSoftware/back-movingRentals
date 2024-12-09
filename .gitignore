@@ -3,6 +3,7 @@
 /node_modules
 /build
 yarn.lock
+/scripts
 
 # Logs
 logs
