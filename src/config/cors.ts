@@ -1,6 +1,6 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import config from './index';
 import { NextFunction, Response } from 'express';
+import config from './index';
 
 let whiteListDev: string[] = [];
 
@@ -9,7 +9,7 @@ if (config().app.env === 'dev') {
 }
 
 const whiteList = [
-    'https://dym-indumentary-front.vercel.app',
+    'https://front-moving-rentals.vercel.app',
     ...whiteListDev,
 ];
 

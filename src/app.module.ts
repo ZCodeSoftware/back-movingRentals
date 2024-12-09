@@ -12,6 +12,8 @@ import { DocumentModule } from './document/document.module';
 import { NotificationModule } from './notification/notification.module';
 import { PriceModule } from './price/price.module';
 import { UserModule } from './user/user.module';
+import { VehicleModule } from './vehicle/vehicle.module';
+import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { UserModule } from './user/user.module';
     AuthModule,
     CompanyModule,
     AddressModule,
+    VehicleOwnerModule,
+    VehicleModule,
   ],
   controllers: [AppController],
   providers: [AppService],
