@@ -1,5 +1,6 @@
 import { MiddlewareConsumer } from '@nestjs/common';
 import { Module } from '@nestjs/common/decorators/modules';
+import { AddressModule } from './address/address.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -22,6 +23,7 @@ import { UserModule } from './user/user.module';
     UserModule,
     AuthModule,
     CompanyModule,
+    AddressModule,
   ],
   controllers: [AppController],
   providers: [AppService],
