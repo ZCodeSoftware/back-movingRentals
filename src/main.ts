@@ -13,7 +13,10 @@ async function bootstrap() {
   app.enableCors(corsOptions);
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    whitelist: true,
+  }));
   app.setGlobalPrefix(process.env.APP_GLOBAL_PREFIX);
   const documentationConfig = new DocumentBuilder()
     .setTitle('MovingRentals')
