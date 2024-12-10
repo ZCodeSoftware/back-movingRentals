@@ -73,7 +73,7 @@ export class CompanyRepository implements ICompanyRepository {
     try {
       const existingCompany = await this.companyModel
         .findById(id)
-        .populate('users branches');
+        .populate('branches');
 
       if (!existingCompany) {
         throw new BaseErrorException(
@@ -82,13 +82,42 @@ export class CompanyRepository implements ICompanyRepository {
         );
       }
 
-      Object.assign(existingCompany, {
-        branches: [...existingCompany.branches, ...company.toJSON().branches],
-      });
+      const existingBranchIds = new Set(
+        existingCompany.branches?.map((branch: any) => branch._id.toString()),
+      );
 
-      await existingCompany.save();
+      const newBranchIds = (company.toJSON().branches || []).map(
+        (branch: any) => {
+          if (!branch._id) {
+            throw new BaseErrorException(
+              'Invalid branch data. Expected branches to have an _id.',
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          return branch._id.toString();
+        },
+      );
 
-      return CompanyModel.hydrate(existingCompany);
+      const uniqueBranchIds = newBranchIds.filter(
+        (id) => !existingBranchIds.has(id),
+      );
+
+      const updated = await this.companyModel
+        .findByIdAndUpdate(
+          id,
+          { branches: [...existingBranchIds, ...uniqueBranchIds] },
+          { new: true },
+        )
+        .populate('branches');
+
+      if (!updated) {
+        throw new BaseErrorException(
+          "Couldn't update the company",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return CompanyModel.hydrate(updated);
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode || 500);
     }
