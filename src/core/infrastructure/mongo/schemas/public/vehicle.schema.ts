@@ -16,8 +16,11 @@ export class Vehicle {
     @Prop()
     description: string;
 
+    @Prop({ required: false })
+    images: string[];
+
     @Prop()
-    image: string;
+    price: number;
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatCategory' })
     category: CatCategory
