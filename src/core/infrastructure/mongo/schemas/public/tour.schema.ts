@@ -7,6 +7,9 @@ export type TourDocument = HydratedDocument<Tour>;
 @Schema({ collection: 'tour', timestamps: true })
 export class Tour {
     @Prop()
+    name: string;
+
+    @Prop()
     description: string;
 
     @Prop({ required: false })
@@ -14,6 +17,9 @@ export class Tour {
 
     @Prop()
     includes: string;
+
+    @Prop()
+    price: number;
 
     @Prop({ required: false })
     images: string[];
