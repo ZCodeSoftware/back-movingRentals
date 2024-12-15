@@ -5,9 +5,14 @@ import { VehicleOwnerModel } from './vehicleowner.model';
 
 export class VehicleModel extends BaseModel {
   private _name: string;
-  private _specs?: string;
   private _description?: string;
-  private _image: string;
+  private _images: string[];
+  private _price?: number;
+  private _pricePer4?: number;
+  private _pricePer8?: number;
+  private _pricePer24?: number;
+  private _capacity: number;
+  private _minRentalHours: number;
   private _category: CatCategoryModel;
   private _owner: VehicleOwnerModel;
 
@@ -16,9 +21,14 @@ export class VehicleModel extends BaseModel {
     return {
       ...aggregate,
       name: this._name,
-      specs: this._specs,
       description: this._description,
-      image: this._image,
+      images: this._images,
+      price: this._price,
+      pricePer4: this._pricePer4,
+      pricePer8: this._pricePer8,
+      pricePer24: this._pricePer24,
+      capacity: this._capacity,
+      minRentalHours: this._minRentalHours,
       category: this._category ? this._category.toJSON() : {},
       owner: this._owner ? this._owner.toJSON() : {},
     };
@@ -35,9 +45,14 @@ export class VehicleModel extends BaseModel {
   static create(vehicle: any): VehicleModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
-    newVehicle._specs = vehicle.specs;
     newVehicle._description = vehicle.description;
-    newVehicle._image = vehicle.image
+    newVehicle._images = vehicle.images
+    newVehicle._price = vehicle.price;
+    newVehicle._pricePer4 = vehicle.pricePer4;
+    newVehicle._pricePer8 = vehicle.pricePer8;
+    newVehicle._pricePer24 = vehicle.pricePer24;
+    newVehicle._capacity = vehicle.capacity;
+    newVehicle._minRentalHours = vehicle.minRentalHours;
 
     return newVehicle;
   }
@@ -45,11 +60,17 @@ export class VehicleModel extends BaseModel {
   static hydrate(vehicle: any): VehicleModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
-    newVehicle._specs = vehicle.specs;
     newVehicle._description = vehicle.description;
-    newVehicle._image = vehicle.image;
+    newVehicle._images = vehicle.images;
+    newVehicle._price = vehicle.price;
+    newVehicle._pricePer4 = vehicle.pricePer4;
+    newVehicle._pricePer8 = vehicle.pricePer8;
+    newVehicle._pricePer24 = vehicle.pricePer24;
+    newVehicle._capacity = vehicle.capacity;
+    newVehicle._minRentalHours = vehicle.minRentalHours;
     newVehicle._category = vehicle.category ? CatCategoryModel.hydrate(vehicle.category) : null;
     newVehicle._owner = vehicle.owner ? VehicleOwnerModel.hydrate(vehicle.owner) : null;
+
     return newVehicle;
   }
 }
