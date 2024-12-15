@@ -12,14 +12,20 @@ export class Tour {
     @Prop()
     description: string;
 
-    @Prop({ required: false })
-    recommendations: string;
-
-    @Prop()
-    includes: string;
-
     @Prop()
     price: number;
+
+    @Prop()
+    itinerary: string;
+
+    @Prop({ required: false })
+    capacity: string;
+
+    @Prop({ required: false })
+    estimatedDuration: string;
+
+    @Prop({ required: false })
+    startDates: string;
 
     @Prop({ required: false })
     images: string[];

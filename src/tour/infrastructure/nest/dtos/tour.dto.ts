@@ -13,25 +13,35 @@ export class CreateTourDTO {
     @ApiProperty()
     description: string;
 
-    @IsString()
-    @IsOptional()
-    @ApiPropertyOptional()
-    recommendations: string;
-
-    @IsString()
-    @IsNotEmpty()
-    @ApiProperty()
-    includes: string;
-
     @IsNotEmpty()
     @ApiProperty()
     @IsNumber()
     price: number;
 
+    @IsNotEmpty()
+    @ApiProperty()
+    @IsString()
+    itinerary: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    capacity?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    estimatedDuration?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    startDates?: string;
+
     @IsString({ each: true })
     @IsOptional()
     @ApiPropertyOptional()
-    images: string[];
+    images?: string[];
 
     @IsString()
     @IsNotEmpty()
