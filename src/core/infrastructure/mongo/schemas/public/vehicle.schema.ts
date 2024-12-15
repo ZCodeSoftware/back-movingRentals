@@ -10,17 +10,29 @@ export class Vehicle {
     @Prop()
     name: string;
 
-    @Prop()
-    specs: string
-
-    @Prop()
+    @Prop({ required: false })
     description: string;
 
     @Prop({ required: false })
     images: string[];
 
-    @Prop()
+    @Prop({ required: false })
     price: number;
+
+    @Prop({ required: false })
+    pricePer4: number;
+
+    @Prop({ required: false })
+    pricePer8: number;
+
+    @Prop({ required: false })
+    pricePer24: number;
+
+    @Prop()
+    capacity: number;
+
+    @Prop()
+    minRentalHours: number;
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatCategory' })
     category: CatCategory
