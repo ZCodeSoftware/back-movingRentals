@@ -10,22 +10,42 @@ export class CreateVehicleDTO {
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
-    specs: string;
-
-    @IsString()
-    @IsOptional()
-    @ApiPropertyOptional()
     description: string;
 
     @IsString({ each: true })
     @IsOptional()
     @ApiPropertyOptional()
-    images: string[];
+    images?: string[];
 
-    @IsNotEmpty()
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    price?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePer4?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePer8?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePer24?: number;
+
     @ApiProperty()
     @IsNumber()
-    price: number;
+    @IsNotEmpty()
+    capacity: number;
+
+    @ApiProperty()
+    @IsNumber()
+    @IsNotEmpty()
+    minRentalHours: number;
 
     @IsString()
     @IsNotEmpty()
