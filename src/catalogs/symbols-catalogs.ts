@@ -7,6 +7,8 @@ const SymbolsCatalogs = {
   ICatCategoryService: Symbol.for('ICatCategoryService'),
   ICatPriceConditionRepository: Symbol.for('ICatPriceConditionRepository'),
   ICatPriceConditionService: Symbol.for('ICatPriceConditionService'),
+  ICatPaymentMethodRepository: Symbol.for('ICatPaymentMethodRepository'),
+  ICatPaymentMethodService: Symbol.for('ICatPaymentMethodService'),
 };
 
 export default SymbolsCatalogs;

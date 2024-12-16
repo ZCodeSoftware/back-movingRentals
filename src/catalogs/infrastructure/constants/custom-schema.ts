@@ -7,6 +7,10 @@ import {
   CatDocumentSchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-document.schema';
 import {
+  CatPaymentMethod,
+  CatPaymentMethodSchema,
+} from '../../../core/infrastructure/mongo/schemas/catalogs/cat-payment-method.schema';
+import {
   CatPriceCondition,
   CatPriceConditionSchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-price-condition.schema';
@@ -37,6 +41,11 @@ export const categorySchema = {
 export const priceConditionSchema = {
   name: CatPriceCondition.name,
   schema: CatPriceConditionSchema,
+};
+
+export const paymentMethodSchema = {
+  name: CatPaymentMethod.name,
+  schema: CatPaymentMethodSchema,
 };
 
 export const userSchema = { name: User.name, schema: UserSchema };
