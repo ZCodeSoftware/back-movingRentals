@@ -4,6 +4,7 @@ import {
   Get,
   Inject,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -14,7 +15,7 @@ import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-r
 import { CompanyModel } from '../../../domain/models/company.model';
 import { ICompanyService } from '../../../domain/services/company.interface.service';
 import SymbolsCompany from '../../../symbols-company';
-import { CreateCompanyDTO } from '../dtos/company.dto';
+import { AddBranchToCompanyDTO, CreateCompanyDTO } from '../dtos/company.dto';
 
 @ApiTags('Company')
 @Controller('company')
@@ -49,5 +50,15 @@ export class CompanyController {
     const { _id } = req.user;
 
     return this.companyService.findByUserId(_id);
+  }
+
+  @Put()
+  @UseGuards(AuthGuards, RoleGuards)
+  @ApiResponse({ status: 201, description: 'Update a company' })
+  @ApiResponse({ status: 404, description: 'Company not found' })
+  async addBranchesToCompany(
+    @Body() body: AddBranchToCompanyDTO,
+  ): Promise<CompanyModel> {
+    return this.companyService.addBranchesToCompany(body);
   }
 }

@@ -1,9 +1,11 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
+import { BranchesModel } from './branches.model';
 import { UserModel } from './user.model';
 
 export class CompanyModel extends BaseModel {
   private _name: string;
+  private _branches: BranchesModel[];
   private _users: UserModel[];
 
   public toJSON() {
@@ -11,8 +13,18 @@ export class CompanyModel extends BaseModel {
     return {
       ...aggregate,
       name: this._name,
-      users: this._users ? this._users : null,
+      branches: this._branches
+        ? this._branches.map((branch) => branch.toJSON())
+        : null,
+      users: this._users ? this._users.map((user) => user.toJSON()) : null,
     };
+  }
+
+  addBranches(branch: BranchesModel): void {
+    if (!this._branches) {
+      this._branches = [];
+    }
+    this._branches.push(branch);
   }
 
   addUser(user: UserModel): void {
@@ -34,6 +46,9 @@ export class CompanyModel extends BaseModel {
     const newCompany = new CompanyModel(new Identifier(company._id));
 
     newCompany._name = company.name;
+    newCompany._branches = company.branches
+      ? company.branches.map((branch: any) => BranchesModel.hydrate(branch))
+      : [];
     newCompany._users = company.users
       ? company.users.map((user: any) => UserModel.hydrate(user))
       : [];

@@ -4,6 +4,7 @@ import { AddressModule } from './address/address.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { BranchesModule } from './branches/branches.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { CompanyModule } from './company/company.module';
 import { CustomCorsMiddleware } from './config/cors';
@@ -31,6 +32,7 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     VehicleOwnerModule,
     VehicleModule,
     TourModule,
+    BranchesModule,
     TransferModule
   ],
   controllers: [AppController],

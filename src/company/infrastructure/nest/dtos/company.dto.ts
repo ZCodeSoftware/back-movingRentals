@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 import { ONLY_LETTERS_REGEX } from '../../../../core/domain/utils/regex/regex.utils';
 
 export class CreateCompanyDTO {
@@ -14,4 +20,17 @@ export class CreateCompanyDTO {
   @IsOptional()
   @ApiPropertyOptional()
   users: string[];
+}
+
+export class AddBranchToCompanyDTO {
+  @IsNotEmpty()
+  @ApiProperty()
+  @IsString()
+  companyId: string;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  @IsArray()
+  @IsString({ each: true })
+  branches: string[];
 }
