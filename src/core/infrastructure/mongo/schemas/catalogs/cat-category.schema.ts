@@ -10,6 +10,9 @@ export class CatCategory {
 
     @Prop({ type: String, required: false })
     disclaimer?: string;
+
+    @Prop({ type: String, required: false })
+    image?: string;
 }
 
 export const CatCategorySchema = SchemaFactory.createForClass(CatCategory);
