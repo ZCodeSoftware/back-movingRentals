@@ -5,6 +5,8 @@ import {
   catCategoryService,
   catDocumentRepository,
   catDocumentService,
+  catPaymentMethodRepository,
+  catPaymentMethodService,
   catPriceConditionRepository,
   catPriceConditionService,
   catRoleRepository,
@@ -15,12 +17,14 @@ import {
 import {
   categorySchema,
   documentSchema,
+  paymentMethodSchema,
   priceConditionSchema,
   roleSchema,
   userSchema,
 } from './infrastructure/constants/custom-schema';
 import { CatCategoryController } from './infrastructure/nest/controllers/cat-category.controller';
 import { CatDocumentController } from './infrastructure/nest/controllers/cat-document.controller';
+import { CatPaymentMethodController } from './infrastructure/nest/controllers/cat-payment-method.controller';
 import { CatPriceConditionController } from './infrastructure/nest/controllers/cat-price-condition.controller';
 import { CatRoleController } from './infrastructure/nest/controllers/cat-role.controller';
 
@@ -31,6 +35,7 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
       documentSchema,
       categorySchema,
       priceConditionSchema,
+      paymentMethodSchema,
       userSchema,
     ]),
   ],
@@ -39,6 +44,7 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     CatDocumentController,
     CatCategoryController,
     CatPriceConditionController,
+    CatPaymentMethodController,
   ],
   providers: [
     catRoleRepository,
@@ -49,6 +55,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     catCategoryService,
     catPriceConditionRepository,
     catPriceConditionService,
+    catPaymentMethodRepository,
+    catPaymentMethodService,
     userRepository,
     userService,
   ],

@@ -5,9 +5,11 @@ import { UserRepository } from '../../../user/infrastructure/mongo/repositories/
 import SymbolsUser from '../../../user/symbols-user';
 import { CatCategoryService } from '../../application/services/cat-category.service';
 import { CatDocumentService } from '../../application/services/cat-document.service';
+import { CatPaymentMethodService } from '../../application/services/cat-payment-method.service';
 import { CatPriceConditionService } from '../../application/services/cat-price-condition.service';
 import { CatCategoryRepository } from '../mongo/repositories/cat-category.repository';
 import { CatDocumentRepository } from '../mongo/repositories/cat-document.repository';
+import { CatPaymentMethodRepository } from '../mongo/repositories/cat-payment-method.repository';
 import { CatPriceConditionRepository } from '../mongo/repositories/cat-price-condition.repository';
 import { CatRoleRepository } from '../mongo/repositories/cat-role.repository';
 
@@ -49,6 +51,16 @@ export const catPriceConditionRepository = {
 export const catPriceConditionService = {
   provide: SymbolsCatalogs.ICatPriceConditionService,
   useClass: CatPriceConditionService,
+};
+
+export const catPaymentMethodRepository = {
+  provide: SymbolsCatalogs.ICatPaymentMethodRepository,
+  useClass: CatPaymentMethodRepository,
+};
+
+export const catPaymentMethodService = {
+  provide: SymbolsCatalogs.ICatPaymentMethodService,
+  useClass: CatPaymentMethodService,
 };
 
 export const userService = {
