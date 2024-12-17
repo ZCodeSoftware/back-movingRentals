@@ -38,5 +38,10 @@ export default registerAs('config', () => {
         apyKey: process.env.RESEND_API_KEY,
       },
     },
+    paymentMethod: {
+      mercadopago: {
+        accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      },
+    }
   };
 });
