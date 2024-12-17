@@ -1,4 +1,4 @@
-import SymbolsCatalogs from 'src/catalogs/symbols-catalogs';
+
 import { CatRoleService } from '../../../catalogs/application/services/cat-role.service';
 import { UserService } from '../../../user/application/services/user.service';
 import { UserRepository } from '../../../user/infrastructure/mongo/repositories/user.repository';
@@ -7,6 +7,7 @@ import { CatCategoryService } from '../../application/services/cat-category.serv
 import { CatDocumentService } from '../../application/services/cat-document.service';
 import { CatPaymentMethodService } from '../../application/services/cat-payment-method.service';
 import { CatPriceConditionService } from '../../application/services/cat-price-condition.service';
+import SymbolsCatalogs from '../../symbols-catalogs';
 import { CatCategoryRepository } from '../mongo/repositories/cat-category.repository';
 import { CatDocumentRepository } from '../mongo/repositories/cat-document.repository';
 import { CatPaymentMethodRepository } from '../mongo/repositories/cat-payment-method.repository';
