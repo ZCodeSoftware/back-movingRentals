@@ -5,17 +5,17 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { CatRoleModel } from '../../../catalogs/domain/models/cat-role.model';
-import SymbolsCatalogs from 'src/catalogs/symbols-catalogs';
-import { ICatRoleCreate } from '../../../catalogs/domain/types/cat-role.type';
-import { ICatRoleService } from '../../../catalogs/domain/services/catalogs.interface.service';
 import { ICatRoleRepository } from '../../../catalogs/domain/repositories/cat-role.interface.repository';
+import { ICatRoleService } from '../../../catalogs/domain/services/catalogs.interface.service';
+import { ICatRoleCreate } from '../../../catalogs/domain/types/cat-role.type';
+import SymbolsCatalogs from '../../symbols-catalogs';
 
 @Injectable()
 export class CatRoleService implements ICatRoleService {
   constructor(
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) {}
+  ) { }
 
   async findAll(): Promise<CatRoleModel[]> {
     try {

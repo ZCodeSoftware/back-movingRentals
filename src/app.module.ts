@@ -11,6 +11,7 @@ import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
 import { DocumentModule } from './document/document.module';
 import { NotificationModule } from './notification/notification.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PriceModule } from './price/price.module';
 import { TourModule } from './tour/tour.module';
 import { TransferModule } from './transfer/transfer.module';
@@ -33,7 +34,8 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     VehicleModule,
     TourModule,
     BranchesModule,
-    TransferModule
+    TransferModule,
+    PaymentsModule
   ],
   controllers: [AppController],
   providers: [AppService],
