@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { CatRole } from '../catalogs/cat-role.schema';
+import { Booking } from './booking.schema';
 import { Company } from './company.schema';
 import { Document } from './documet.schema';
 
@@ -37,6 +38,12 @@ export class User {
 
   @Prop({ default: false })
   newsletter: boolean;
+
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
+    required: false,
+  })
+  bookings: Booking[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
