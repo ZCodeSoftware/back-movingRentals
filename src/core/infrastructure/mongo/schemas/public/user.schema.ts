@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { CatRole } from '../catalogs/cat-role.schema';
 import { Booking } from './booking.schema';
+import { Cart } from './cart.schema';
 import { Company } from './company.schema';
 import { Document } from './documet.schema';
 
@@ -44,6 +45,9 @@ export class User {
     required: false,
   })
   bookings: Booking[];
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Cart' })
+  cart: Cart;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
