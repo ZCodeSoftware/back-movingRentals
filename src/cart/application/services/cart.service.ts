@@ -32,9 +32,9 @@ export class CartService implements ICartService {
     async update(id: string, data: UpdateCartDTO): Promise<CartModel> {
         const { branch, transfer, selectedItems, selectedTours, ...rest } = data;
 
-        const branchModel = branch && await this.branchesRepository.findById(branch);
+        const branchModel = branch && branch !== "" && await this.branchesRepository.findById(branch);
 
-        if (!branchModel && (selectedItems.length || selectedTours.length)) {
+        if (!branchModel && (selectedItems?.length || selectedTours?.length)) {
             throw new BaseErrorException('Branch not found', 404);
         }
 
@@ -63,7 +63,7 @@ export class CartService implements ICartService {
         }))
 
         const cart = await this.cartRepository.update(id, {
-            branch: branchModel ?? null,
+            branch: branchModel ? branchModel : null,
             tours: tours ?? [],
             vehicles: vehicles ?? [],
             transfer: transfers ?? [],
