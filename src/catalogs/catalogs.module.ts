@@ -15,6 +15,7 @@ import {
   userService,
 } from './infrastructure/constants/custom-provider';
 import {
+  cartSchema,
   categorySchema,
   documentSchema,
   paymentMethodSchema,
@@ -37,6 +38,7 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
       priceConditionSchema,
       paymentMethodSchema,
       userSchema,
+      cartSchema
     ]),
   ],
   controllers: [
@@ -62,4 +64,4 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
   ],
   exports: [],
 })
-export class CatalogsModule {}
+export class CatalogsModule { }

@@ -13,6 +13,7 @@ export class UserModel extends BaseModel {
   private _documentation: DocumentModel[];
   private _isActive: boolean;
   private _newsletter: boolean;
+  private _cart: string;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -29,6 +30,7 @@ export class UserModel extends BaseModel {
         : null,
       isActive: this._isActive,
       newsletter: this._newsletter,
+      cart: this._cart,
     };
   }
 
@@ -64,6 +66,7 @@ export class UserModel extends BaseModel {
       : null;
     newUser._isActive = user.isActive;
     newUser._newsletter = user.newsletter;
+    newUser._cart = user.cart._id;
 
     return newUser;
   }

@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BookingModule } from './booking/booking.module';
 import { BranchesModule } from './branches/branches.module';
+import { CartModule } from './cart/cart.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { CompanyModule } from './company/company.module';
 import { CustomCorsMiddleware } from './config/cors';
@@ -38,6 +39,7 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     TransferModule,
     PaymentsModule,
     BookingModule,
+    CartModule
   ],
   controllers: [AppController],
   providers: [AppService],

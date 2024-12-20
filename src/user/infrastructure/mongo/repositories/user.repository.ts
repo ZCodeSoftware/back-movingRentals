@@ -3,6 +3,8 @@ import { Inject } from '@nestjs/common/decorators/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { plainToClass } from 'class-transformer';
 import { Model } from 'mongoose';
+import { CartModel } from '../../../../cart/domain/models/cart.model';
+import { CartSchema } from '../../../../cart/infrastructure/mongo/schemas/cart.schema';
 import SymbolsCatalogs from '../../../../catalogs/symbols-catalogs';
 import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
@@ -14,16 +16,29 @@ import { UserSchema } from '../schemas/user.schema';
 export class UserRepository implements IUserRepository {
   constructor(
     @InjectModel('User') private readonly userModel: Model<UserSchema>,
+    @InjectModel("Cart") private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) {}
+  ) { }
 
   async create(user: UserModel): Promise<UserModel> {
     try {
       const userRole = await this.catRoleRepository.findByName(TypeRoles.USER);
       user.addRole(userRole);
 
+      // Crear el carrito vacío
+      const cartModel = CartModel.create({ travelers: { adults: 0, childrens: 0 } });
+      const cart = await this.cartDB.create(cartModel.toJSON());
+
+      if (!cart) {
+        throw new BaseErrorException(
+          "Couldn't create the cart",
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
       const schema = new this.userModel(user.toJSON());
+      schema.cart = cart;
 
       const saved = await schema.save();
 
@@ -36,7 +51,7 @@ export class UserRepository implements IUserRepository {
 
       return UserModel.hydrate(saved);
     } catch (error) {
-      throw new BaseErrorException(error.message, error.statusCode);
+      throw new BaseErrorException(error.message, error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
