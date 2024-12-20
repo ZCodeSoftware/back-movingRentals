@@ -32,7 +32,7 @@ export class CartService implements ICartService {
     async update(id: string, data: UpdateCartDTO): Promise<CartModel> {
         const { branch, transfer, selectedItems, selectedTours, ...rest } = data;
 
-        const branchModel = await this.branchesRepository.findById(branch);
+        const branchModel = branch && await this.branchesRepository.findById(branch);
 
         if (!branchModel && (selectedItems.length || selectedTours.length)) {
             throw new BaseErrorException('Branch not found', 404);
