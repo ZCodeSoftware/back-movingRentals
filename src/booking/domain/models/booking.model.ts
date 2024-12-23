@@ -4,8 +4,6 @@ import { CatPaymentMethodModel } from './cat-payment-method.model';
 
 export class BookingModel extends BaseModel {
   private _cart: string;
-  private _bookingStartDate: Date;
-  private _bookingEndDate: Date;
   private _limitCancelation: Date;
   private _paymentMethod: CatPaymentMethodModel;
 
@@ -14,8 +12,6 @@ export class BookingModel extends BaseModel {
     return {
       ...aggregate,
       cart: this._cart,
-      bookingStartDate: this._bookingStartDate,
-      bookingEndDate: this._bookingEndDate,
       limitCancelation: this._limitCancelation,
       paymentMethod: this._paymentMethod ? this._paymentMethod.toJSON() : null,
     };
@@ -29,8 +25,6 @@ export class BookingModel extends BaseModel {
     const newBooking = new BookingModel(new Identifier(booking._id));
 
     newBooking._cart = booking.cart;
-    newBooking._bookingStartDate = booking.bookingStartDate;
-    newBooking._bookingEndDate = booking.bookingEndDate;
     newBooking._limitCancelation = booking.limitCancelation;
 
     return newBooking;
@@ -40,8 +34,6 @@ export class BookingModel extends BaseModel {
     const newBooking = new BookingModel(new Identifier(booking._id));
 
     newBooking._cart = booking.cart;
-    newBooking._bookingStartDate = booking.bookingStartDate;
-    newBooking._bookingEndDate = booking.bookingEndDate;
     newBooking._limitCancelation = booking.limitCancelation;
     newBooking._paymentMethod = booking.paymentMethod
       ? CatPaymentMethodModel.hydrate(booking.paymentMethod)

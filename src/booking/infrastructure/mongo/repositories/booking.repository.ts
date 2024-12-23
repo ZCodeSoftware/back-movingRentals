@@ -5,12 +5,14 @@ import { BaseErrorException } from '../../../../core/domain/exceptions/base.erro
 import { BookingModel } from '../../../domain/models/booking.model';
 import { IBookingRepository } from '../../../domain/repositories/booking.interface.repository';
 import { BookingSchema } from '../schemas/booking.schema';
+import { UserSchema } from '../schemas/user.schema';
 
 @Injectable()
 export class BookingRepository implements IBookingRepository {
   constructor(
     @InjectModel('Booking') private readonly bookingDB: Model<BookingSchema>,
-  ) {}
+    @InjectModel('User') private readonly userDB: Model<UserSchema>,
+  ) { }
 
   async create(booking: BookingModel): Promise<BookingModel> {
     const schema = new this.bookingDB(booking.toJSON());
@@ -38,5 +40,20 @@ export class BookingRepository implements IBookingRepository {
     const bookings = await this.bookingDB.find().populate('paymentMethod');
 
     return bookings?.map((booking) => BookingModel.hydrate(booking));
+  }
+
+  async findByUserId(userId: string): Promise<BookingModel[]> {
+    const user = await this.userDB.findById(userId).populate({
+      path: 'bookings',
+      populate: {
+        path: 'paymentMethod',
+        model: 'CatPaymentMethod',
+      }
+    });
+
+    if (!user)
+      throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+
+    return user.bookings?.map((booking) => BookingModel.hydrate(booking));
   }
 }

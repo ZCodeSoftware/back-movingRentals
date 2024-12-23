@@ -9,13 +9,7 @@ export class Booking {
   @Prop({ type: String, required: true })
   cart: string;
 
-  @Prop({ type: Date, required: true })
-  bookingStartDate: Date;
-
-  @Prop({ type: Date, required: true })
-  bookingEndDate: Date;
-
-  @Prop({ type: Date, required: true })
+  @Prop({ type: Date, nullable: true })
   limitCancelation: Date;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatPaymentMethod' })

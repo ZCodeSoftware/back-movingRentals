@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsString } from 'class-validator';
+import { IsDate, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateBookingDTO {
   @IsNotEmpty()
@@ -8,20 +8,8 @@ export class CreateBookingDTO {
   @IsString()
   cart: string;
 
-  @IsNotEmpty()
-  @ApiProperty()
-  @IsDate()
-  @Type(() => Date)
-  bookingStartDate: Date;
-
-  @IsNotEmpty()
-  @ApiProperty()
-  @IsDate()
-  @Type(() => Date)
-  bookingEndDate: Date;
-
-  @IsNotEmpty()
-  @ApiProperty()
+  @IsOptional()
+  @ApiPropertyOptional()
   @IsDate()
   @Type(() => Date)
   limitCancelation: Date;

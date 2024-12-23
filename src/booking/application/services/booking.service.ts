@@ -14,7 +14,7 @@ export class BookingService implements IBookingService {
     private readonly bookingRepository: IBookingRepository,
     @Inject(SymbolsCatalogs.ICatPaymentMethodRepository)
     private readonly paymentMethodRepository: ICatPaymentMethodRepository,
-  ) {}
+  ) { }
 
   async create(booking: ICreateBooking): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
@@ -34,5 +34,9 @@ export class BookingService implements IBookingService {
 
   async findAll(): Promise<BookingModel[]> {
     return this.bookingRepository.findAll();
+  }
+
+  async findByUserId(userId: string): Promise<BookingModel[]> {
+    return this.bookingRepository.findByUserId(userId);
   }
 }
