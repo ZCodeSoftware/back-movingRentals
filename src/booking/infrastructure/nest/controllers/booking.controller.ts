@@ -34,8 +34,10 @@ export class BookingController {
   @ApiResponse({ status: 201, description: 'Booking created' })
   @ApiResponse({ status: 400, description: `Booking shouldn't be created` })
   @ApiBody({ type: CreateBookingDTO, description: 'Data to create a Booking' })
-  async create(@Body() body: CreateBookingDTO) {
-    return this.bookingService.create(body);
+  @UseGuards(AuthGuards)
+  async create(@Body() body: CreateBookingDTO, @Req() req: IUserRequest) {
+    const { _id } = req.user;
+    return this.bookingService.create(body, _id);
   }
 
   @Get()

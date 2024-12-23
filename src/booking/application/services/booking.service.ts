@@ -13,10 +13,10 @@ export class BookingService implements IBookingService {
     @Inject(SymbolsBooking.IBookingRepository)
     private readonly bookingRepository: IBookingRepository,
     @Inject(SymbolsCatalogs.ICatPaymentMethodRepository)
-    private readonly paymentMethodRepository: ICatPaymentMethodRepository,
+    private readonly paymentMethodRepository: ICatPaymentMethodRepository
   ) { }
 
-  async create(booking: ICreateBooking): Promise<BookingModel> {
+  async create(booking: ICreateBooking, id: string): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
     const bookingModel = BookingModel.create(res);
 
@@ -25,7 +25,7 @@ export class BookingService implements IBookingService {
 
     bookingModel.addPaymentMethod(catPaymentMethod);
 
-    return this.bookingRepository.create(bookingModel);
+    return this.bookingRepository.create(bookingModel, id);
   }
 
   async findById(id: string): Promise<BookingModel> {
