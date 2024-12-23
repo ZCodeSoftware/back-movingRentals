@@ -27,7 +27,7 @@ export class BookingController {
     private readonly bookingService: IBookingService,
     @Inject(SymbolsUser.IUserService)
     private readonly userService: IUserService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(201)
@@ -45,6 +45,15 @@ export class BookingController {
   async findAll() {
     return this.bookingService.findAll();
   }
+  @Get('/user')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Return Booking by User id' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @UseGuards(AuthGuards)
+  async findByUserId(@Req() req: IUserRequest) {
+    const { _id } = req.user;
+    return this.bookingService.findByUserId(_id);
+  }
 
   @Get(':id')
   @HttpCode(200)
@@ -53,6 +62,7 @@ export class BookingController {
   async findById(@Param('id') id: string) {
     return this.bookingService.findById(id);
   }
+
 
   @Post('/user')
   @HttpCode(201)
