@@ -17,15 +17,7 @@ export class PaymentService implements IPaymentService {
 
     async createPayment(body: any) {
         try {
-            const preference = {
-                items: body,
-                back_urls: {
-                    success: `${config().app.front.front_base_url}/success`,
-                    failure: `${config().app.front.front_base_url}/failure`,
-                    pending: `${config().app.front.front_base_url}/pending`
-                },
-                auto_return: "approved"
-            }
+            const preference = body
 
             const newPreference = new Preference(this.client)
             const result = await newPreference.create({ body: preference })
