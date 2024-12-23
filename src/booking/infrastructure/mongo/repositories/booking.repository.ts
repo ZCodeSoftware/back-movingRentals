@@ -14,7 +14,7 @@ export class BookingRepository implements IBookingRepository {
     @InjectModel('User') private readonly userDB: Model<UserSchema>,
   ) { }
 
-  async create(booking: BookingModel): Promise<BookingModel> {
+  async create(booking: BookingModel, id: string): Promise<BookingModel> {
     const schema = new this.bookingDB(booking.toJSON());
     const newBooking = await schema.save();
 
@@ -23,6 +23,13 @@ export class BookingRepository implements IBookingRepository {
         `Booking shouldn't be created`,
         HttpStatus.BAD_REQUEST,
       );
+    const user = await this.userDB.findById(id);
+    if (!user) {
+      throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    user.bookings.push(newBooking);
+    await user.save();
 
     return BookingModel.hydrate(newBooking);
   }
