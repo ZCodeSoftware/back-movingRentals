@@ -21,9 +21,9 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         return VehicleOwnerModel.hydrate(newVehicleOwner);
     }
 
-    async findById(id: string): Promise<VehicleOwnerModel> {
+    async findById(id: string): Promise<VehicleOwnerModel | null> {
         const vehicleowner = await this.vehicleownerDB.findById(id);
-        if (!vehicleowner) throw new BaseErrorException('VehicleOwner not found', HttpStatus.NOT_FOUND);
+        if (!vehicleowner) return null
         return VehicleOwnerModel.hydrate(vehicleowner);
     }
 

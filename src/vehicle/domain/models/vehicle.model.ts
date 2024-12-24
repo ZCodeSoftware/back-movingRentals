@@ -5,6 +5,7 @@ import { VehicleOwnerModel } from './vehicleowner.model';
 
 export class VehicleModel extends BaseModel {
   private _name: string;
+  private _tag: string;
   private _description?: string;
   private _images: string[];
   private _price?: number;
@@ -21,6 +22,7 @@ export class VehicleModel extends BaseModel {
     return {
       ...aggregate,
       name: this._name,
+      tag: this._tag,
       description: this._description,
       images: this._images,
       price: this._price,
@@ -45,6 +47,7 @@ export class VehicleModel extends BaseModel {
   static create(vehicle: any): VehicleModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
+    newVehicle._tag = vehicle.tag;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images
     newVehicle._price = vehicle.price;
@@ -60,6 +63,7 @@ export class VehicleModel extends BaseModel {
   static hydrate(vehicle: any): VehicleModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
+    newVehicle._tag = vehicle.tag;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
     newVehicle._price = vehicle.price;

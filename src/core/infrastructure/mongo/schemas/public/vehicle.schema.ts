@@ -10,6 +10,9 @@ export class Vehicle {
     @Prop()
     name: string;
 
+    @Prop()
+    tag: string
+
     @Prop({ required: false })
     description: string;
 

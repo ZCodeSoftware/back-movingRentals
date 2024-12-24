@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -15,6 +15,7 @@ import { AuthController } from './infrastructure/nest/controllers/auth.controlle
 import { HeaderApiKeyStrategy } from './infrastructure/nest/strategies/header-apikey.strategy';
 import { JwtStrategy } from './infrastructure/nest/strategies/jwt.strategy';
 
+@Global()
 @Module({
   imports: [
     MongooseModule.forFeature([userSchema]),
@@ -25,8 +26,8 @@ import { JwtStrategy } from './infrastructure/nest/strategies/jwt.strategy';
     }),
   ],
   providers: [
-    userService,
     userRepository,
+    userService,
     authService,
     tokenService,
     apiKeyService,
@@ -35,6 +36,6 @@ import { JwtStrategy } from './infrastructure/nest/strategies/jwt.strategy';
     JwtStrategy,
   ],
   controllers: [AuthController],
-  exports: [],
+  exports: [JwtModule, authService, tokenService, apiKeyService, userRepository, userService],
 })
-export class AuthModule {}
+export class AuthModule { }

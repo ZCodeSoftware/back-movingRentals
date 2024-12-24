@@ -1,5 +1,6 @@
 export interface ICreateVehicle {
     name: string;
+    tag: string
     description?: string;
     images?: string[];
     price?: number;
@@ -11,3 +12,18 @@ export interface ICreateVehicle {
     category: string;
     owner: string;
 };
+
+export interface IUpdateVehicle {
+    name?: string;
+    tag?: string
+    description?: string;
+    images?: string[];
+    price?: number;
+    pricePer4?: number;
+    pricePer8?: number;
+    pricePer24?: number;
+    minRentalHours?: number;
+    capacity?: number;
+    category?: string;
+    owner?: string;
+}

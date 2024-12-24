@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
+import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
 import { IVehicleService } from "../../../domain/services/vehicle.interface.service";
 import SymbolsVehicle from "../../../symbols-vehicle";
-import { CreateVehicleDTO } from "../dtos/vehicle.dto";
+import { CreateVehicleDTO, UpdateVehicleDTO } from "../dtos/vehicle.dto";
 
 @ApiTags('vehicle')
 @Controller('vehicle')
@@ -35,5 +37,14 @@ export class VehicleController {
     @ApiResponse({ status: 404, description: 'Vehicle not found' })
     async findById(@Param('id') id: string) {
         return this.vehicleService.findById(id);
+    }
+
+    @Put(':id')
+    @HttpCode(200)
+    @ApiResponse({ status: 200, description: 'Return Vehicle updated by id' })
+    @ApiResponse({ status: 404, description: 'Vehicle not found' })
+    @UseGuards(AuthGuards, RoleGuards)
+    async update(@Param('id') id: string, @Body() body: UpdateVehicleDTO) {
+        return this.vehicleService.update(id, body);
     }
 }
