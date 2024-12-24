@@ -4,4 +4,5 @@ export interface IVehicleRepository {
     create(vehicle: VehicleModel): Promise<VehicleModel>;
     findById(id: string): Promise<VehicleModel>;
     findAll(): Promise<VehicleModel[]>;
+    update(id: string, vehicle: VehicleModel): Promise<VehicleModel>
 }

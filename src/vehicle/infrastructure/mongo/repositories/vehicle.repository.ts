@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
+import { VEHICLE_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
 import { VehicleModel } from "../../../domain/models/vehicle.model";
 import { IVehicleRepository } from "../../../domain/repositories/vehicle.interface.repository";
 import { VehicleSchema } from "../schemas/vehicle.schema";
@@ -30,5 +31,24 @@ export class VehicleRepository implements IVehicleRepository {
     async findAll(): Promise<VehicleModel[]> {
         const vehicles = await this.vehicleDB.find().populate('category').populate('owner');
         return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
+    }
+
+    async update(id: string, vehicle: VehicleModel): Promise<VehicleModel> {
+        const updateObject = vehicle.toJSON();
+
+        const filteredUpdateObject = Object.fromEntries(
+            Object.entries(updateObject).filter(([key, value]) => {
+                if (VEHICLE_RELATIONS.includes(key)) {
+                    return value !== null && value !== undefined && typeof value === 'object' && '_id' in value;
+                }
+                return value !== null && value !== undefined;
+            })
+        );
+
+        const updatedVehicle = await this.vehicleDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true, omitUndefined: true }).populate('category').populate('owner');
+
+        if (!updatedVehicle) throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
+
+        return VehicleModel.hydrate(updatedVehicle);
     }
 }
