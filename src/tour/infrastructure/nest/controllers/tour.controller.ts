@@ -41,6 +41,7 @@ export class TourController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return Tour updated by id' })
     @ApiResponse({ status: 404, description: 'Tour not found' })
+    @ApiBody({ type: UpdateTourDTO, description: 'Data to update a Tour' })
     async update(@Param('id') id: string, @Body() body: UpdateTourDTO) {
         return this.tourService.update(id, body);
     }

@@ -5,7 +5,7 @@ import { TransferModel } from "../../domain/models/transfer.model";
 import { ICatCategoryRepository } from "../../domain/repositories/cat-category.interface.repository";
 import { ITransferRepository } from "../../domain/repositories/transfer.interface.repository";
 import { ITransferService } from "../../domain/services/transfer.interface.service";
-import { ICreateTransfer } from "../../domain/types/transfer.type";
+import { ICreateTransfer, IUpdateTransfer } from "../../domain/types/transfer.type";
 import SymbolsTransfer from "../../symbols-transfer";
 
 @Injectable()
@@ -39,5 +39,17 @@ export class TransferService implements ITransferService {
 
     async findAll(): Promise<TransferModel[]> {
         return this.transferRepository.findAll();
+    }
+
+    async update(id: string, transfer: IUpdateTransfer): Promise<TransferModel> {
+        const { category, ...rest } = transfer;
+
+        const categoryModel = await this.catCategoryRepository.findById(category);
+
+        const transferModel = TransferModel.create(rest);
+
+        if (categoryModel) transferModel.addCategory(categoryModel);
+
+        return this.transferRepository.update(id, transferModel);
     }
 }
