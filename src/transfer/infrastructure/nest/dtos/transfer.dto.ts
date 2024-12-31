@@ -33,3 +33,35 @@ export class CreateTransferDTO {
     category: string
 
 }
+
+export class UpdateTransferDTO {
+    @IsString()
+    @ApiPropertyOptional()
+    @IsOptional()
+    name?: string;
+
+    @IsString()
+    @ApiPropertyOptional()
+    @IsOptional()
+    description?: string;
+
+    @IsNumber()
+    @ApiPropertyOptional()
+    @IsOptional()
+    capacity?: number;
+
+    @IsString()
+    @ApiPropertyOptional()
+    @IsOptional()
+    estimatedDuration?: string;
+
+    @IsNumber()
+    @ApiPropertyOptional()
+    @IsOptional()
+    price?: number;
+
+    @IsString()
+    @ApiPropertyOptional()
+    @IsOptional()
+    category?: string
+}

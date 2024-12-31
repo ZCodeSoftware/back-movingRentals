@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
+import { TRANSFER_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
 import { TransferModel } from "../../../domain/models/transfer.model";
 import { ITransferRepository } from "../../../domain/repositories/transfer.interface.repository";
 import { TransferSchema } from "../schemas/transfer.schema";
@@ -30,5 +31,24 @@ export class TransferRepository implements ITransferRepository {
     async findAll(): Promise<TransferModel[]> {
         const transfers = await this.transferDB.find().populate('category');
         return transfers?.map(transfer => TransferModel.hydrate(transfer));
+    }
+
+    async update(id: string, transfer: TransferModel): Promise<TransferModel> {
+        const updateObject = transfer.toJSON();
+
+        const filteredUpdateObject = Object.fromEntries(
+            Object.entries(updateObject).filter(([key, value]) => {
+                if (TRANSFER_RELATIONS.includes(key)) {
+                    return value !== null && value !== undefined && typeof value === 'object' && '_id' in value;
+                }
+                return value !== null && value !== undefined;
+            })
+        );
+
+        const updatedTransfer = await this.transferDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true, omitUndefined: true }).populate('category');
+
+        if (!updatedTransfer) throw new BaseErrorException('Transfer not found', HttpStatus.NOT_FOUND);
+
+        return TransferModel.hydrate(updatedTransfer)
     }
 }
