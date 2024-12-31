@@ -48,3 +48,51 @@ export class CreateTourDTO {
     @ApiProperty()
     category: string;
 }
+
+export class UpdateTourDTO {
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    name?: string
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    description?: string;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    price?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsString()
+    itinerary?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    capacity?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    estimatedDuration?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    startDates?: string;
+
+    @IsString({ each: true })
+    @IsOptional()
+    @ApiPropertyOptional()
+    images?: string[];
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    category?: string;
+}

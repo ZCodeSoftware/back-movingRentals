@@ -4,7 +4,7 @@ import { TourModel } from "../../domain/models/tour.model";
 import { ICatCategoryRepository } from "../../domain/repositories/cat-category.interface.repository";
 import { ITourRepository } from "../../domain/repositories/tour.interface.repository";
 import { ITourService } from "../../domain/services/tour.interface.service";
-import { ICreateTour } from "../../domain/types/tour.type";
+import { ICreateTour, IUpdateTour } from "../../domain/types/tour.type";
 import SymbolsTour from "../../symbols-tour";
 
 @Injectable()
@@ -37,5 +37,16 @@ export class TourService implements ITourService {
 
     async findAll(): Promise<TourModel[]> {
         return this.tourRepository.findAll();
+    }
+
+    async update(id: string, tour: IUpdateTour): Promise<TourModel> {
+        const { category, ...rest } = tour;
+        const tourModel = TourModel.create(rest);
+
+        const categoryModel = await this.catCategoryRepository.findById(category);
+
+        if (!categoryModel) tourModel.addCategory(categoryModel);
+
+        return this.tourRepository.update(id, tourModel);
     }
 }
