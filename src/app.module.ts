@@ -12,6 +12,7 @@ import { CompanyModule } from './company/company.module';
 import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
 import { DocumentModule } from './document/document.module';
+import { ExchageRateModule } from './exchange-rate/exchange-rate.module';
 import { NotificationModule } from './notification/notification.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PriceModule } from './price/price.module';
@@ -39,7 +40,8 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     TransferModule,
     PaymentsModule,
     BookingModule,
-    CartModule
+    CartModule,
+    ExchageRateModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -42,6 +42,10 @@ export default registerAs('config', () => {
       mercadopago: {
         accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
       },
+    },
+    exchangeRate: {
+      url: process.env.EXCHANGE_RATE_URL,
+      apiKey: process.env.EXCHANGE_RATE_API_KEY,
     }
   };
 });
