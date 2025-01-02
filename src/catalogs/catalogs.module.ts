@@ -1,3 +1,4 @@
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
@@ -11,12 +12,15 @@ import {
   catPriceConditionService,
   catRoleRepository,
   catRoleService,
+  countryRepository,
+  countryService,
   userRepository,
   userService,
 } from './infrastructure/constants/custom-provider';
 import {
   cartSchema,
   categorySchema,
+  countrySchema,
   documentSchema,
   paymentMethodSchema,
   priceConditionSchema,
@@ -24,6 +28,7 @@ import {
   userSchema,
 } from './infrastructure/constants/custom-schema';
 import { CatCategoryController } from './infrastructure/nest/controllers/cat-category.controller';
+import { CatCountryController } from './infrastructure/nest/controllers/cat-country.controller';
 import { CatDocumentController } from './infrastructure/nest/controllers/cat-document.controller';
 import { CatPaymentMethodController } from './infrastructure/nest/controllers/cat-payment-method.controller';
 import { CatPriceConditionController } from './infrastructure/nest/controllers/cat-price-condition.controller';
@@ -31,6 +36,7 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
 
 @Module({
   imports: [
+    HttpModule,
     MongooseModule.forFeature([
       roleSchema,
       documentSchema,
@@ -38,7 +44,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
       priceConditionSchema,
       paymentMethodSchema,
       userSchema,
-      cartSchema
+      cartSchema,
+      countrySchema
     ]),
   ],
   controllers: [
@@ -47,6 +54,7 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     CatCategoryController,
     CatPriceConditionController,
     CatPaymentMethodController,
+    CatCountryController
   ],
   providers: [
     catRoleRepository,
@@ -61,6 +69,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     catPaymentMethodService,
     userRepository,
     userService,
+    countryRepository,
+    countryService,
   ],
   exports: [],
 })

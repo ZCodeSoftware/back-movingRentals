@@ -1,8 +1,8 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ITransferService } from "../../../domain/services/transfer.interface.service";
 import SymbolsTransfer from "../../../symbols-transfer";
-import { CreateTransferDTO } from "../dtos/transfer.dto";
+import { CreateTransferDTO, UpdateTransferDTO } from "../dtos/transfer.dto";
 
 @ApiTags('transfer')
 @Controller('transfer')
@@ -35,5 +35,14 @@ export class TransferController {
     @ApiResponse({ status: 404, description: 'Transfer not found' })
     async findById(@Param('id') id: string) {
         return this.transferService.findById(id);
+    }
+
+    @Put(':id')
+    @HttpCode(200)
+    @ApiResponse({ status: 200, description: 'Transfer updated' })
+    @ApiResponse({ status: 404, description: 'Transfer not found' })
+    @ApiBody({ type: UpdateTransferDTO, description: 'Data to update a Transfer' })
+    async update(@Param('id') id: string, @Body() body: UpdateTransferDTO) {
+        return this.transferService.update(id, body);
     }
 }
