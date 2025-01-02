@@ -4,11 +4,13 @@ import { UserService } from '../../../user/application/services/user.service';
 import { UserRepository } from '../../../user/infrastructure/mongo/repositories/user.repository';
 import SymbolsUser from '../../../user/symbols-user';
 import { CatCategoryService } from '../../application/services/cat-category.service';
+import { CatCountryService } from '../../application/services/cat-country.service';
 import { CatDocumentService } from '../../application/services/cat-document.service';
 import { CatPaymentMethodService } from '../../application/services/cat-payment-method.service';
 import { CatPriceConditionService } from '../../application/services/cat-price-condition.service';
 import SymbolsCatalogs from '../../symbols-catalogs';
 import { CatCategoryRepository } from '../mongo/repositories/cat-category.repository';
+import { CatCountryRepository } from '../mongo/repositories/cat-country.repository';
 import { CatDocumentRepository } from '../mongo/repositories/cat-document.repository';
 import { CatPaymentMethodRepository } from '../mongo/repositories/cat-payment-method.repository';
 import { CatPriceConditionRepository } from '../mongo/repositories/cat-price-condition.repository';
@@ -73,3 +75,13 @@ export const userRepository = {
   provide: SymbolsUser.IUserRepository,
   useClass: UserRepository,
 };
+
+export const countryRepository = {
+  provide: SymbolsCatalogs.ICatCountryRepository,
+  useClass: CatCountryRepository,
+}
+
+export const countryService = {
+  provide: SymbolsCatalogs.ICatCountryService,
+  useClass: CatCountryService,
+}

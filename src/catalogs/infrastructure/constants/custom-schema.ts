@@ -2,6 +2,7 @@ import {
   CatCategory,
   CatCategorySchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
+import { CatCountry, CatCountrySchema } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-country.schema';
 import {
   CatDocument,
   CatDocumentSchema,
@@ -54,4 +55,9 @@ export const userSchema = { name: User.name, schema: UserSchema };
 export const cartSchema = {
   name: Cart.name,
   schema: CartSchema
+}
+
+export const countrySchema = {
+  name: CatCountry.name,
+  schema: CatCountrySchema,
 }
