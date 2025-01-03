@@ -16,10 +16,10 @@ import { UserSchema } from '../schemas/user.schema';
 export class UserRepository implements IUserRepository {
   constructor(
     @InjectModel('User') private readonly userModel: Model<UserSchema>,
-    @InjectModel("Cart") private readonly cartDB: Model<CartSchema>,
+    @InjectModel('Cart') private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) { }
+  ) {}
 
   async create(user: UserModel): Promise<UserModel> {
     try {
@@ -27,7 +27,9 @@ export class UserRepository implements IUserRepository {
       user.addRole(userRole);
 
       // Crear el carrito vacío
-      const cartModel = CartModel.create({ travelers: { adults: 0, childrens: 0 } });
+      const cartModel = CartModel.create({
+        travelers: { adults: 0, childrens: 0 },
+      });
       const cart = await this.cartDB.create(cartModel.toJSON());
 
       if (!cart) {
@@ -51,7 +53,10 @@ export class UserRepository implements IUserRepository {
 
       return UserModel.hydrate(saved);
     } catch (error) {
-      throw new BaseErrorException(error.message, error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new BaseErrorException(
+        error.message,
+        error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -69,8 +74,13 @@ export class UserRepository implements IUserRepository {
     try {
       const found = await this.userModel
         .findById(id)
-        .populate('role')
-        .populate('documentation');
+        .populate('role documentation')
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        });
 
       if (!found) {
         throw new BaseErrorException(

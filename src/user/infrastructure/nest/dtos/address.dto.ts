@@ -1,7 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { CreateCoordsDTO } from './coords.dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateAddressDTO {
   @IsNotEmpty()
@@ -33,9 +31,4 @@ export class CreateAddressDTO {
   @ApiProperty()
   @IsString()
   postalCode: string;
-
-  @IsOptional()
-  @ApiPropertyOptional()
-  @Type(() => CreateCoordsDTO)
-  coords?: CreateCoordsDTO;
 }

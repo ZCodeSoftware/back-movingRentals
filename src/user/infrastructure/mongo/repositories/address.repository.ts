@@ -14,7 +14,6 @@ export class AddressRepository implements IAddressRepository {
 
   async create(address: AddressModel): Promise<AddressModel> {
     const schema = new this.addressDB(address.toJSON());
-
     const newAddress = await schema.save();
 
     if (!newAddress)
@@ -27,14 +26,9 @@ export class AddressRepository implements IAddressRepository {
   }
 
   async findById(id: string): Promise<AddressModel> {
-    const address = await this.addressDB.findById(id).populate('country');
+    const address = await this.addressDB.findById(id);
     if (!address)
       throw new BaseErrorException('Address not found', HttpStatus.NOT_FOUND);
     return AddressModel.hydrate(address);
-  }
-
-  async findAll(): Promise<AddressModel[]> {
-    const addresss = await this.addressDB.find().populate('country');
-    return addresss?.map((address) => AddressModel.hydrate(address));
   }
 }

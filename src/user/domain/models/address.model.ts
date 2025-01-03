@@ -1,6 +1,5 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
-import { ICoordsTypes } from '../types/coords.type';
 import { CatCountryModel } from './cat-country.model';
 
 export class AddressModel extends BaseModel {
@@ -10,7 +9,6 @@ export class AddressModel extends BaseModel {
   private _city: string;
   private _country: CatCountryModel;
   private _postalCode: string;
-  private _coords: ICoordsTypes;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -22,7 +20,6 @@ export class AddressModel extends BaseModel {
       city: this._city,
       country: this._country ? this._country.toJSON() : null,
       postalCode: this._postalCode,
-      coords: this._coords ?? null,
     };
   }
 
@@ -38,7 +35,6 @@ export class AddressModel extends BaseModel {
     newAddress._state = address.state;
     newAddress._city = address.city;
     newAddress._postalCode = address.postalCode;
-    newAddress._coords = address.coords;
 
     return newAddress;
   }
@@ -54,7 +50,6 @@ export class AddressModel extends BaseModel {
       ? CatCountryModel.hydrate(address.country)
       : null;
     newAddress._postalCode = address.postalCode;
-    newAddress._coords = address.coords ?? null;
 
     return newAddress;
   }

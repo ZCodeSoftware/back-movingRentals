@@ -1,5 +1,3 @@
-import { ICoordsTypes } from './coords.type';
-
 export interface ICreateAddress {
   street: string;
   number: string;
@@ -7,5 +5,4 @@ export interface ICreateAddress {
   city: string;
   countryId: string;
   postalCode: string;
-  coords?: ICoordsTypes;
 }

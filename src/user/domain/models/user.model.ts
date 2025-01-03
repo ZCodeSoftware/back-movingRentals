@@ -1,5 +1,6 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
+import { AddressModel } from './address.model';
 import { CatRoleModel } from './cat-role.model';
 import { DocumentModel } from './document.model';
 
@@ -14,6 +15,7 @@ export class UserModel extends BaseModel {
   private _isActive: boolean;
   private _newsletter: boolean;
   private _cart: string;
+  private _address: AddressModel;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -31,11 +33,16 @@ export class UserModel extends BaseModel {
       isActive: this._isActive,
       newsletter: this._newsletter,
       cart: this._cart,
+      address: this._address ? this._address.toJSON() : null,
     };
   }
 
   addRole(role: CatRoleModel): void {
     this._role = role;
+  }
+
+  addAddress(address: AddressModel): void {
+    this._address = address;
   }
 
   static create(user: any): UserModel {
@@ -67,6 +74,7 @@ export class UserModel extends BaseModel {
     newUser._isActive = user.isActive;
     newUser._newsletter = user.newsletter;
     newUser._cart = user.cart._id;
+    newUser._address = user.address ? AddressModel.hydrate(user.address) : null;
 
     return newUser;
   }

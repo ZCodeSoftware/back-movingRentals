@@ -19,7 +19,7 @@ export class AddressReponseDTO {
   city: string;
 
   @ApiProperty()
-  country: string;
+  countryId: string;
 
   @ApiProperty()
   postalCode: string;

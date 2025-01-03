@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import mongoose, { HydratedDocument } from 'mongoose';
+import { CatCountry } from '../catalogs/cat-country.schema';
+import { User } from './user.schema';
 
 export type AddressDocument = HydratedDocument<Address>;
 
@@ -20,8 +22,8 @@ export class Address {
   @Prop({ required: true })
   city: string;
 
-  @Prop({ required: true })
-  country: string;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatCountry' })
+  country: CatCountry;
 
   @Prop({
     type: {
@@ -34,6 +36,9 @@ export class Address {
     lat: number;
     lon: number;
   };
+
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
+  users: User[];
 }
 
 export const AddressSchema = SchemaFactory.createForClass(Address);
