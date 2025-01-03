@@ -2,6 +2,7 @@ import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
+  addressRepository,
   catCategoryRepository,
   catCategoryService,
   catDocumentRepository,
@@ -18,6 +19,7 @@ import {
   userService,
 } from './infrastructure/constants/custom-provider';
 import {
+  addressSchema,
   cartSchema,
   categorySchema,
   countrySchema,
@@ -45,7 +47,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
       paymentMethodSchema,
       userSchema,
       cartSchema,
-      countrySchema
+      countrySchema,
+      addressSchema,
     ]),
   ],
   controllers: [
@@ -54,7 +57,7 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     CatCategoryController,
     CatPriceConditionController,
     CatPaymentMethodController,
-    CatCountryController
+    CatCountryController,
   ],
   providers: [
     catRoleRepository,
@@ -71,7 +74,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     userService,
     countryRepository,
     countryService,
+    addressRepository,
   ],
   exports: [],
 })
-export class CatalogsModule { }
+export class CatalogsModule {}

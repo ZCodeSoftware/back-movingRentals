@@ -2,7 +2,14 @@ import {
   CatRole,
   CatRoleSchema,
 } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-role.schema';
-import { Cart, CartSchema } from '../../../../core/infrastructure/mongo/schemas/public/cart.schema';
+import {
+  Address,
+  AddressSchema,
+} from '../../../../core/infrastructure/mongo/schemas/public/address.schema';
+import {
+  Cart,
+  CartSchema,
+} from '../../../../core/infrastructure/mongo/schemas/public/cart.schema';
 import {
   User,
   UserSchema,
@@ -20,5 +27,10 @@ export const roleSchema = {
 
 export const cartSchema = {
   name: Cart.name,
-  schema: CartSchema
-}
+  schema: CartSchema,
+};
+
+export const addressSchema = {
+  name: Address.name,
+  schema: AddressSchema,
+};

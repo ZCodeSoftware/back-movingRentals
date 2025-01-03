@@ -1,0 +1,7 @@
+- Agregar addres al registro al resgistro del usuario.
+
+- Envio de mail tanto al usuario como admin cuando se haga una reserva.
+
+- Envio de mail para contacto de user.
+
+- Agregar pinche catalogo de lauty a address.

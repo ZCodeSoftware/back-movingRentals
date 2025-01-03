@@ -2,7 +2,10 @@ import {
   CatCategory,
   CatCategorySchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
-import { CatCountry, CatCountrySchema } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-country.schema';
+import {
+  CatCountry,
+  CatCountrySchema,
+} from '../../../core/infrastructure/mongo/schemas/catalogs/cat-country.schema';
 import {
   CatDocument,
   CatDocumentSchema,
@@ -19,7 +22,14 @@ import {
   CatRole,
   CatRoleSchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-role.schema';
-import { Cart, CartSchema } from '../../../core/infrastructure/mongo/schemas/public/cart.schema';
+import {
+  Address,
+  AddressSchema,
+} from '../../../core/infrastructure/mongo/schemas/public/address.schema';
+import {
+  Cart,
+  CartSchema,
+} from '../../../core/infrastructure/mongo/schemas/public/cart.schema';
 import {
   User,
   UserSchema,
@@ -54,10 +64,15 @@ export const userSchema = { name: User.name, schema: UserSchema };
 
 export const cartSchema = {
   name: Cart.name,
-  schema: CartSchema
-}
+  schema: CartSchema,
+};
 
 export const countrySchema = {
   name: CatCountry.name,
   schema: CatCountrySchema,
-}
+};
+
+export const addressSchema = {
+  name: Address.name,
+  schema: AddressSchema,
+};

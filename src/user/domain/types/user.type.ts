@@ -1,7 +1,10 @@
+import { ICreateAddress } from './address.type';
+
 export interface IUserCreate {
   email: string;
   password: string;
   newsletter: boolean;
+  address: ICreateAddress;
 }
 
 export interface IUserUpdate {

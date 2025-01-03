@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import mongoose, { HydratedDocument } from 'mongoose';
+import { User } from './user.schema';
 
 export type AddressDocument = HydratedDocument<Address>;
 
@@ -34,6 +35,9 @@ export class Address {
     lat: number;
     lon: number;
   };
+
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
+  users: User[];
 }
 
 export const AddressSchema = SchemaFactory.createForClass(Address);

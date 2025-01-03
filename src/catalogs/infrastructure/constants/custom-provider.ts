@@ -1,4 +1,5 @@
-
+import { AddressRepository } from '../../../address/infrastructure/mongo/repositories/address.repository';
+import SymbolsAddress from '../../../address/symbols-address';
 import { CatRoleService } from '../../../catalogs/application/services/cat-role.service';
 import { UserService } from '../../../user/application/services/user.service';
 import { UserRepository } from '../../../user/infrastructure/mongo/repositories/user.repository';
@@ -79,9 +80,14 @@ export const userRepository = {
 export const countryRepository = {
   provide: SymbolsCatalogs.ICatCountryRepository,
   useClass: CatCountryRepository,
-}
+};
 
 export const countryService = {
   provide: SymbolsCatalogs.ICatCountryService,
   useClass: CatCountryService,
-}
+};
+
+export const addressRepository = {
+  provide: SymbolsAddress.IAddressRepository,
+  useClass: AddressRepository,
+};
