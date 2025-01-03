@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
 import { BookingModel } from '../../domain/models/booking.model';
 import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
@@ -12,11 +13,18 @@ export class BookingService implements IBookingService {
   constructor(
     @Inject(SymbolsBooking.IBookingRepository)
     private readonly bookingRepository: IBookingRepository,
-    @Inject(SymbolsCatalogs.ICatPaymentMethodRepository)
-    private readonly paymentMethodRepository: ICatPaymentMethodRepository
-  ) { }
 
-  async create(booking: ICreateBooking, id: string): Promise<BookingModel> {
+    @Inject(SymbolsCatalogs.ICatPaymentMethodRepository)
+    private readonly paymentMethodRepository: ICatPaymentMethodRepository,
+
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
+
+  async create(
+    booking: ICreateBooking,
+    id: string,
+    email: string,
+  ): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
     const bookingModel = BookingModel.create(res);
 
@@ -25,7 +33,16 @@ export class BookingService implements IBookingService {
 
     bookingModel.addPaymentMethod(catPaymentMethod);
 
-    return this.bookingRepository.create(bookingModel, id);
+    const bookingSave = await this.bookingRepository.create(bookingModel, id);
+
+    if (bookingSave) {
+      this.eventEmitter.emit('send-booking.created', {
+        bookingSave,
+        userEmail: email,
+      });
+    }
+
+    return bookingSave;
   }
 
   async findById(id: string): Promise<BookingModel> {

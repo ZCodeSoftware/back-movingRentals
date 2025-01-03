@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common/decorators/modules';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   bookingRepository,
@@ -17,6 +18,7 @@ import { BookingController } from './infrastructure/nest/controllers/booking.con
 @Module({
   imports: [
     MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema]),
+    EventEmitterModule.forRoot(),
   ],
   controllers: [BookingController],
   providers: [
