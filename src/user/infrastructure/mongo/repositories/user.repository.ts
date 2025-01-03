@@ -74,7 +74,13 @@ export class UserRepository implements IUserRepository {
     try {
       const found = await this.userModel
         .findById(id)
-        .populate('role documentation address');
+        .populate('role documentation')
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        });
 
       if (!found) {
         throw new BaseErrorException(

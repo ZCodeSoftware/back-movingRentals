@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common/decorators/modules';
 import { MongooseModule } from '@nestjs/mongoose';
+import { countryRepository } from '../catalogs/infrastructure/constants/custom-provider';
+import { countrySchema } from '../catalogs/infrastructure/constants/custom-schema';
 import {
   addressRepository,
   catRoleRepository,
@@ -21,6 +23,7 @@ import { UserController } from './infrastructure/nest/controllers/user.controlle
       roleSchema,
       cartSchema,
       addressSchema,
+      countrySchema,
     ]),
   ],
   controllers: [UserController],
@@ -29,6 +32,7 @@ import { UserController } from './infrastructure/nest/controllers/user.controlle
     userRepository,
     catRoleRepository,
     addressRepository,
+    countryRepository,
   ],
 })
 export class UserModule {}
