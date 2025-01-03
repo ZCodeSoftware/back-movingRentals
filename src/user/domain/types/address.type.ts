@@ -3,6 +3,6 @@ export interface ICreateAddress {
   number: string;
   state: string;
   city: string;
-  country: string;
+  countryId: string;
   postalCode: string;
 }

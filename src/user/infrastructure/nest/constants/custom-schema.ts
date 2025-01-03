@@ -1,4 +1,8 @@
 import {
+  CatCountry,
+  CatCountrySchema,
+} from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-country.schema';
+import {
   CatRole,
   CatRoleSchema,
 } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-role.schema';
@@ -33,4 +37,9 @@ export const cartSchema = {
 export const addressSchema = {
   name: Address.name,
   schema: AddressSchema,
+};
+
+export const countrySchema = {
+  name: CatCountry.name,
+  schema: CatCountrySchema,
 };

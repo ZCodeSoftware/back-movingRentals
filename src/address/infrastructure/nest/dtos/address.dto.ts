@@ -27,7 +27,7 @@ export class CreateAddressDTO {
   @IsNotEmpty()
   @ApiProperty()
   @IsString()
-  country: string;
+  countryId: string;
 
   @IsNotEmpty()
   @ApiProperty()
