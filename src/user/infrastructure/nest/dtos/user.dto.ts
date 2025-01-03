@@ -8,10 +8,12 @@ import {
   Matches,
 } from 'class-validator';
 
+import { Type } from 'class-transformer';
 import {
   ONLY_LETTERS_REGEX,
   PASSWORD_REGEX,
 } from '../../../../core/domain/utils/regex/regex.utils';
+import { CreateAddressDTO } from './address.dto';
 
 export class CreateUserDTO {
   @IsEmail()
@@ -32,6 +34,11 @@ export class CreateUserDTO {
   @ApiProperty()
   @IsNotEmpty({ message: 'The user newsletter is required' })
   newsletter: boolean;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  @Type(() => CreateAddressDTO)
+  address: CreateAddressDTO;
 }
 
 export class UpdateUserDTO {
