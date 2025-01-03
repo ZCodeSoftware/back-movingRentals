@@ -27,7 +27,7 @@ export class BookingController {
     private readonly bookingService: IBookingService,
     @Inject(SymbolsUser.IUserService)
     private readonly userService: IUserService,
-  ) { }
+  ) {}
 
   @Post()
   @HttpCode(201)
@@ -36,8 +36,8 @@ export class BookingController {
   @ApiBody({ type: CreateBookingDTO, description: 'Data to create a Booking' })
   @UseGuards(AuthGuards)
   async create(@Body() body: CreateBookingDTO, @Req() req: IUserRequest) {
-    const { _id } = req.user;
-    return this.bookingService.create(body, _id);
+    const { _id, email } = req.user;
+    return this.bookingService.create(body, _id, email);
   }
 
   @Get()
@@ -64,7 +64,6 @@ export class BookingController {
   async findById(@Param('id') id: string) {
     return this.bookingService.findById(id);
   }
-
 
   @Post('/user')
   @HttpCode(201)
