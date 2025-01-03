@@ -7,19 +7,19 @@ export type AddressDocument = HydratedDocument<Address>;
 
 @Schema({ collection: 'address', timestamps: true })
 export class Address {
-  @Prop({ required: true })
+  @Prop({ required: false })
   street: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   number: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   state: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   postalCode: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   city: string;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatCountry' })
