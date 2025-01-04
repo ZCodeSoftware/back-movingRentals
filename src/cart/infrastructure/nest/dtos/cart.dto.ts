@@ -48,4 +48,10 @@ export class UpdateCartDTO {
         tour: string;
         date: Date;
     }[];
+
+    @ApiProperty()
+    selectedTickets: {
+        ticket: string;
+        date: Date;
+    }[];
 }

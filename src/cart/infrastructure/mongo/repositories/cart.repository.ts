@@ -42,7 +42,14 @@ export class CartRepository implements ICartRepository {
                     path: 'category',
                     model: 'CatCategory'
                 }
-            });
+            })
+            .populate({
+                path: 'tickets.ticket',
+                populate: {
+                    path: 'category',
+                    model: 'CatCategory'
+                }
+            })
         if (!cart) throw new BaseErrorException('Cart not found', HttpStatus.NOT_FOUND);
         return CartModel.hydrate(cart);
     }

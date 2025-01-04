@@ -1,12 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
 import SymbolsBranches from "../../../branches/symbols-branches";
 import { BaseErrorException } from "../../../core/domain/exceptions/base.error.exception";
+import SymbolsTicket from "../../../ticket/symbols-ticket";
 import SymbolsTour from "../../../tour/symbols-tour";
 import SymbolsTransfer from "../../../transfer/symbols-transfer";
 import SymbolsVehicle from "../../../vehicle/symbols-vehicle";
 import { CartModel } from "../../domain/models/cart.model";
 import { IBranchesRepository } from "../../domain/repositories/branches.interface.repository";
 import { ICartRepository } from "../../domain/repositories/cart.interface.repository";
+import { ITicketRepository } from "../../domain/repositories/ticket.interface.repository";
 import { ITourRepository } from "../../domain/repositories/tour.interface.repository";
 import { ITransferRepository } from "../../domain/repositories/transfer.interface.repository";
 import { IVehicleRepository } from "../../domain/repositories/vehicle.interface.repository";
@@ -27,10 +29,12 @@ export class CartService implements ICartService {
         private readonly vehicleRepository: IVehicleRepository,
         @Inject(SymbolsTransfer.ITransferRepository)
         private readonly transferRepository: ITransferRepository,
+        @Inject(SymbolsTicket.ITicketRepository)
+        private readonly ticketRepository: ITicketRepository,
     ) { }
 
     async update(id: string, data: UpdateCartDTO): Promise<CartModel> {
-        const { branch, transfer, selectedItems, selectedTours, ...rest } = data;
+        const { branch, transfer, selectedItems, selectedTours, selectedTickets, ...rest } = data;
 
         const branchModel = branch && branch !== "" && await this.branchesRepository.findById(branch);
 
@@ -45,6 +49,12 @@ export class CartService implements ICartService {
                 tour: tourModel,
                 date: t.date
             };
+        }))
+
+        const tickets = selectedTickets && await Promise.all(selectedTickets?.map(async (t) => {
+            const ticketModel = await this.ticketRepository.findById(t.ticket);
+            if (!ticketModel) throw new BaseErrorException('Ticket not found', 404);
+            return { ticket: ticketModel, date: t.date };
         }))
 
         const vehicles = selectedItems && await Promise.all(selectedItems?.map(async (i) => {
@@ -67,6 +77,7 @@ export class CartService implements ICartService {
             tours: tours ?? [],
             vehicles: vehicles ?? [],
             transfer: transfers ?? [],
+            tickets: tickets ?? [],
             ...rest
         });
 
