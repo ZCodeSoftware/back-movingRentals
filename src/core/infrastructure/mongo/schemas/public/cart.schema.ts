@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import mongoose, { HydratedDocument } from "mongoose";
 import { DatesDTO } from "../../../../../cart/infrastructure/nest/dtos/cart.dto";
 import { Branches } from "./branches.schema";
+import { Ticket } from "./ticket.schema";
 import { Tour } from "./tour.schema";
 import { Transfer } from "./transfer.schema";
 import { Vehicle } from "./vehicle.schema";
@@ -51,6 +52,17 @@ export class Cart {
     })
     tours: {
         tour: Tour,
+        date: Date
+    }[];
+
+    @Prop({
+        type: [{
+            ticket: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
+            date: Date
+        }]
+    })
+    tickets: {
+        ticket: Ticket,
         date: Date
     }[];
 

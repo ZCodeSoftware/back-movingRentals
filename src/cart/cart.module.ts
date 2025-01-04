@@ -4,6 +4,7 @@ import {
   branchesRepository,
   cartRepository,
   cartService,
+  ticketRepository,
   tourRepository,
   transferRepository,
   vehicleRepository,
@@ -12,6 +13,7 @@ import {
   branchesSchema,
   cartSchema,
   catCategorySchema,
+  ticketSchema,
   tourSchema,
   transferSchema,
   vehicleSchema
@@ -19,9 +21,9 @@ import {
 import { CartController } from './infrastructure/nest/controllers/cart.controller';
 
 @Module({
-  imports: [MongooseModule.forFeature([cartSchema, branchesSchema, tourSchema, catCategorySchema, vehicleSchema, transferSchema])],
+  imports: [MongooseModule.forFeature([cartSchema, branchesSchema, tourSchema, catCategorySchema, vehicleSchema, transferSchema, ticketSchema])],
   controllers: [CartController],
-  providers: [cartService, cartRepository, branchesRepository, tourRepository, vehicleRepository, transferRepository],
+  providers: [cartService, cartRepository, branchesRepository, tourRepository, vehicleRepository, transferRepository, ticketRepository],
   exports: []
 })
 export class CartModule { }
