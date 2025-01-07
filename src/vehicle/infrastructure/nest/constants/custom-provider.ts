@@ -3,6 +3,7 @@ import SymbolsVehicleOwner from '../../../../vehicleowner/symbols-vehicleowner';
 import { VehicleService } from '../../../application/services/vehicle.service';
 import SymbolsVehicle from '../../../symbols-vehicle';
 import { CatCategoryRepository } from '../../mongo/repositories/cat-category.repository';
+import { CatModelRepository } from '../../mongo/repositories/cat-model.repository';
 import { VehicleRepository } from '../../mongo/repositories/vehicle.repository';
 import { VehicleOwnerRepository } from '../../mongo/repositories/vehicleowner.repository';
 
@@ -24,4 +25,9 @@ export const catCategoryRepository = {
 export const vehicleOwnerRepository = {
   provide: SymbolsVehicleOwner.IVehicleOwnerRepository,
   useClass: VehicleOwnerRepository,
+}
+
+export const modelRepository = {
+  provide: SymbolsCatalogs.ICatModelRepository,
+  useClass: CatModelRepository,
 }

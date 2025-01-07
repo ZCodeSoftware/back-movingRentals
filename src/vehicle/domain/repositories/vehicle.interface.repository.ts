@@ -1,3 +1,4 @@
+import { UpdatePriceByModelDTO } from "../../infrastructure/nest/dtos/vehicle.dto";
 import { VehicleModel } from "../models/vehicle.model";
 
 export interface IVehicleRepository {
@@ -5,4 +6,5 @@ export interface IVehicleRepository {
     findById(id: string): Promise<VehicleModel>;
     findAll(): Promise<VehicleModel[]>;
     update(id: string, vehicle: VehicleModel): Promise<VehicleModel>
+    updatePriceByModel(model: string, prices: UpdatePriceByModelDTO): Promise<void>
 }

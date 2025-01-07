@@ -10,6 +10,7 @@ import {
   CatDocument,
   CatDocumentSchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-document.schema';
+import { CatModel, CatModelSchema } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-model.schema';
 import {
   CatPaymentMethod,
   CatPaymentMethodSchema,
@@ -76,3 +77,8 @@ export const addressSchema = {
   name: Address.name,
   schema: AddressSchema,
 };
+
+export const catModelSchema = {
+  name: CatModel.name,
+  schema: CatModelSchema,
+}

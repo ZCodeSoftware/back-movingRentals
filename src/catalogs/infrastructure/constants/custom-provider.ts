@@ -7,6 +7,7 @@ import SymbolsUser from '../../../user/symbols-user';
 import { CatCategoryService } from '../../application/services/cat-category.service';
 import { CatCountryService } from '../../application/services/cat-country.service';
 import { CatDocumentService } from '../../application/services/cat-document.service';
+import { CatModelService } from '../../application/services/cat-model.service';
 import { CatPaymentMethodService } from '../../application/services/cat-payment-method.service';
 import { CatPriceConditionService } from '../../application/services/cat-price-condition.service';
 import SymbolsCatalogs from '../../symbols-catalogs';
@@ -16,6 +17,7 @@ import { CatDocumentRepository } from '../mongo/repositories/cat-document.reposi
 import { CatPaymentMethodRepository } from '../mongo/repositories/cat-payment-method.repository';
 import { CatPriceConditionRepository } from '../mongo/repositories/cat-price-condition.repository';
 import { CatRoleRepository } from '../mongo/repositories/cat-role.repository';
+import { CatModelRepository } from '../mongo/repositories/cat.model.repository';
 
 export const catRoleRepository = {
   provide: SymbolsCatalogs.ICatRoleRepository,
@@ -91,3 +93,13 @@ export const addressRepository = {
   provide: SymbolsAddress.IAddressRepository,
   useClass: AddressRepository,
 };
+
+export const catModelRepository = {
+  provide: SymbolsCatalogs.ICatModelRepository,
+  useClass: CatModelRepository,
+}
+
+export const catModelService = {
+  provide: SymbolsCatalogs.ICatModelService,
+  useClass: CatModelService,
+}
