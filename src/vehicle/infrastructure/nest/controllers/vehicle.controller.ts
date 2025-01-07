@@ -4,7 +4,7 @@ import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.gua
 import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
 import { IVehicleService } from "../../../domain/services/vehicle.interface.service";
 import SymbolsVehicle from "../../../symbols-vehicle";
-import { CreateVehicleDTO, UpdateVehicleDTO } from "../dtos/vehicle.dto";
+import { CreateVehicleDTO, UpdatePriceByModelDTO, UpdateVehicleDTO } from "../dtos/vehicle.dto";
 
 @ApiTags('vehicle')
 @Controller('vehicle')
@@ -37,6 +37,15 @@ export class VehicleController {
     @ApiResponse({ status: 404, description: 'Vehicle not found' })
     async findById(@Param('id') id: string) {
         return this.vehicleService.findById(id);
+    }
+
+    @Put('model/:model')
+    @HttpCode(200)
+    @ApiResponse({ status: 200, description: 'Return Vehicle updated by model id' })
+    @ApiResponse({ status: 404, description: 'Vehicle not found' })
+    @UseGuards(AuthGuards, RoleGuards)
+    async updateByModel(@Param('model') id: string, @Body() prices: UpdatePriceByModelDTO) {
+        return this.vehicleService.updateByModel(id, prices);
     }
 
     @Put(':id')

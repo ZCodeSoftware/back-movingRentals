@@ -11,6 +11,8 @@ const SymbolsCatalogs = {
   ICatPaymentMethodService: Symbol.for('ICatPaymentMethodService'),
   ICatCountryRepository: Symbol.for('ICatCountryRepository'),
   ICatCountryService: Symbol.for('ICatCountryService'),
+  ICatModelRepository: Symbol.for('ICatModelRepository'),
+  ICatModelService: Symbol.for('ICatModelService'),
 };
 
 export default SymbolsCatalogs;

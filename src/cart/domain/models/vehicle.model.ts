@@ -6,6 +6,7 @@ export class VehicleModel extends BaseModel {
   private _name: string;
   private _description?: string;
   private _images: string[];
+  private _model?: string;
   private _price?: number;
   private _pricePer4?: number;
   private _pricePer8?: number;
@@ -21,6 +22,7 @@ export class VehicleModel extends BaseModel {
       name: this._name,
       description: this._description,
       images: this._images,
+      model: this._model,
       price: this._price,
       pricePer4: this._pricePer4,
       pricePer8: this._pricePer8,
@@ -36,6 +38,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._name = vehicle.name;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images
+    newVehicle._model = vehicle.model;
     newVehicle._price = vehicle.price;
     newVehicle._pricePer4 = vehicle.pricePer4;
     newVehicle._pricePer8 = vehicle.pricePer8;
@@ -51,6 +54,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._name = vehicle.name;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
+    newVehicle._model = vehicle.model;
     newVehicle._price = vehicle.price;
     newVehicle._pricePer4 = vehicle.pricePer4;
     newVehicle._pricePer8 = vehicle.pricePer8;

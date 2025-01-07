@@ -5,6 +5,7 @@ import { BaseErrorException } from "../../../../core/domain/exceptions/base.erro
 import { VEHICLE_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
 import { VehicleModel } from "../../../domain/models/vehicle.model";
 import { IVehicleRepository } from "../../../domain/repositories/vehicle.interface.repository";
+import { UpdatePriceByModelDTO } from "../../nest/dtos/vehicle.dto";
 import { VehicleSchema } from "../schemas/vehicle.schema";
 
 @Injectable()
@@ -23,13 +24,13 @@ export class VehicleRepository implements IVehicleRepository {
     }
 
     async findById(id: string): Promise<VehicleModel> {
-        const vehicle = await this.vehicleDB.findById(id).populate('category').populate('owner');
+        const vehicle = await this.vehicleDB.findById(id).populate('category').populate('owner').populate('model');
         if (!vehicle) throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
         return VehicleModel.hydrate(vehicle);
     }
 
     async findAll(): Promise<VehicleModel[]> {
-        const vehicles = await this.vehicleDB.find().populate('category').populate('owner');
+        const vehicles = await this.vehicleDB.find().populate('category').populate('owner').populate('model');
         return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
     }
 
@@ -45,10 +46,14 @@ export class VehicleRepository implements IVehicleRepository {
             })
         );
 
-        const updatedVehicle = await this.vehicleDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true, omitUndefined: true }).populate('category').populate('owner');
+        const updatedVehicle = await this.vehicleDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true, omitUndefined: true }).populate('category').populate('owner').populate('model');
 
         if (!updatedVehicle) throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
 
         return VehicleModel.hydrate(updatedVehicle);
+    }
+
+    async updatePriceByModel(model: string, prices: UpdatePriceByModelDTO): Promise<void> {
+        await this.vehicleDB.updateMany({ model }, { $set: prices });
     }
 }

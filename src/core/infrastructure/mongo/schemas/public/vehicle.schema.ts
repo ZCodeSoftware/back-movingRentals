@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import mongoose, { HydratedDocument } from "mongoose";
 import { CatCategory } from "../catalogs/cat-category.schema";
+import { CatModel } from "../catalogs/cat-model.schema";
 import { VehicleOwner } from "./vehicle-owner.schema";
 
 export type VehicleDocument = HydratedDocument<Vehicle>;
@@ -18,6 +19,7 @@ export class Vehicle {
 
     @Prop({ required: false })
     images: string[];
+
 
     @Prop({ required: false })
     price: number;
@@ -42,6 +44,9 @@ export class Vehicle {
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'VehicleOwner' })
     owner: VehicleOwner;
+
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatModel' })
+    model: CatModel;
 }
 
 export const VehicleSchema = SchemaFactory.createForClass(Vehicle);
