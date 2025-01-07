@@ -1,6 +1,7 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { CatCategoryModel } from './cat-category.model';
+import { CatModelModel } from './cat-model.model';
 import { VehicleOwnerModel } from './vehicleowner.model';
 
 export class VehicleModel extends BaseModel {
@@ -16,6 +17,7 @@ export class VehicleModel extends BaseModel {
   private _minRentalHours: number;
   private _category: CatCategoryModel;
   private _owner: VehicleOwnerModel;
+  private _model: CatModelModel
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -33,6 +35,7 @@ export class VehicleModel extends BaseModel {
       minRentalHours: this._minRentalHours,
       category: this._category ? this._category.toJSON() : {},
       owner: this._owner ? this._owner.toJSON() : {},
+      model: this._model ? this._model.toJSON() : {},
     };
   }
 
@@ -42,6 +45,10 @@ export class VehicleModel extends BaseModel {
 
   addOwner(owner: VehicleOwnerModel) {
     this._owner = owner;
+  }
+
+  addModel(model: CatModelModel) {
+    this._model = model;
   }
 
   static create(vehicle: any): VehicleModel {
@@ -66,6 +73,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._tag = vehicle.tag;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
+    newVehicle._model = vehicle.model;
     newVehicle._price = vehicle.price;
     newVehicle._pricePer4 = vehicle.pricePer4;
     newVehicle._pricePer8 = vehicle.pricePer8;
@@ -74,6 +82,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._minRentalHours = vehicle.minRentalHours;
     newVehicle._category = vehicle.category ? CatCategoryModel.hydrate(vehicle.category) : null;
     newVehicle._owner = vehicle.owner ? VehicleOwnerModel.hydrate(vehicle.owner) : null;
+    newVehicle._model = vehicle.model ? CatModelModel.hydrate(vehicle.model) : null;
 
     return newVehicle;
   }

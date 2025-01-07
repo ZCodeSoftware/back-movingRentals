@@ -11,6 +11,7 @@ export interface ICreateVehicle {
     capacity: number;
     category: string;
     owner: string;
+    model: string;
 };
 
 export interface IUpdateVehicle {
@@ -26,4 +27,12 @@ export interface IUpdateVehicle {
     capacity?: number;
     category?: string;
     owner?: string;
+    model?: string;
+}
+
+export interface IUpdatePriceByModel {
+    price?: number;
+    pricePer4?: number;
+    pricePer8?: number;
+    pricePer24?: number;
 }

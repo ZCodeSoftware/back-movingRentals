@@ -1,4 +1,4 @@
-export const VEHICLE_RELATIONS = ["owner", "category"];
+export const VEHICLE_RELATIONS = ["owner", "category", "model"];
 
 export const TOUR_RELATIONS = ["category"];
 
