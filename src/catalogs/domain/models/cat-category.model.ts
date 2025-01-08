@@ -3,7 +3,8 @@ import { Identifier } from '../../../core/domain/value-objects/identifier';
 
 export class CatCategoryModel extends BaseModel {
     private _name: string;
-    private _disclaimer: string;
+    private _disclaimerEn: string;
+    private _disclaimerEs: string;
     private _image: string;
 
     public toJSON() {
@@ -11,7 +12,8 @@ export class CatCategoryModel extends BaseModel {
         return {
             ...aggregate,
             name: this._name,
-            disclaimer: this._disclaimer,
+            disclaimerEn: this._disclaimerEn,
+            disclaimerEs: this._disclaimerEs,
             image: this._image
         };
     }
@@ -19,7 +21,8 @@ export class CatCategoryModel extends BaseModel {
     private static initializeRole(category: any): CatCategoryModel {
         const newRole = new CatCategoryModel(new Identifier(category._id));
         newRole._name = category.name;
-        newRole._disclaimer = category.disclaimer;
+        newRole._disclaimerEn = category.disclaimerEn;
+        newRole._disclaimerEs = category.disclaimerEs;
         newRole._image = category.image;
         return newRole;
     }
