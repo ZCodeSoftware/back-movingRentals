@@ -38,4 +38,24 @@ export class CatModelRepository implements ICatModelRepository {
 
         return CatModelModel.hydrate(saved);
     }
+
+    async update(id: string, catModel: CatModelModel): Promise<CatModelModel> {
+        const updateObject = catModel.toJSON();
+
+        const filteredUpdateObject = Object.fromEntries(
+            Object.entries(updateObject).filter(([key, value]) => {
+                return value !== null && value !== undefined;
+            })
+        );
+        const updated = await this.catModelDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true });
+
+        if (!updated) {
+            throw new BaseErrorException(
+                `Model shouldn't be updated`,
+                HttpStatus.BAD_REQUEST,
+            );
+        }
+
+        return CatModelModel.hydrate(updated);
+    }
 }

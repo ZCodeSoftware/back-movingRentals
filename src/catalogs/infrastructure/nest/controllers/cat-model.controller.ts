@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
+import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
 import { ICatModelService } from "../../../domain/services/cat-model.interface.service";
 import SymbolsCatalogs from "../../../symbols-catalogs";
-import { CreateModelDTO } from "../dtos/cat-model.dto";
+import { CreateModelDTO, UpdateModelDTO } from "../dtos/cat-model.dto";
 
 @Controller('cat-model')
 @ApiTags('Cat Model')
@@ -34,5 +36,15 @@ export class CatModelController {
     @ApiBody({ type: CreateModelDTO, description: 'Data to create a model' })
     async create(@Body() body: CreateModelDTO) {
         return this.catModelService.create(body);
+    }
+
+    @Put(':id')
+    @HttpCode(200)
+    @ApiResponse({ status: 200, description: 'Model updated' })
+    @ApiResponse({ status: 400, description: `Model shouldn't be updated` })
+    @ApiBody({ type: UpdateModelDTO, description: 'Data to update a model' })
+    @UseGuards(AuthGuards, RoleGuards)
+    async update(@Param('id') id: string, @Body() body: UpdateModelDTO) {
+        return this.catModelService.update(id, body);
     }
 }
