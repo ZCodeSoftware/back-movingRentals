@@ -9,7 +9,10 @@ export class CatCategory {
     name: string;
 
     @Prop({ type: String, required: false })
-    disclaimer?: string;
+    disclaimerEn?: string;
+
+    @Prop({ type: String, required: false })
+    disclaimerEs?: string;
 
     @Prop({ type: String, required: false })
     image?: string;
