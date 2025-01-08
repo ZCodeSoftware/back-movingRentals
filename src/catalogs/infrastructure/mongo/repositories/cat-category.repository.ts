@@ -44,4 +44,24 @@ export class CatCategoryRepository implements ICatCategoryRepository {
 
         return CatCategoryModel.hydrate(saved);
     }
+
+    async update(id: string, catCategory: CatCategoryModel): Promise<CatCategoryModel> {
+        const updateObject = catCategory.toJSON();
+
+        const filteredUpdateObject = Object.fromEntries(
+            Object.entries(updateObject).filter(([key, value]) => {
+                return value !== null && value !== undefined;
+            })
+        );
+        const updated = await this.catCategoryDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true });
+
+        if (!updated) {
+            throw new BaseErrorException(
+                `Category shouldn't be updated`,
+                HttpStatus.BAD_REQUEST,
+            );
+        }
+
+        return CatCategoryModel.hydrate(updated);
+    }
 }

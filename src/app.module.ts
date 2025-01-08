@@ -16,6 +16,7 @@ import { ExchageRateModule } from './exchange-rate/exchange-rate.module';
 import { NotificationModule } from './notification/notification.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PriceModule } from './price/price.module';
+import { TicketModule } from './ticket/ticket.module';
 import { TourModule } from './tour/tour.module';
 import { TransferModule } from './transfer/transfer.module';
 import { UserModule } from './user/user.module';
@@ -41,7 +42,8 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     PaymentsModule,
     BookingModule,
     CartModule,
-    ExchageRateModule
+    ExchageRateModule,
+    TicketModule
   ],
   controllers: [AppController],
   providers: [AppService],

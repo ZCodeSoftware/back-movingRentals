@@ -2,6 +2,7 @@ import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { DatesDTO } from '../../infrastructure/nest/dtos/cart.dto';
 import { BranchesModel } from './branches.model';
+import { TicketModel } from './ticket.model';
 import { TourModel } from './tour.model';
 import { TransferModel } from './transfer.model';
 import { VehicleModel } from './vehicle.model';
@@ -12,6 +13,7 @@ export class CartModel extends BaseModel {
   private _vehicles: { vehicle: VehicleModel, total: number, dates: DatesDTO }[];
   private _tours: { tour: TourModel, date: Date }[];
   private _travelers: { adults: number; childrens: number };
+  private _tickets: { ticket: TicketModel, date: Date }[];
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -25,6 +27,7 @@ export class CartModel extends BaseModel {
       vehicles: this._vehicles ? this._vehicles.map((v) => ({ vehicle: v.vehicle.toJSON(), total: v.total, dates: v.dates })) : [],
       tours: this._tours ? this._tours.map((t) => ({ tour: t.tour.toJSON(), date: t.date })) : [],
       travelers: this._travelers,
+      tickets: this._tickets ? this._tickets.map((t) => ({ ticket: t.ticket.toJSON(), date: t.date })) : []
     };
   }
 
@@ -41,6 +44,7 @@ export class CartModel extends BaseModel {
     newCart._transfer = cart.transfer ? cart.transfer.map((t) => ({ transfer: TransferModel.hydrate(t.transfer), date: t.date })) : [];
     newCart._vehicles = cart.vehicles ? cart.vehicles.map((v) => ({ vehicle: VehicleModel.hydrate(v.vehicle), total: v.total, dates: v.dates })) : [];
     newCart._tours = cart.tours ? cart.tours.map((t) => ({ tour: TourModel.hydrate(t.tour), date: t.date })) : [];
+    newCart._tickets = cart.tickets ? cart.tickets.map((t) => ({ ticket: TicketModel.hydrate(t.ticket), date: t.date })) : [];
     newCart._travelers = cart.travelers;
     return newCart;
   }

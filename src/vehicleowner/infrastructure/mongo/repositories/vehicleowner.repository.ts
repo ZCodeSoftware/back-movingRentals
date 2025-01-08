@@ -31,4 +31,16 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         const vehicleowners = await this.vehicleownerDB.find();
         return vehicleowners?.map(vehicleowner => VehicleOwnerModel.hydrate(vehicleowner));
     }
+
+    async update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {
+        const updateObject = vehicleowner.toJSON();
+        const filteredUpdateObject = Object.fromEntries(
+            Object.entries(updateObject).filter(([key, value]) => value !== null && value !== undefined)
+        );
+        const updated = await this.vehicleownerDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true });
+
+        if (!updated) throw new BaseErrorException(`VehicleOwner shouldn't be updated`, HttpStatus.BAD_REQUEST);
+
+        return VehicleOwnerModel.hydrate(updated);
+    }
 }

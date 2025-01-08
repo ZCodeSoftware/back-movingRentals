@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
+import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
 import { ICatCategoryService } from "../../../domain/services/cat-category.interface.service";
 import SymbolsCatalogs from "../../../symbols-catalogs";
-import { CreateCategoryDTO } from "../dtos/cat-category.dto";
+import { CreateCategoryDTO, UpdateCategoryDTO } from "../dtos/cat-category.dto";
 
 @ApiTags('Cat Category')
 @Controller('cat-category')
@@ -40,5 +42,15 @@ export class CatCategoryController {
     @ApiBody({ type: CreateCategoryDTO, description: 'Data to create a category' })
     async create(@Body() body: CreateCategoryDTO) {
         return this.catCategoryService.create(body);
+    }
+
+    @Put(':id')
+    @HttpCode(200)
+    @ApiResponse({ status: 200, description: 'Category updated' })
+    @ApiResponse({ status: 400, description: `Category shouldn't be updated` })
+    @ApiBody({ type: UpdateCategoryDTO, description: 'Data to update a category' })
+    @UseGuards(AuthGuards, RoleGuards)
+    async update(@Param("id") id: string, @Body() body: UpdateCategoryDTO) {
+        return this.catCategoryService.update(id, body);
     }
 }

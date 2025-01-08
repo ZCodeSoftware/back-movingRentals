@@ -1,10 +1,24 @@
-import config from '../../../../config';
-import { Resend } from 'resend';
-import { IAdminEmailAdapter } from '../../../../notification/domain/adapter/admin-email.interface.adapter';
-import { lowStockReportTemplate } from './low-stock-report.template';
 import { InternalServerErrorException } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
+import { BookingModel } from '../../../../booking/domain/models/booking.model';
+import config from '../../../../config';
+import { IAdminEmailAdapter } from '../../../../notification/domain/adapter/admin-email.interface.adapter';
+import { generateAdminBookingHtml } from './admin-booking-content.template';
+import { lowStockReportTemplate } from './low-stock-report.template';
 
 export class AdminEmailProvider implements IAdminEmailAdapter {
+  private readonly transporter: nodemailer.Transporter;
+
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: config().providerEmail.nodemailer.auth.user,
+        pass: config().providerEmail.nodemailer.auth.pass,
+      },
+    });
+  }
   async reservationAdminEmail(email: string, adminName: string): Promise<any> {
     try {
       const resend = new Resend(config().providerEmail.resend.apyKey);
@@ -19,6 +33,23 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
       if (error) throw new Error('error');
 
       return data;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendAdminBookingCreated(booking: BookingModel): Promise<any> {
+    try {
+      const htmlContent = generateAdminBookingHtml(booking);
+
+      const message = {
+        from: `"Moving" <${config().business.contact_email}>`,
+        to: config().business.contact_email,
+        subject: 'Nueva Reserva',
+        html: htmlContent,
+      };
+
+      return await this.transporter.sendMail(message);
     } catch (error) {
       throw new InternalServerErrorException(error.message);
     }

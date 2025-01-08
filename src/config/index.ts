@@ -20,15 +20,13 @@ export default registerAs('config', () => {
       },
     },
     business: {
-      email: process.env.BUSINESS_EMAIL,
+      contact_email: process.env.BUSINESS_CONTACT_EMAIL,
     },
     mongo: {
       mongo_uri: process.env.MONGO_URI,
     },
     providerEmail: {
       nodemailer: {
-        host: process.env.NODEMAILER_HOST,
-        port: process.env.NODEMAILER_PORT,
         auth: {
           user: process.env.NODEMAILER_USER,
           pass: process.env.NODEMAILER_PASSWORD,
@@ -46,6 +44,6 @@ export default registerAs('config', () => {
     exchangeRate: {
       url: process.env.EXCHANGE_RATE_URL,
       apiKey: process.env.EXCHANGE_RATE_API_KEY,
-    }
+    },
   };
 });

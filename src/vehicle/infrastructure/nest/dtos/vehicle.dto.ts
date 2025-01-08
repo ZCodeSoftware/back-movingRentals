@@ -61,6 +61,11 @@ export class CreateVehicleDTO {
     @IsNotEmpty()
     @ApiProperty()
     owner: string;
+
+    @IsString()
+    @IsNotEmpty()
+    @ApiProperty()
+    model: string;
 }
 
 
@@ -124,4 +129,31 @@ export class UpdateVehicleDTO {
     @IsOptional()
     @ApiPropertyOptional()
     owner?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    model?: string;
+}
+
+export class UpdatePriceByModelDTO {
+    @IsNumber()
+    @IsOptional()
+    @ApiPropertyOptional()
+    price?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @ApiPropertyOptional()
+    pricePer4?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @ApiPropertyOptional()
+    pricePer8?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @ApiPropertyOptional()
+    pricePer24?: number;
 }

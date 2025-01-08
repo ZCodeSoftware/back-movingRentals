@@ -3,21 +3,24 @@ import { Identifier } from '../../../core/domain/value-objects/identifier';
 
 export class CatCategoryModel extends BaseModel {
     private _name: string;
-    private _disclaimer: string;
+    private _disclaimerEn: string;
+    private _disclaimerEs: string;
 
     public toJSON() {
         const aggregate = this._id ? { _id: this._id.toValue() } : {};
         return {
             ...aggregate,
             name: this._name,
-            disclaimer: this._disclaimer,
+            disclaimerEn: this._disclaimerEn,
+            disclaimerEs: this._disclaimerEs,
         };
     }
 
     private static initializeCategory(category: any): CatCategoryModel {
         const newCategory = new CatCategoryModel(new Identifier(category._id));
         newCategory._name = category.name;
-        newCategory._disclaimer = category.disclaimer;
+        newCategory._disclaimerEn = category.disclaimerEn;
+        newCategory._disclaimerEs = category.disclaimerEs;
         return newCategory;
     }
 

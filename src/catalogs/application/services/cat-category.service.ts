@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { CatCategoryModel } from "../../domain/models/cat-category.model";
 import { ICatCategoryRepository } from "../../domain/repositories/cat-category.interface.repository";
 import { ICatCategoryService } from "../../domain/services/cat-category.interface.service";
-import { ICreateCategory } from "../../domain/types/cat-category.type";
+import { ICreateCategory, IUpdateCategory } from "../../domain/types/cat-category.type";
 import SymbolsCatalogs from "../../symbols-catalogs";
 
 @Injectable()
@@ -27,5 +27,10 @@ export class CatCategoryService implements ICatCategoryService {
     async create(catCategory: ICreateCategory) {
         const categoryModel = CatCategoryModel.create(catCategory);
         return this.catCategoryRepository.create(categoryModel);
+    }
+
+    async update(id: string, catCategory: IUpdateCategory) {
+        const categoryModel = CatCategoryModel.create(catCategory);
+        return this.catCategoryRepository.update(id, categoryModel);
     }
 }

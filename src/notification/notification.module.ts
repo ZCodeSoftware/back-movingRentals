@@ -1,15 +1,22 @@
 import { Module } from '@nestjs/common';
-import { NotificationController } from './infrastructure/nest/controllers/notification.events.controller';
 import {
   adminEmailAdapter,
+  notificationEventService,
   notificationService,
   userEmailAdapter,
-} from './infrastructure/constants/custom-provider';
+} from './infrastructure/nest/constants/custom-provider';
+import { NotificationController } from './infrastructure/nest/controllers/notification.controller';
+import { NotificationEventController } from './infrastructure/nest/controllers/notification.events.controller';
 
 @Module({
   imports: [],
-  controllers: [NotificationController],
-  providers: [notificationService, userEmailAdapter, adminEmailAdapter],
+  controllers: [NotificationController, NotificationEventController],
+  providers: [
+    notificationService,
+    userEmailAdapter,
+    adminEmailAdapter,
+    notificationEventService,
+  ],
   exports: [],
 })
 export class NotificationModule {}
