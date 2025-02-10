@@ -10,8 +10,8 @@ if (config().app.env === 'dev') {
 
 const whiteList = [
   'https://front-moving-rentals.vercel.app',
-  'https://front-moving-rentals-p4vjced02-zcodesoftwares-projects.vercel.app/',
-  'https://mooving-woad.vercel.app/',
+  'https://front-moving-rentals-p4vjced02-zcodesoftwares-projects.vercel.app',
+  'https://mooving-woad.vercel.app',
   ...whiteListDev,
 ];
 
