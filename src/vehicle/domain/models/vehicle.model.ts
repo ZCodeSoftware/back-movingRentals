@@ -2,6 +2,7 @@ import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { CatCategoryModel } from './cat-category.model';
 import { CatModelModel } from './cat-model.model';
+import { ReservationModel } from './reservation.model';
 import { VehicleOwnerModel } from './vehicleowner.model';
 
 export class VehicleModel extends BaseModel {
@@ -18,6 +19,7 @@ export class VehicleModel extends BaseModel {
   private _category: CatCategoryModel;
   private _owner: VehicleOwnerModel;
   private _model: CatModelModel
+  private _reservations: ReservationModel[] = [];
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -36,6 +38,7 @@ export class VehicleModel extends BaseModel {
       category: this._category ? this._category.toJSON() : {},
       owner: this._owner ? this._owner.toJSON() : {},
       model: this._model ? this._model.toJSON() : {},
+      reservations: this._reservations.map(res => res.toJSON()),
     };
   }
 
@@ -51,6 +54,14 @@ export class VehicleModel extends BaseModel {
     this._model = model;
   }
 
+  addReservation(reservation: ReservationModel) {
+    this._reservations.push(reservation);
+  }
+
+  setReservations(reservations: ReservationModel[]) {
+    this._reservations = reservations;
+  }
+
   static create(vehicle: any): VehicleModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
@@ -63,6 +74,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._pricePer24 = vehicle.pricePer24;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
+    newVehicle._reservations = vehicle.reservations?.map((res: any) => ReservationModel.create(res)) || [];
 
     return newVehicle;
   }
@@ -83,6 +95,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._category = vehicle.category ? CatCategoryModel.hydrate(vehicle.category) : null;
     newVehicle._owner = vehicle.owner ? VehicleOwnerModel.hydrate(vehicle.owner) : null;
     newVehicle._model = vehicle.model ? CatModelModel.hydrate(vehicle.model) : null;
+    newVehicle._reservations = vehicle.reservations?.map((res: any) => ReservationModel.hydrate(res)) || [];
 
     return newVehicle;
   }

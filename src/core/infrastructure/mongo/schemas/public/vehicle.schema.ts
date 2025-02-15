@@ -6,6 +6,14 @@ import { VehicleOwner } from "./vehicle-owner.schema";
 
 export type VehicleDocument = HydratedDocument<Vehicle>;
 
+class Reservation {
+    @Prop({ required: true })
+    start: Date;
+
+    @Prop({ required: true })
+    end: Date;
+}
+
 @Schema({ collection: 'vehicle', timestamps: true })
 export class Vehicle {
     @Prop()
@@ -19,7 +27,6 @@ export class Vehicle {
 
     @Prop({ required: false })
     images: string[];
-
 
     @Prop({ required: false })
     price: number;
@@ -38,6 +45,9 @@ export class Vehicle {
 
     @Prop()
     minRentalHours: number;
+
+    @Prop({ type: [Reservation], required: false })
+    reservations: Reservation[];
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatCategory' })
     category: CatCategory
