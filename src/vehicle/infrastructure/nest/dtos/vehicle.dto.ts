@@ -1,5 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsArray, IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+
+class ReservationDTO {
+    @IsDateString()
+    @IsNotEmpty()
+    @ApiProperty({ description: "Fecha de inicio de la reserva" })
+    start: string;
+
+    @IsDateString()
+    @IsNotEmpty()
+    @ApiProperty({ description: "Fecha de fin de la reserva" })
+    end: string;
+}
 
 export class CreateVehicleDTO {
     @IsString()
@@ -119,6 +132,13 @@ export class UpdateVehicleDTO {
     @IsNumber()
     @IsOptional()
     minRentalHours?: number;
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => ReservationDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: [ReservationDTO], description: "Listado de reservas del vehículo" })
+    reservations?: ReservationDTO[];
 
     @IsString()
     @IsOptional()

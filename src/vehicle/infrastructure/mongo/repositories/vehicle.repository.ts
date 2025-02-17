@@ -29,6 +29,43 @@ export class VehicleRepository implements IVehicleRepository {
         return VehicleModel.hydrate(vehicle);
     }
 
+    async findByDate(query: any): Promise<VehicleModel[]> {
+        const start = query.start ? new Date(query.start) : null;
+        const end = query.end ? new Date(query.end) : null;
+
+        const filter: any = {};
+
+        if (start && end) {
+            filter.$or = [
+                { reservations: { $exists: false } },
+                {
+                    reservations: {
+                        $not: {
+                            $elemMatch: {
+                                $or: [
+                                    // La reserva empieza antes y termina después de las fechas solicitadas
+                                    { start: { $lte: start }, end: { $gte: end } },
+                                    // La reserva empieza durante el rango solicitado
+                                    { start: { $gte: start, $lte: end } },
+                                    // La reserva termina durante el rango solicitado
+                                    { end: { $gte: start, $lte: end } }
+                                ]
+                            }
+                        }
+                    }
+                }
+            ];
+        }
+
+        const vehicles = await this.vehicleDB
+            .find(filter)
+            .populate('category')
+            .populate('owner')
+            .populate('model');
+
+        return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
+    }
+
     async findAll(): Promise<VehicleModel[]> {
         const vehicles = await this.vehicleDB.find().populate('category').populate('owner').populate('model');
         return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
