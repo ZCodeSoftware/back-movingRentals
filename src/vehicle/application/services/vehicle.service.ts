@@ -49,6 +49,10 @@ export class VehicleService implements IVehicleService {
         return this.vehicleRepository.create(vehicleModel);
     }
 
+    async findByDate(query: any): Promise<VehicleModel[]> {
+        return this.vehicleRepository.findByDate(query);
+    }
+
     async findById(id: string): Promise<VehicleModel> {
         return this.vehicleRepository.findById(id);
     }
