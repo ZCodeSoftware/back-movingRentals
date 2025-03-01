@@ -8,6 +8,7 @@ import { BookingModule } from './booking/booking.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
+import { ChoosingModule } from './choosing/choosing.module';
 import { CompanyModule } from './company/company.module';
 import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
@@ -45,7 +46,8 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     CartModule,
     ExchageRateModule,
     TicketModule,
-    FaqModule
+    FaqModule,
+    ChoosingModule
   ],
   controllers: [AppController],
   providers: [AppService],
