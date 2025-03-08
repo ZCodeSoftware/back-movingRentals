@@ -1,5 +1,5 @@
 export interface ICreateFaq {
-    title: string;
+    title: Translate;
     icon?: string;
     faqItems: FaqItem[];
 }
