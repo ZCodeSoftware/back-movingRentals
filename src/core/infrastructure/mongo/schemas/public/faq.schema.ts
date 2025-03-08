@@ -21,8 +21,8 @@ class FaqItem {
 
 @Schema({ collection: 'faq', timestamps: true })
 export class Faq {
-    @Prop({ type: String, required: true })
-    title: string;
+    @Prop({ type: Translate, required: true })
+    title: Translate;
 
     @Prop({ type: String, required: false })
     icon?: string;

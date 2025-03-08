@@ -12,7 +12,7 @@ export interface IFaqItem {
 }
 
 export class FaqModel extends BaseModel {
-  private _title: { translate: ITranslate };
+  private _title: ITranslate;
   private _icon?: string;
   private _faqItems: IFaqItem[];
 
