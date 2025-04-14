@@ -42,6 +42,6 @@ bootstrap()
     console.log('Server started successfully 🎸 ');
   })
   .catch((e) => {
-    console.log('Server failed to start');
+    console.log('Server failed to start.');
     console.log(e);
   });
