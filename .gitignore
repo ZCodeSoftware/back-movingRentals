@@ -4,6 +4,7 @@
 /build
 yarn.lock
 /scripts
+package-lock.json
 
 # Logs
 logs
