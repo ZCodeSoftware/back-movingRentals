@@ -36,14 +36,14 @@ export class UserEmailProvider implements IUserEmailAdapter {
 
   async sendContactUserEmail(data: ContactUserDto): Promise<any> {
     try {
-      const { email, name, subject, text } = data;
+      const { email, name, subject, text, phone } = data;
 
       const message = {
         from: `"Moving" <${config().providerEmail.nodemailer.auth.user}>`,
         replyTo: email,
         to: config().business.contact_email,
         subject: subject,
-        text: `Soy ${name},\n\n${text}`,
+        text: `Soy ${name},\n\n Numero de teléforno: ${phone}\n\n${text}`,
       };
 
       return await this.transporter.sendMail(message);
