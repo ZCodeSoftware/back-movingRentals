@@ -15,6 +15,11 @@ export class ContactUserDto {
   @IsNotEmpty()
   @ApiProperty()
   @IsString()
+  phone: string;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  @IsString()
   subject: string;
 
   @IsNotEmpty()
