@@ -114,8 +114,8 @@ export class UserRepository implements IUserRepository {
       const existingUserObj = existingUser.toJSON() as any;
 
       const { createdAt, updatedAt, ...filteredExistingUser } = existingUserObj;
-      if (filteredExistingUser.password) {
-        filteredExistingUser.password = hashPassword(userObj.password);
+      if (userObj.password) {
+        userObj.password = await hashPassword(userObj.password);
       }
 
       const updatedFields = plainToClass(UserModel, {
