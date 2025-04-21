@@ -13,10 +13,12 @@ async function bootstrap() {
   app.enableCors(corsOptions);
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+    }),
+  );
   app.setGlobalPrefix(process.env.APP_GLOBAL_PREFIX);
   const documentationConfig = new DocumentBuilder()
     .setTitle('MovingRentals')
@@ -33,13 +35,13 @@ bootstrap()
   .then(() => {
     console.log(
       'Listening on: http://localhost:' +
-      config().app.app_port +
-      '/' +
-      config().app.app_global_prefix,
+        config().app.app_port +
+        '/' +
+        config().app.app_global_prefix,
     );
     console.log('Server started successfully 🎸 ');
   })
   .catch((e) => {
-    console.log('Server failed to start');
+    console.log('Server failed to start.');
     console.log(e);
   });

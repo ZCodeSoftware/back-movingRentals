@@ -14,6 +14,7 @@ export class VehicleModel extends BaseModel {
   private _capacity: number;
   private _minRentalHours: number;
   private _category: CatCategoryModel;
+  private _tag: string;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -29,6 +30,7 @@ export class VehicleModel extends BaseModel {
       pricePer24: this._pricePer24,
       capacity: this._capacity,
       minRentalHours: this._minRentalHours,
+      tag: this._tag,
       category: this._category ? this._category.toJSON() : {},
     };
   }
@@ -45,6 +47,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._pricePer24 = vehicle.pricePer24;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
+    newVehicle._tag = vehicle.tag;
 
     return newVehicle;
   }
@@ -61,6 +64,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._pricePer24 = vehicle.pricePer24;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
+    newVehicle._tag = vehicle.tag;
     newVehicle._category = vehicle.category ? CatCategoryModel.hydrate(vehicle.category) : null;
 
     return newVehicle;
