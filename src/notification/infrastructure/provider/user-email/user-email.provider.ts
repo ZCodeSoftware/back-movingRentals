@@ -4,6 +4,7 @@ import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
 import { ContactUserDto } from '../../nest/dto/notifications.dto';
+import { forgotPasswordTemplate } from '../forgot-password/forgot-password.template';
 import { generateUserBookingHtml } from './user-booking-content.template';
 
 export class UserEmailProvider implements IUserEmailAdapter {
@@ -68,6 +69,22 @@ export class UserEmailProvider implements IUserEmailAdapter {
 
       return await this.transporter.sendMail(message);
     } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendUserForgotPassword(email: string, token: string): Promise<any> {
+    try {
+
+      const message = {
+        from: `"Moving" <${config().business.contact_email}>`,
+        to: email,
+        subject: 'Recuperar contraseña',
+        html: forgotPasswordTemplate(token),
+      };
+      return await this.transporter.sendMail(message);
+    }
+    catch (error) {
       throw new InternalServerErrorException(error.message);
     }
   }

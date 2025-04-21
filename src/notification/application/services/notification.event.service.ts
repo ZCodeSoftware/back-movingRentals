@@ -13,7 +13,7 @@ export class NotificationEventService implements INotificationEventService {
 
     @Inject(SymbolsNotification.IAdminEmailAdapter)
     private readonly adminEmailAdapter: IAdminEmailAdapter,
-  ) {}
+  ) { }
 
   async reservationUserEmail(email: string, name: string): Promise<any> {
     try {
@@ -42,6 +42,14 @@ export class NotificationEventService implements INotificationEventService {
       await this.userEmailAdapter.sendUserBookingCreated(booking, userEmail);
 
       await this.adminEmailAdapter.sendAdminBookingCreated(booking);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async sendUserForgotPassword(email: string, token: string): Promise<any> {
+    try {
+      return await this.userEmailAdapter.sendUserForgotPassword(email, token);
     } catch (error) {
       throw new BadRequestException(error.message);
     }

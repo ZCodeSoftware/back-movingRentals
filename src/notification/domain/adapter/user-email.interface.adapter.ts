@@ -8,4 +8,5 @@ export interface IUserEmailAdapter {
     booking: BookingModel,
     userEmail: string,
   ): Promise<any>;
+  sendUserForgotPassword(email: string, token: string): Promise<any>
 }

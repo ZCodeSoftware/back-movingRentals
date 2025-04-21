@@ -1,6 +1,6 @@
 import { Controller, Inject, UseGuards } from '@nestjs/common/decorators/core';
-import { Body, Get, Post, Put, Req } from '@nestjs/common/decorators/http';
-import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Get, Post, Put, Query, Req } from '@nestjs/common/decorators/http';
+import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { IUserService } from '../../../domain/services/user.interface.service';
@@ -13,7 +13,7 @@ export class UserController {
   constructor(
     @Inject(SymbolsUser.IUserService)
     private readonly userService: IUserService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiResponse({ status: 201, description: 'Create a new user' })
@@ -46,5 +46,14 @@ export class UserController {
     const { _id } = req.user;
 
     return await this.userService.update(_id, user);
+  }
+
+  @Get('forgot-password')
+  @ApiResponse({ status: 200, description: 'Send email to reset password' })
+  @ApiResponse({ status: 400, description: 'Invalid request' })
+  @ApiQuery({ name: 'email', type: String })
+  async forgotPassword(@Query('email') email: string): Promise<any> {
+
+    return await this.userService.forgotPassword(email);
   }
 }

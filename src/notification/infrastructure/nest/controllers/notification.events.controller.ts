@@ -11,7 +11,7 @@ export class NotificationEventController {
   constructor(
     @Inject(SymbolsNotification.INotificationEventService)
     private readonly notificationEventService: INotificationEventService,
-  ) {}
+  ) { }
 
   @OnEvent('user-email-notification')
   async reservationUserEmail({ email, name }: { email: string; name: string }) {
@@ -39,5 +39,14 @@ export class NotificationEventController {
       bookingSave,
       userEmail,
     );
+  }
+
+  @OnEvent('send-user.forgot-password')
+  async sendUserForgotPassword(payload: {
+    email: string;
+    token: string;
+  }) {
+    const { email, token } = payload;
+    await this.notificationEventService.sendUserForgotPassword(email, token);
   }
 }
