@@ -109,7 +109,7 @@ export class UserService implements IUserService {
         );
 
       const token = this.jwtService.sign(
-        { email: foundUser.toJSON().email, id: foundUser.toJSON()._id },
+        { email: foundUser.toJSON().email, _id: foundUser.toJSON()._id },
         {
           expiresIn: '10m',
           secret: config().auth.jwt.secret,
