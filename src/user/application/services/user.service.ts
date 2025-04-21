@@ -1,7 +1,10 @@
 import { HttpStatus } from '@nestjs/common';
 import { Inject } from '@nestjs/common/decorators/core';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { JwtService } from '@nestjs/jwt';
 import SymbolsAddress from '../../../address/symbols-address';
 import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
+import config from '../../../config';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
 import { hashPassword } from '../../../core/domain/utils/bcrypt.util';
 import { AddressModel } from '../../domain/models/address.model';
@@ -21,7 +24,9 @@ export class UserService implements IUserService {
     private readonly addressRepository: IAddressRepository,
     @Inject(SymbolsCatalogs.ICatCountryRepository)
     private readonly catCountryRepository: ICatCountryRepository,
-  ) {}
+    private readonly eventEmitter: EventEmitter2,
+    private readonly jwtService: JwtService
+  ) { }
 
   async create(user: IUserCreate): Promise<UserModel> {
     try {
@@ -88,6 +93,34 @@ export class UserService implements IUserService {
       const update = await this.userRepository.update(id, userModel);
 
       return update;
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async forgotPassword(email: string): Promise<any> {
+    try {
+      const foundUser = await this.userRepository.findByEmail(email);
+
+      if (!foundUser)
+        throw new BaseErrorException(
+          'Invalid request',
+          HttpStatus.BAD_REQUEST,
+        );
+
+      const token = this.jwtService.sign(
+        { email: foundUser.toJSON().email, id: foundUser.toJSON()._id },
+        {
+          expiresIn: '10m',
+          secret: config().auth.jwt.secret,
+        },
+      )
+
+      this.eventEmitter.emit('send-user.forgot-password', {
+        email,
+        token
+      })
+      return foundUser;
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode);
     }
