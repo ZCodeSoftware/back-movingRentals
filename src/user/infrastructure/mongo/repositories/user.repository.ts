@@ -19,7 +19,7 @@ export class UserRepository implements IUserRepository {
     @InjectModel('Cart') private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) {}
+  ) { }
 
   async create(user: UserModel): Promise<UserModel> {
     try {
@@ -99,7 +99,8 @@ export class UserRepository implements IUserRepository {
       const existingUser = await this.userModel
         .findById(id)
         .populate('role')
-        .populate('documentation');
+        .populate('documentation')
+        .populate('address');
 
       if (!existingUser) {
         throw new BaseErrorException(
@@ -118,6 +119,7 @@ export class UserRepository implements IUserRepository {
         ...userObj,
         role: filteredExistingUser.role,
         documentation: filteredExistingUser.documentation,
+        address: filteredExistingUser.address,
       });
 
       const updated = await this.userModel.findByIdAndUpdate(
