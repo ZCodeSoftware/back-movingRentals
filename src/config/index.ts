@@ -21,6 +21,7 @@ export default registerAs('config', () => {
     },
     business: {
       contact_email: process.env.BUSINESS_CONTACT_EMAIL,
+      frontURL: process.env.FRONT_BASE_URL,
     },
     mongo: {
       mongo_uri: process.env.MONGO_URI,
