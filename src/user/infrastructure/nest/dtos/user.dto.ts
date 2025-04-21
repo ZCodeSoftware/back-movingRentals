@@ -39,6 +39,25 @@ export class CreateUserDTO {
   @ApiProperty()
   @Type(() => CreateAddressDTO)
   address: CreateAddressDTO;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  @Matches(ONLY_LETTERS_REGEX, {
+    message: 'The user name can only contain letters (including accents and ñ)',
+  })
+  name: string;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  @Matches(ONLY_LETTERS_REGEX, {
+    message:
+      'The user last name can only contain letters (including accents and ñ)',
+  })
+  lastName: string;
+
+  @IsNotEmpty()
+  @ApiProperty()
+  cellphone: string;
 }
 
 export class UpdateUserDTO {
