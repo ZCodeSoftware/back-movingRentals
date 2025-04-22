@@ -3,4 +3,5 @@ export class IContactUser {
   name: string;
   subject: string;
   text: string;
+  phone: string;
 }

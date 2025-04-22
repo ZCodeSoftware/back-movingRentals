@@ -4,6 +4,7 @@ import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
 import { ContactUserDto } from '../../nest/dto/notifications.dto';
+import { forgotPasswordTemplate } from '../forgot-password/forgot-password.template';
 import { generateUserBookingHtml } from './user-booking-content.template';
 
 export class UserEmailProvider implements IUserEmailAdapter {
@@ -36,14 +37,14 @@ export class UserEmailProvider implements IUserEmailAdapter {
 
   async sendContactUserEmail(data: ContactUserDto): Promise<any> {
     try {
-      const { email, name, subject, text } = data;
+      const { email, name, subject, text, phone } = data;
 
       const message = {
         from: `"Moving" <${config().providerEmail.nodemailer.auth.user}>`,
         replyTo: email,
         to: config().business.contact_email,
         subject: subject,
-        text: `Soy ${name},\n\n${text}`,
+        text: `Soy ${name},\n\n Numero de teléforno: ${phone}\n\n${text}`,
       };
 
       return await this.transporter.sendMail(message);
@@ -68,6 +69,22 @@ export class UserEmailProvider implements IUserEmailAdapter {
 
       return await this.transporter.sendMail(message);
     } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendUserForgotPassword(email: string, token: string): Promise<any> {
+    try {
+
+      const message = {
+        from: `"Moving" <${config().business.contact_email}>`,
+        to: email,
+        subject: 'Recuperar contraseña',
+        html: forgotPasswordTemplate(token),
+      };
+      return await this.transporter.sendMail(message);
+    }
+    catch (error) {
       throw new InternalServerErrorException(error.message);
     }
   }

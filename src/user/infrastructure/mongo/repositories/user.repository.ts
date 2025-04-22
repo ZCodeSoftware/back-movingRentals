@@ -8,6 +8,7 @@ import { CartSchema } from '../../../../cart/infrastructure/mongo/schemas/cart.s
 import SymbolsCatalogs from '../../../../catalogs/symbols-catalogs';
 import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
+import { hashPassword } from '../../../../core/domain/utils/bcrypt.util';
 import { UserModel } from '../../../domain/models/user.model';
 import { ICatRoleRepository } from '../../../domain/repositories/cat-role.interface.repository';
 import { IUserRepository } from '../../../domain/repositories/user.interface.repository';
@@ -19,7 +20,7 @@ export class UserRepository implements IUserRepository {
     @InjectModel('Cart') private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) {}
+  ) { }
 
   async create(user: UserModel): Promise<UserModel> {
     try {
@@ -99,7 +100,8 @@ export class UserRepository implements IUserRepository {
       const existingUser = await this.userModel
         .findById(id)
         .populate('role')
-        .populate('documentation');
+        .populate('documentation')
+        .populate('address');
 
       if (!existingUser) {
         throw new BaseErrorException(
@@ -112,12 +114,16 @@ export class UserRepository implements IUserRepository {
       const existingUserObj = existingUser.toJSON() as any;
 
       const { createdAt, updatedAt, ...filteredExistingUser } = existingUserObj;
+      if (userObj.password) {
+        userObj.password = await hashPassword(userObj.password);
+      }
 
       const updatedFields = plainToClass(UserModel, {
         ...filteredExistingUser,
         ...userObj,
         role: filteredExistingUser.role,
         documentation: filteredExistingUser.documentation,
+        address: filteredExistingUser.address,
       });
 
       const updated = await this.userModel.findByIdAndUpdate(
