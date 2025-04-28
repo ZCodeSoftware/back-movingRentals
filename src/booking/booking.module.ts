@@ -12,12 +12,13 @@ import {
   bookingSchema,
   paymentMethodSchema,
   userSchema,
+  vehicleSchema,
 } from './infrastructure/nest/constants/custom-schema';
 import { BookingController } from './infrastructure/nest/controllers/booking.controller';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema]),
+    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema]),
     EventEmitterModule.forRoot(),
   ],
   controllers: [BookingController],
@@ -30,4 +31,4 @@ import { BookingController } from './infrastructure/nest/controllers/booking.con
   ],
   exports: [],
 })
-export class BookingModule {}
+export class BookingModule { }

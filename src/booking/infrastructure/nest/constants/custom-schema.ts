@@ -10,6 +10,7 @@ import {
   User,
   UserSchema,
 } from '../../../../core/infrastructure/mongo/schemas/public/user.schema';
+import { Vehicle, VehicleSchema } from '../../../../core/infrastructure/mongo/schemas/public/vehicle.schema';
 
 export const bookingSchema = {
   name: Booking.name,
@@ -25,3 +26,8 @@ export const userSchema = {
   name: User.name,
   schema: UserSchema,
 };
+
+export const vehicleSchema = {
+  name: Vehicle.name,
+  schema: VehicleSchema
+}
