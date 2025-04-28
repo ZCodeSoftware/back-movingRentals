@@ -6,12 +6,14 @@ import { BookingModel } from '../../../domain/models/booking.model';
 import { IBookingRepository } from '../../../domain/repositories/booking.interface.repository';
 import { BookingSchema } from '../schemas/booking.schema';
 import { UserSchema } from '../schemas/user.schema';
+import { VehicleSchema } from '../schemas/vehicle.schema';
 
 @Injectable()
 export class BookingRepository implements IBookingRepository {
   constructor(
     @InjectModel('Booking') private readonly bookingDB: Model<BookingSchema>,
     @InjectModel('User') private readonly userDB: Model<UserSchema>,
+    @InjectModel('Vehicle') private readonly vehicleDB: Model<VehicleSchema>,
   ) { }
 
   async create(booking: BookingModel, id: string): Promise<BookingModel> {
@@ -30,6 +32,32 @@ export class BookingRepository implements IBookingRepository {
 
     user.bookings.push(newBooking);
     await user.save();
+
+
+    const parsedCart = JSON.parse(booking.toJSON().cart)
+
+    if (parsedCart?.vehicles?.length > 0) {
+      for (const vehicleBooking of parsedCart.vehicles) {
+        if (vehicleBooking.dates?.start && vehicleBooking.dates?.end) {
+          const vehicle = await this.vehicleDB.findById(vehicleBooking.vehicle._id);
+
+          if (vehicle) {
+            const newReservation = {
+              start: new Date(vehicleBooking.dates.start),
+              end: new Date(vehicleBooking.dates.end)
+            };
+
+            if (!vehicle.reservations) {
+              vehicle.reservations = [];
+            }
+
+            vehicle.reservations.push(newReservation);
+
+            await vehicle.save();
+          }
+        }
+      }
+    }
 
     return BookingModel.hydrate(newBooking);
   }
