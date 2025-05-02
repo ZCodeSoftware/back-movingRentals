@@ -16,7 +16,9 @@ const whiteList = [
   'https://mooving-woad.vercel.app',
   'https://0jfvmjkq-5173.brs.devtunnels.ms',
   'https://moovadventures.com',
+  'https://www.moovadventures.com',
   'https://moovadventures.mx',
+  'https://www.moovadventures.mx',
   ...whiteListDev,
 ];
 
