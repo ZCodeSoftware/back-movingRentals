@@ -25,6 +25,7 @@ export interface IUpdateVehicle {
     pricePer24?: number;
     minRentalHours?: number;
     capacity?: number;
+    isActive?: boolean;
     category?: string;
     owner?: string;
     model?: string;

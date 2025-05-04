@@ -13,5 +13,10 @@ export interface IUpdateTransfer {
     capacity?: number;
     estimatedDuration?: string;
     price?: number;
+    isActive?: boolean;
     category?: string;
+}
+
+export interface IFilters {
+    isActive?: boolean;
 }

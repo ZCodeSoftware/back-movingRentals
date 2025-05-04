@@ -8,6 +8,7 @@ export class TransferModel extends BaseModel {
   private _capacity: number;
   private _estimatedDuration: string;
   private _price: number;
+  private _isActive: boolean = true;
   private _category: CatCategoryModel;
 
   addCategory(category: CatCategoryModel) {
@@ -23,6 +24,7 @@ export class TransferModel extends BaseModel {
       capacity: this._capacity,
       estimatedDuration: this._estimatedDuration,
       price: this._price,
+      isActive: this._isActive,
       category: this._category ? this._category.toJSON() : null,
     };
   }
@@ -34,6 +36,7 @@ export class TransferModel extends BaseModel {
     newTransfer._capacity = transfer.capacity;
     newTransfer._estimatedDuration = transfer.estimatedDuration;
     newTransfer._price = transfer.price;
+    newTransfer._isActive = transfer.isActive;
 
     return newTransfer;
   }
@@ -45,6 +48,7 @@ export class TransferModel extends BaseModel {
     newTransfer._capacity = transfer.capacity;
     newTransfer._estimatedDuration = transfer.estimatedDuration;
     newTransfer._price = transfer.price;
+    newTransfer._isActive = transfer.isActive;
     newTransfer._category = transfer.category ? CatCategoryModel.create(transfer.category) : null;
     return newTransfer;
   }

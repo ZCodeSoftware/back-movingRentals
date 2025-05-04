@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateTicketDTO {
     @IsString()
@@ -31,6 +31,11 @@ export class CreateTicketDTO {
     @ApiProperty()
     @IsNumber()
     cenotePrice: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsBoolean()
+    isActive?: boolean;
 
     @IsString()
     @IsNotEmpty()
@@ -73,4 +78,11 @@ export class UpdateTicketDTO {
     @IsOptional()
     @ApiPropertyOptional()
     category: string;
+}
+
+export class TicketFiltersDTO {
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsBoolean()
+    isActive?: boolean;
 }

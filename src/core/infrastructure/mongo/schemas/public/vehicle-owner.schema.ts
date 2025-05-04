@@ -8,6 +8,9 @@ export class VehicleOwner {
     @Prop()
     name: string;
 
+    @Prop({ default: true })
+    isActive: boolean;
+
     @Prop({ min: 0, max: 100 })
     commissionPercentage: number;
 }

@@ -54,6 +54,8 @@ export class VehicleRepository implements IVehicleRepository {
             ];
         }
 
+        filter.isActive = true;
+
         const vehicles = await this.vehicleDB
             .find(filter)
             .populate('category')

@@ -65,3 +65,10 @@ export class UpdateTransferDTO {
     @IsOptional()
     category?: string
 }
+
+export class TransferFiltersDTO {
+    @IsString()
+    @ApiPropertyOptional()
+    @IsOptional()
+    isActive?: boolean;
+}

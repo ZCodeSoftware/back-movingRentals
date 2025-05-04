@@ -5,7 +5,7 @@ import { TicketModel } from "../../domain/models/ticket.model";
 import { ICatCategoryRepository } from "../../domain/repositories/cat-category.interface.repository";
 import { ITicketRepository } from "../../domain/repositories/ticket.interface.repository";
 import { ITicketService } from "../../domain/services/ticket.interface.service";
-import { ICreateTicket, IUpdateTicket } from "../../domain/types/ticket.type";
+import { ICreateTicket, IFilters, IUpdateTicket } from "../../domain/types/ticket.type";
 import SymbolsTicket from "../../symbols-ticket";
 
 @Injectable()
@@ -19,7 +19,7 @@ export class TicketService implements ITicketService {
 
     async create(ticket: ICreateTicket): Promise<TicketModel> {
         const { category, ...rest } = ticket;
-        const ticketModel = TicketModel.create(rest);
+        const ticketModel = TicketModel.create({ ...rest, isActive: true });
 
         const categoryModel = await this.catCategoryRepository.findById(category);
 
@@ -34,8 +34,8 @@ export class TicketService implements ITicketService {
         return this.ticketRepository.findById(id);
     }
 
-    async findAll(): Promise<TicketModel[]> {
-        return this.ticketRepository.findAll();
+    async findAll(filters: IFilters): Promise<TicketModel[]> {
+        return this.ticketRepository.findAll(filters);
     }
 
     async update(id: string, ticket: IUpdateTicket): Promise<TicketModel> {

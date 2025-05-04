@@ -1,5 +1,6 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from "@nestjs/common";
-import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from "@nestjs/common";
+import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { TourFiltersDTO } from "../../../../tour/infrastructure/nest/dtos/tour.dto";
 import { ITransferService } from "../../../domain/services/transfer.interface.service";
 import SymbolsTransfer from "../../../symbols-transfer";
 import { CreateTransferDTO, UpdateTransferDTO } from "../dtos/transfer.dto";
@@ -25,8 +26,9 @@ export class TransferController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return all Transfers' })
     @ApiResponse({ status: 404, description: 'Transfer not found' })
-    async findAll() {
-        return this.transferService.findAll();
+    @ApiQuery({ type: TourFiltersDTO, description: 'Filters to find Transfers' })
+    async findAll(@Query() filters: TourFiltersDTO) {
+        return this.transferService.findAll(filters);
     }
 
     @Get(':id')

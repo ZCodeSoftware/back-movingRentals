@@ -26,7 +26,7 @@ export class VehicleService implements IVehicleService {
 
     async create(vehicle: ICreateVehicle): Promise<VehicleModel> {
         const { category, owner, model, ...rest } = vehicle;
-        const vehicleModel = VehicleModel.create(rest);
+        const vehicleModel = VehicleModel.create({ ...rest, isActive: true });
 
         const catCategory = await this.catCategoryRepository.findById(category);
 
