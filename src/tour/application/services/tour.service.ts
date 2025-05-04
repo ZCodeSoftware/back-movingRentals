@@ -45,7 +45,7 @@ export class TourService implements ITourService {
 
         const categoryModel = await this.catCategoryRepository.findById(category);
 
-        if (!categoryModel) tourModel.addCategory(categoryModel);
+        if (categoryModel) tourModel.addCategory(categoryModel);
 
         return this.tourRepository.update(id, tourModel);
     }
