@@ -13,8 +13,9 @@ export class CatCategoryRepository implements ICatCategoryRepository {
         private readonly catCategoryDB: Model<CatCategorySchema>,
     ) { }
 
-    async findById(id: string): Promise<CatCategoryModel> {
+    async findById(id: string): Promise<CatCategoryModel | null> {
         const category = await this.catCategoryDB.findById(id);
+        if (!category) return null;
         return CatCategoryModel.hydrate(category);
     }
 }
