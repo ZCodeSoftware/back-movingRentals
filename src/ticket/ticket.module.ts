@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common/decorators/modules';
 import { MongooseModule } from '@nestjs/mongoose';
-import { catCategoryRepository } from '../catalogs/infrastructure/constants/custom-provider';
 import { categorySchema } from '../catalogs/infrastructure/constants/custom-schema';
 import {
+  catCategoryRepository,
   ticketRepository,
   ticketService,
 } from './infrastructure/nest/constants/custom-provider';
