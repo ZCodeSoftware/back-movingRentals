@@ -5,7 +5,7 @@ import { TransferModel } from "../../domain/models/transfer.model";
 import { ICatCategoryRepository } from "../../domain/repositories/cat-category.interface.repository";
 import { ITransferRepository } from "../../domain/repositories/transfer.interface.repository";
 import { ITransferService } from "../../domain/services/transfer.interface.service";
-import { ICreateTransfer, IUpdateTransfer } from "../../domain/types/transfer.type";
+import { ICreateTransfer, IFilters, IUpdateTransfer } from "../../domain/types/transfer.type";
 import SymbolsTransfer from "../../symbols-transfer";
 
 @Injectable()
@@ -26,7 +26,7 @@ export class TransferService implements ITransferService {
             throw new BaseErrorException('Category not found', 404);
         }
 
-        const transferModel = TransferModel.create(rest);
+        const transferModel = TransferModel.create({ ...rest, isActive: true });
 
         transferModel.addCategory(categoryModel);
 
@@ -37,8 +37,8 @@ export class TransferService implements ITransferService {
         return this.transferRepository.findById(id);
     }
 
-    async findAll(): Promise<TransferModel[]> {
-        return this.transferRepository.findAll();
+    async findAll(filters: IFilters): Promise<TransferModel[]> {
+        return this.transferRepository.findAll(filters);
     }
 
     async update(id: string, transfer: IUpdateTransfer): Promise<TransferModel> {

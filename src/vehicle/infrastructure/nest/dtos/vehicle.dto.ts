@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsArray, IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
 
 class ReservationDTO {
     @IsDateString()
@@ -132,6 +132,11 @@ export class UpdateVehicleDTO {
     @IsNumber()
     @IsOptional()
     minRentalHours?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsBoolean()
+    isActive?: boolean;
 
     @IsArray()
     @ValidateNested({ each: true })

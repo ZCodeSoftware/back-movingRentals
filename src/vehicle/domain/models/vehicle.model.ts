@@ -16,6 +16,7 @@ export class VehicleModel extends BaseModel {
   private _pricePer24?: number;
   private _capacity: number;
   private _minRentalHours: number;
+  private _isActive: boolean = true;
   private _category: CatCategoryModel;
   private _owner: VehicleOwnerModel;
   private _model: CatModelModel
@@ -35,6 +36,7 @@ export class VehicleModel extends BaseModel {
       pricePer24: this._pricePer24,
       capacity: this._capacity,
       minRentalHours: this._minRentalHours,
+      isActive: this._isActive,
       category: this._category ? this._category.toJSON() : {},
       owner: this._owner ? this._owner.toJSON() : {},
       model: this._model ? this._model.toJSON() : {},
@@ -74,6 +76,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._pricePer24 = vehicle.pricePer24;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
+    newVehicle._isActive = vehicle.isActive;
     newVehicle._reservations = vehicle.reservations?.map((res: any) => ReservationModel.create(res)) || [];
 
     return newVehicle;
@@ -92,6 +95,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._pricePer24 = vehicle.pricePer24;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
+    newVehicle._isActive = vehicle.isActive;
     newVehicle._category = vehicle.category ? CatCategoryModel.hydrate(vehicle.category) : null;
     newVehicle._owner = vehicle.owner ? VehicleOwnerModel.hydrate(vehicle.owner) : null;
     newVehicle._model = vehicle.model ? CatModelModel.hydrate(vehicle.model) : null;

@@ -16,4 +16,9 @@ export interface IUpdateTicket {
     movingPrice?: number;
     cenotePrice?: number;
     category?: string;
+    isActive?: boolean;
+}
+
+export interface IFilters {
+    isActive?: boolean;
 }

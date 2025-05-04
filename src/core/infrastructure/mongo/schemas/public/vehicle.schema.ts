@@ -46,6 +46,9 @@ export class Vehicle {
     @Prop()
     minRentalHours: number;
 
+    @Prop({ default: true })
+    isActive: boolean;
+
     @Prop({ type: [Reservation], required: false })
     reservations: Reservation[];
 

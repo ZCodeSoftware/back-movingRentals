@@ -18,6 +18,9 @@ export class Ticket {
     @Prop()
     totalPrice: number;
 
+    @Prop({ default: true })
+    isActive: boolean;
+
     @Prop()
     movingPrice: number;
 
