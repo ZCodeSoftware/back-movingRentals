@@ -10,6 +10,7 @@ export class TicketModel extends BaseModel {
   private _movingPrice: number;
   private _cenotePrice: number;
   private _category: CatCategoryModel;
+  private _isActive: boolean = true;
 
   addCategory(category: CatCategoryModel) {
     this._category = category;
@@ -25,6 +26,7 @@ export class TicketModel extends BaseModel {
       totalPrice: this._totalPrice,
       movingPrice: this._movingPrice,
       cenotePrice: this._cenotePrice,
+      isActive: this._isActive,
       category: this._category ? this._category.toJSON() : null,
     };
   }
@@ -37,6 +39,7 @@ export class TicketModel extends BaseModel {
     newTicket._totalPrice = ticket.totalPrice;
     newTicket._movingPrice = ticket.movingPrice;
     newTicket._cenotePrice = ticket.cenotePrice;
+    newTicket._isActive = ticket.isActive;
 
     return newTicket;
   }
@@ -49,6 +52,7 @@ export class TicketModel extends BaseModel {
     newTicket._totalPrice = ticket.totalPrice;
     newTicket._movingPrice = ticket.movingPrice;
     newTicket._cenotePrice = ticket.cenotePrice;
+    newTicket._isActive = ticket.isActive;
     newTicket._category = ticket.category ? CatCategoryModel.hydrate(ticket.category) : null;
 
     return newTicket;

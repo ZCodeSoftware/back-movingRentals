@@ -5,6 +5,7 @@ import { BaseErrorException } from "../../../../core/domain/exceptions/base.erro
 import { TOUR_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
 import { TourModel } from "../../../domain/models/tour.model";
 import { ITourRepository } from "../../../domain/repositories/tour.interface.repository";
+import { TourFiltersDTO } from "../../nest/dtos/tour.dto";
 import { TourSchema } from "../schemas/tour.schema";
 
 @Injectable()
@@ -28,8 +29,12 @@ export class TourRepository implements ITourRepository {
         return TourModel.hydrate(tour);
     }
 
-    async findAll(): Promise<TourModel[]> {
-        const tours = await this.tourDB.find().populate('category');
+    async findAll(filters: TourFiltersDTO): Promise<TourModel[]> {
+        const filter: any = {};
+        if (filters?.isActive) {
+            filter.isActive = filters.isActive;
+        }
+        const tours = await this.tourDB.find(filter).sort({ createdAt: -1 }).populate('category');
         return tours?.map(tour => TourModel.hydrate(tour));
     }
 

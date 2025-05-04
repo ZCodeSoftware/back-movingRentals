@@ -27,6 +27,9 @@ export class Tour {
     @Prop({ required: false })
     startDates: string;
 
+    @Prop({ default: true })
+    isActive: boolean;
+
     @Prop({ required: false })
     images: string[];
 

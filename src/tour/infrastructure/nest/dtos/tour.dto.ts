@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateTourDTO {
 
@@ -42,6 +42,11 @@ export class CreateTourDTO {
     @IsOptional()
     @ApiPropertyOptional()
     images?: string[];
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsBoolean()
+    isActive?: boolean;
 
     @IsString()
     @IsNotEmpty()
@@ -95,4 +100,11 @@ export class UpdateTourDTO {
     @IsOptional()
     @ApiPropertyOptional()
     category?: string;
+}
+
+export class TourFiltersDTO {
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsBoolean()
+    isActive?: boolean;
 }
