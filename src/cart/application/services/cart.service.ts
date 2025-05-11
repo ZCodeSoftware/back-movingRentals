@@ -47,14 +47,16 @@ export class CartService implements ICartService {
             if (!tourModel) throw new BaseErrorException('Tour not found', 404);
             return {
                 tour: tourModel,
-                date: t.date
+                date: t.date,
+                passengers: t.passengers,
+                quantity: t.quantity
             };
         }))
 
         const tickets = selectedTickets && await Promise.all(selectedTickets?.map(async (t) => {
             const ticketModel = await this.ticketRepository.findById(t.ticket);
             if (!ticketModel) throw new BaseErrorException('Ticket not found', 404);
-            return { ticket: ticketModel, date: t.date };
+            return { ticket: ticketModel, date: t.date, quantity: t.quantity, passengers: t.passengers };
         }))
 
         const vehicles = selectedItems && await Promise.all(selectedItems?.map(async (i) => {
@@ -63,13 +65,14 @@ export class CartService implements ICartService {
             return {
                 vehicle: vehicleModel,
                 dates: i.dates,
-                total: i.total
+                total: i.total,
+                passengers: i.passengers
             };
         }))
 
         const transfers = transfer && await Promise.all(transfer?.map(async (t) => {
             const transferModel = await this.transferRepository.findById(t.transfer);
-            return { transfer: transferModel, date: t.date };
+            return { transfer: transferModel, date: t.date, passengers: t.passengers, quantity: t.quantity };
         }))
 
         const cart = await this.cartRepository.update(id, {
