@@ -6,6 +6,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -27,7 +28,7 @@ export class BookingController {
     private readonly bookingService: IBookingService,
     @Inject(SymbolsUser.IUserService)
     private readonly userService: IUserService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(201)
@@ -81,5 +82,18 @@ export class BookingController {
     const { _id } = req.user;
 
     return this.userService.addBookingInUser(_id, body);
+  }
+
+  @Put(':id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Booking updated' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @ApiBody({ type: CreateBookingDTO, description: 'Data to update a Booking' })
+  /* @UseGuards(AuthGuards) */
+  async update(
+    @Param('id') id: string,
+    @Body() body: Partial<CreateBookingDTO>,
+  ) {
+    return this.bookingService.update(id, body);
   }
 }

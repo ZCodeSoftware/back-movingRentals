@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
+import { BOOKING_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { BookingModel } from '../../../domain/models/booking.model';
 import { IBookingRepository } from '../../../domain/repositories/booking.interface.repository';
 import { BookingSchema } from '../schemas/booking.schema';
@@ -90,5 +91,33 @@ export class BookingRepository implements IBookingRepository {
       throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
 
     return user.bookings?.map((booking) => BookingModel.hydrate(booking));
+  }
+
+  async update(id: string, booking: BookingModel): Promise<BookingModel> {
+    const updateObject = booking.toJSON();
+
+    const filteredUpdateObject = Object.fromEntries(
+      Object.entries(updateObject).filter(([key, value]) => {
+        if (BOOKING_RELATIONS.includes(key)) {
+          return value !== null && value !== undefined && typeof value === 'object' && '_id' in value;
+        }
+        return value !== null && value !== undefined;
+      })
+    );
+
+    const updatedBooking = await this.bookingDB.findByIdAndUpdate(
+      id,
+      filteredUpdateObject,
+      { new: true, omitUndefined: true }
+    ).populate('paymentMethod');
+
+    if (!updatedBooking) {
+      throw new BaseErrorException(
+        'Booking not found',
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    return BookingModel.hydrate(updatedBooking);
   }
 }
