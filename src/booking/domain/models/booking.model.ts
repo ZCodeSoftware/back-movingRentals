@@ -6,6 +6,8 @@ export class BookingModel extends BaseModel {
   private _cart: string;
   private _limitCancelation: Date;
   private _paymentMethod: CatPaymentMethodModel;
+  private _total: number;
+  private _totalPaid?: number;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -14,6 +16,8 @@ export class BookingModel extends BaseModel {
       cart: this._cart,
       limitCancelation: this._limitCancelation,
       paymentMethod: this._paymentMethod ? this._paymentMethod.toJSON() : null,
+      total: this._total,
+      totalPaid: this._totalPaid,
     };
   }
 
@@ -26,6 +30,8 @@ export class BookingModel extends BaseModel {
 
     newBooking._cart = booking.cart;
     newBooking._limitCancelation = booking.limitCancelation;
+    newBooking._total = booking.total;
+    newBooking._totalPaid = booking.totalPaid;
 
     return newBooking;
   }
@@ -35,6 +41,8 @@ export class BookingModel extends BaseModel {
 
     newBooking._cart = booking.cart;
     newBooking._limitCancelation = booking.limitCancelation;
+    newBooking._total = booking.total;
+    newBooking._totalPaid = booking.totalPaid;
     newBooking._paymentMethod = booking.paymentMethod
       ? CatPaymentMethodModel.hydrate(booking.paymentMethod)
       : null;

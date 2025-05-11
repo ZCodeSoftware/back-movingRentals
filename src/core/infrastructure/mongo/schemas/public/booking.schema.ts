@@ -14,6 +14,12 @@ export class Booking {
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatPaymentMethod' })
   paymentMethod: CatPaymentMethod;
+
+  @Prop({ type: Number, required: true })
+  total: number;
+
+  @Prop({ type: Number, required: false })
+  totalPaid?: number;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
