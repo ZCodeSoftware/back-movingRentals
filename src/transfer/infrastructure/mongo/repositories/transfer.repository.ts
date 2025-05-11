@@ -3,6 +3,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
 import { TRANSFER_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
+import { TourFiltersDTO } from "../../../../tour/infrastructure/nest/dtos/tour.dto";
 import { TransferModel } from "../../../domain/models/transfer.model";
 import { ITransferRepository } from "../../../domain/repositories/transfer.interface.repository";
 import { TransferSchema } from "../schemas/transfer.schema";
@@ -28,8 +29,12 @@ export class TransferRepository implements ITransferRepository {
         return TransferModel.hydrate(transfer);
     }
 
-    async findAll(): Promise<TransferModel[]> {
-        const transfers = await this.transferDB.find().populate('category');
+    async findAll(filters: TourFiltersDTO): Promise<TransferModel[]> {
+        const filter: any = {};
+        if (filters?.isActive) {
+            filter.isActive = filters.isActive;
+        }
+        const transfers = await this.transferDB.find(filter).populate('category');
         return transfers?.map(transfer => TransferModel.hydrate(transfer));
     }
 

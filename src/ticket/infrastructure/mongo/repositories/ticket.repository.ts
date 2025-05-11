@@ -5,6 +5,7 @@ import { BaseErrorException } from "../../../../core/domain/exceptions/base.erro
 import { TICKET_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
 import { TicketModel } from "../../../domain/models/ticket.model";
 import { ITicketRepository } from "../../../domain/repositories/ticket.interface.repository";
+import { TicketFiltersDTO } from "../../nest/dtos/ticket.dto";
 import { TicketSchema } from "../schemas/ticket.schema";
 
 @Injectable()
@@ -28,8 +29,12 @@ export class TicketRepository implements ITicketRepository {
         return TicketModel.hydrate(ticket);
     }
 
-    async findAll(): Promise<TicketModel[]> {
-        const tickets = await this.ticketDB.find().populate('category');
+    async findAll(filters: TicketFiltersDTO): Promise<TicketModel[]> {
+        const filter: any = {};
+        if (filters?.isActive) {
+            filter.isActive = filters.isActive;
+        }
+        const tickets = await this.ticketDB.find(filter).populate('category');
         return tickets?.map(ticket => TicketModel.hydrate(ticket));
     }
 

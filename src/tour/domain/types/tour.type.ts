@@ -19,5 +19,10 @@ export interface IUpdateTour {
     estimatedDuration?: string;
     startDates?: string;
     images?: string[];
+    isActive?: boolean;
     category?: string;
+}
+
+export interface IFilters {
+    isActive?: boolean;
 }

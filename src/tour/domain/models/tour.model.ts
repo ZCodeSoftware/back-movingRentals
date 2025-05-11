@@ -11,6 +11,7 @@ export class TourModel extends BaseModel {
   private _estimatedDuration?: string;
   private _startDates?: string;
   private _images?: string[];
+  private _isActive: boolean = true;
   private _category: CatCategoryModel;
 
   public toJSON() {
@@ -25,6 +26,7 @@ export class TourModel extends BaseModel {
       estimatedDuration: this._estimatedDuration,
       startDates: this._startDates,
       images: this._images,
+      isActive: this._isActive,
       category: this._category ? this._category.toJSON() : null,
     };
   }
@@ -43,6 +45,7 @@ export class TourModel extends BaseModel {
     newTour._estimatedDuration = tour.estimatedDuration;
     newTour._startDates = tour.startDates;
     newTour._images = tour.images;
+    newTour._isActive = tour.isActive;
 
     return newTour;
   }
@@ -57,6 +60,7 @@ export class TourModel extends BaseModel {
     newTour._estimatedDuration = tour.estimatedDuration;
     newTour._startDates = tour.startDates;
     newTour._images = tour.images;
+    newTour._isActive = tour.isActive;
     newTour._category = tour.category ? CatCategoryModel.hydrate(tour.category) : null;
 
     return newTour;

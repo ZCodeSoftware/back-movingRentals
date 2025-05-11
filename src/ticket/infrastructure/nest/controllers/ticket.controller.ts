@@ -1,8 +1,8 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from "@nestjs/common";
-import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from "@nestjs/common";
+import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ITicketService } from "../../../domain/services/ticket.interface.service";
 import SymbolsTicket from "../../../symbols-ticket";
-import { CreateTicketDTO, UpdateTicketDTO } from "../dtos/ticket.dto";
+import { CreateTicketDTO, TicketFiltersDTO, UpdateTicketDTO } from "../dtos/ticket.dto";
 
 @ApiTags('ticket')
 @Controller('ticket')
@@ -25,8 +25,10 @@ export class TicketController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return all Tickets' })
     @ApiResponse({ status: 404, description: 'Ticket not found' })
-    async findAll() {
-        return this.ticketService.findAll();
+    @ApiQuery({ type: TicketFiltersDTO, description: 'Filters to find Tickets' })
+
+    async findAll(@Query() filters: TicketFiltersDTO) {
+        return this.ticketService.findAll(filters);
     }
 
     @Get(':id')

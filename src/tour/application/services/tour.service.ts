@@ -4,7 +4,7 @@ import { TourModel } from "../../domain/models/tour.model";
 import { ICatCategoryRepository } from "../../domain/repositories/cat-category.interface.repository";
 import { ITourRepository } from "../../domain/repositories/tour.interface.repository";
 import { ITourService } from "../../domain/services/tour.interface.service";
-import { ICreateTour, IUpdateTour } from "../../domain/types/tour.type";
+import { ICreateTour, IFilters, IUpdateTour } from "../../domain/types/tour.type";
 import SymbolsTour from "../../symbols-tour";
 
 @Injectable()
@@ -18,7 +18,7 @@ export class TourService implements ITourService {
 
     async create(tour: ICreateTour): Promise<TourModel> {
         const { category, ...rest } = tour;
-        const tourModel = TourModel.create(rest);
+        const tourModel = TourModel.create({ ...rest, isActive: true });
 
         const categoryModel = await this.catCategoryRepository.findById(category);
 
@@ -35,8 +35,8 @@ export class TourService implements ITourService {
         return this.tourRepository.findById(id);
     }
 
-    async findAll(): Promise<TourModel[]> {
-        return this.tourRepository.findAll();
+    async findAll(filters: IFilters): Promise<TourModel[]> {
+        return this.tourRepository.findAll(filters);
     }
 
     async update(id: string, tour: IUpdateTour): Promise<TourModel> {
@@ -45,7 +45,7 @@ export class TourService implements ITourService {
 
         const categoryModel = await this.catCategoryRepository.findById(category);
 
-        if (!categoryModel) tourModel.addCategory(categoryModel);
+        if (categoryModel) tourModel.addCategory(categoryModel);
 
         return this.tourRepository.update(id, tourModel);
     }

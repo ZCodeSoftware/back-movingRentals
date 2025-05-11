@@ -13,7 +13,7 @@ export class TravelersDTO {
 
     @IsNumber()
     @ApiProperty()
-    childrens: number;
+    child: number;
 }
 
 export class TransferDTO {
@@ -24,6 +24,13 @@ export class TransferDTO {
     @IsString()
     @ApiProperty()
     transfer: string;
+
+    @ApiProperty()
+    passengers: TravelersDTO
+
+    @IsNumber()
+    @ApiProperty()
+    quantity: number;
 }
 export class UpdateCartDTO {
     @IsString()
@@ -34,24 +41,26 @@ export class UpdateCartDTO {
     transfer: TransferDTO[];
 
     @ApiProperty()
-    travelers: TravelersDTO
-
-    @ApiProperty()
     selectedItems: {
         vehicle: string;
         total: number;
         dates: DatesDTO
+        passengers: TravelersDTO;
     }[];
 
     @ApiProperty()
     selectedTours: {
         tour: string;
         date: Date;
+        quantity: number;
+        passengers: TravelersDTO;
     }[];
 
     @ApiProperty()
     selectedTickets: {
         ticket: string;
         date: Date;
+        quantity: number;
+        passengers: TravelersDTO;
     }[];
 }

@@ -1,8 +1,8 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from "@nestjs/common";
-import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from "@nestjs/common";
+import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ITourService } from "../../../domain/services/tour.interface.service";
 import SymbolsTour from "../../../symbols-tour";
-import { CreateTourDTO, UpdateTourDTO } from "../dtos/tour.dto";
+import { CreateTourDTO, TourFiltersDTO, UpdateTourDTO } from "../dtos/tour.dto";
 
 @ApiTags('tour')
 @Controller('tour')
@@ -25,8 +25,9 @@ export class TourController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return all Tours' })
     @ApiResponse({ status: 404, description: 'Tour not found' })
-    async findAll() {
-        return this.tourService.findAll();
+    @ApiQuery({ type: TourFiltersDTO, description: 'Filters to find Tours' })
+    async findAll(@Query() filters: TourFiltersDTO) {
+        return this.tourService.findAll(filters);
     }
 
     @Get(':id')

@@ -12,6 +12,9 @@ export class Transfer {
     @Prop({ type: String, required: false })
     description?: string;
 
+    @Prop({ default: true })
+    isActive: boolean;
+
     @Prop({ type: Number, required: true })
     capacity: number;
 

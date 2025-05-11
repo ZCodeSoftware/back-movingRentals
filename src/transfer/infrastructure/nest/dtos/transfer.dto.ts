@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { Transform } from "class-transformer";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class CreateTransferDTO {
     @IsString()
@@ -60,8 +61,25 @@ export class UpdateTransferDTO {
     @IsOptional()
     price?: number;
 
+    @IsBoolean()
+    @ApiPropertyOptional()
+    @IsOptional()
+    isActive?: boolean;
+
     @IsString()
     @ApiPropertyOptional()
     @IsOptional()
     category?: string
+}
+
+export class TransferFiltersDTO {
+    @IsString()
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Transform(({ value }) => {
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return value;
+    })
+    isActive?: boolean;
 }
