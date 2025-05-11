@@ -15,8 +15,8 @@ export class CartModel extends BaseModel {
   private _transfer: { transfer: TransferModel, date: Date, passengers: Passenger, quantity: number }[];
   private _branch: BranchesModel;
   private _vehicles: { vehicle: VehicleModel, total: number, dates: DatesDTO, passengers: Passenger }[];
-  private _tours: { tour: TourModel, date: Date, quantity: number }[];
-  private _tickets: { ticket: TicketModel, date: Date, quantity: number }[];
+  private _tours: { tour: TourModel, date: Date, quantity: number, passengers: Passenger }[];
+  private _tickets: { ticket: TicketModel, date: Date, quantity: number, passengers: Passenger }[];
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -30,8 +30,8 @@ export class CartModel extends BaseModel {
         quantity: t.quantity
       })) : [],
       vehicles: this._vehicles ? this._vehicles.map((v) => ({ vehicle: v.vehicle.toJSON(), total: v.total, dates: v.dates, passengers: v.passengers })) : [],
-      tours: this._tours ? this._tours.map((t) => ({ tour: t.tour.toJSON(), date: t.date, quantity: t.quantity })) : [],
-      tickets: this._tickets ? this._tickets.map((t) => ({ ticket: t.ticket.toJSON(), date: t.date, quantity: t.quantity })) : []
+      tours: this._tours ? this._tours.map((t) => ({ tour: t.tour.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [],
+      tickets: this._tickets ? this._tickets.map((t) => ({ ticket: t.ticket.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : []
     };
   }
 
