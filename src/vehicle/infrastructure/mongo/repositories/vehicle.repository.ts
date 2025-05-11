@@ -58,6 +58,7 @@ export class VehicleRepository implements IVehicleRepository {
 
         const vehicles = await this.vehicleDB
             .find(filter)
+            .sort({ tag: 1 })
             .populate('category')
             .populate('owner')
             .populate('model');
@@ -71,7 +72,7 @@ export class VehicleRepository implements IVehicleRepository {
     }
 
     async findAll(): Promise<VehicleModel[]> {
-        const vehicles = await this.vehicleDB.find().populate('category').populate('owner').populate('model');
+        const vehicles = await this.vehicleDB.find().sort({ tag: 1 }).populate('category').populate('owner').populate('model');
         return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
     }
 
