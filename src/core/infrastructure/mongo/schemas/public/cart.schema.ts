@@ -57,12 +57,14 @@ export class Cart {
             tour: { type: mongoose.Schema.Types.ObjectId, ref: 'Tour' },
             date: Date,
             quantity: Number,
+            passengers: { adults: Number, child: Number }
         }]
     })
     tours: {
         tour: Tour,
         date: Date,
         quantity: number
+        passengers: Passenger
     }[];
 
     @Prop({
@@ -70,14 +72,15 @@ export class Cart {
             ticket: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
             date: Date,
             quantity: Number,
+            passengers: { adults: Number, child: Number }
         }]
     })
     tickets: {
         ticket: Ticket,
         date: Date
         quantity: number
+        passengers: Passenger
     }[];
-
 }
 
 export const CartSchema = SchemaFactory.createForClass(Cart);
