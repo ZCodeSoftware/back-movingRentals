@@ -10,4 +10,8 @@ export interface IBookingService {
   findById(id: string): Promise<BookingModel>;
   findAll(): Promise<BookingModel[]>;
   findByUserId(userId: string): Promise<BookingModel[]>;
+  update(
+    id: string,
+    booking: Partial<ICreateBooking>,
+  ): Promise<BookingModel>;
 }
