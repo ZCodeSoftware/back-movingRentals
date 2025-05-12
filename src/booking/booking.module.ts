@@ -5,11 +5,13 @@ import {
   bookingRepository,
   bookingService,
   catPaymentMethodRepository,
+  catStatusRepository,
   userRepository,
   userService,
 } from './infrastructure/nest/constants/custom-provider';
 import {
   bookingSchema,
+  catStatusSchema,
   paymentMethodSchema,
   userSchema,
   vehicleSchema,
@@ -18,7 +20,7 @@ import { BookingController } from './infrastructure/nest/controllers/booking.con
 
 @Module({
   imports: [
-    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema]),
+    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema, catStatusSchema]),
     EventEmitterModule.forRoot(),
   ],
   controllers: [BookingController],
@@ -28,6 +30,7 @@ import { BookingController } from './infrastructure/nest/controllers/booking.con
     catPaymentMethodRepository,
     userService,
     userRepository,
+    catStatusRepository
   ],
   exports: [],
 })

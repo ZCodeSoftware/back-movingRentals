@@ -14,4 +14,8 @@ export interface IBookingService {
     id: string,
     booking: Partial<ICreateBooking>,
   ): Promise<BookingModel>;
+  validateBooking(
+    id: string,
+    paid: boolean,
+  ): Promise<BookingModel>;
 }
