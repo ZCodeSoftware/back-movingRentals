@@ -6,10 +6,12 @@ import {
   Inject,
   Param,
   Post,
+  Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import SymbolsUser from '../../../../user/symbols-user';
@@ -27,7 +29,7 @@ export class BookingController {
     private readonly bookingService: IBookingService,
     @Inject(SymbolsUser.IUserService)
     private readonly userService: IUserService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(201)
@@ -81,5 +83,30 @@ export class BookingController {
     const { _id } = req.user;
 
     return this.userService.addBookingInUser(_id, body);
+  }
+
+  @Put('validate/:id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Booking validated' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @ApiQuery({ name: 'paid', required: true, type: 'boolean' })
+  async validateBooking(
+    @Param('id') id: string,
+    @Query('paid') paid: boolean,
+  ) {
+    return await this.bookingService.validateBooking(id, paid);
+  }
+
+  @Put(':id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Booking updated' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @ApiBody({ type: CreateBookingDTO, description: 'Data to update a Booking' })
+  @UseGuards(AuthGuards)
+  async update(
+    @Param('id') id: string,
+    @Body() body: Partial<CreateBookingDTO>,
+  ) {
+    return this.bookingService.update(id, body);
   }
 }
