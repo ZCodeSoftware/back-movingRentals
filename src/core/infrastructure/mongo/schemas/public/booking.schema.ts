@@ -15,6 +15,9 @@ export class Booking {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatPaymentMethod' })
   paymentMethod: CatPaymentMethod;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatStatus' })
+  status: mongoose.Schema.Types.ObjectId;
+
   @Prop({ type: Number, required: true })
   total: number;
 

@@ -15,6 +15,8 @@ import {
   catPriceConditionService,
   catRoleRepository,
   catRoleService,
+  catStatusRepository,
+  catStatusService,
   countryRepository,
   countryService,
   userRepository,
@@ -25,6 +27,7 @@ import {
   cartSchema,
   categorySchema,
   catModelSchema,
+  catStatusSchema,
   countrySchema,
   documentSchema,
   paymentMethodSchema,
@@ -39,6 +42,7 @@ import { CatModelController } from './infrastructure/nest/controllers/cat-model.
 import { CatPaymentMethodController } from './infrastructure/nest/controllers/cat-payment-method.controller';
 import { CatPriceConditionController } from './infrastructure/nest/controllers/cat-price-condition.controller';
 import { CatRoleController } from './infrastructure/nest/controllers/cat-role.controller';
+import { CatStatusController } from './infrastructure/nest/controllers/cat-status.controller';
 
 @Module({
   imports: [
@@ -53,7 +57,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
       cartSchema,
       countrySchema,
       addressSchema,
-      catModelSchema
+      catModelSchema,
+      catStatusSchema
     ]),
   ],
   controllers: [
@@ -63,7 +68,8 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     CatPriceConditionController,
     CatPaymentMethodController,
     CatCountryController,
-    CatModelController
+    CatModelController,
+    CatStatusController
   ],
   providers: [
     catRoleRepository,
@@ -82,7 +88,9 @@ import { CatRoleController } from './infrastructure/nest/controllers/cat-role.co
     countryService,
     addressRepository,
     catModelRepository,
-    catModelService
+    catModelService,
+    catStatusRepository,
+    catStatusService
   ],
   exports: [],
 })

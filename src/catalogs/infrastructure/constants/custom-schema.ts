@@ -23,6 +23,7 @@ import {
   CatRole,
   CatRoleSchema,
 } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-role.schema';
+import { CatStatus, CatStatusSchema } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-status.schema';
 import {
   Address,
   AddressSchema,
@@ -81,4 +82,9 @@ export const addressSchema = {
 export const catModelSchema = {
   name: CatModel.name,
   schema: CatModelSchema,
+}
+
+export const catStatusSchema = {
+  name: CatStatus.name,
+  schema: CatStatusSchema,
 }
