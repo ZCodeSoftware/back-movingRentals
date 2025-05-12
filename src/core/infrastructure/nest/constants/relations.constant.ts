@@ -6,4 +6,4 @@ export const TRANSFER_RELATIONS = ["category"];
 
 export const TICKET_RELATIONS = ["category"];
 
-export const BOOKING_RELATIONS = ["paymentMethod"];
+export const BOOKING_RELATIONS = ["paymentMethod", "status"];

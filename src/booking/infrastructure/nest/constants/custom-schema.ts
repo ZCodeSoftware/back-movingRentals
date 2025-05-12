@@ -2,6 +2,7 @@ import {
   CatPaymentMethod,
   CatPaymentMethodSchema,
 } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-payment-method.schema';
+import { CatStatus, CatStatusSchema } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-status.schema';
 import {
   Booking,
   BookingSchema,
@@ -30,4 +31,9 @@ export const userSchema = {
 export const vehicleSchema = {
   name: Vehicle.name,
   schema: VehicleSchema
+}
+
+export const catStatusSchema = {
+  name: CatStatus.name,
+  schema: CatStatusSchema,
 }
