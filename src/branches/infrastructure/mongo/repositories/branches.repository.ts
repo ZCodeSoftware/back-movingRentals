@@ -10,7 +10,7 @@ import { BranchesSchema } from '../schemas/branches.schema';
 export class BranchesRepository implements IBranchesRepository {
   constructor(
     @InjectModel('Branches') private readonly branchesDB: Model<BranchesSchema>,
-  ) {}
+  ) { }
 
   async create(branches: BranchesModel): Promise<BranchesModel> {
     const schema = new this.branchesDB(branches.toJSON());
@@ -28,7 +28,16 @@ export class BranchesRepository implements IBranchesRepository {
   async findById(id: string): Promise<BranchesModel> {
     const branches = await this.branchesDB
       .findById(id)
-      .populate('address vehicles tours users');
+      .populate('address vehicles tours users')
+      .populate({
+        path: 'carousel',
+        populate: {
+          path: 'vehicle',
+          populate: {
+            path: 'category'
+          }
+        }
+      });
 
     if (!branches)
       throw new BaseErrorException('Branches not found', HttpStatus.NOT_FOUND);
@@ -42,5 +51,16 @@ export class BranchesRepository implements IBranchesRepository {
       .populate('address vehicles tours users');
 
     return branchess?.map((branches) => BranchesModel.hydrate(branches));
+  }
+
+  async update(id: string, branches: BranchesModel): Promise<BranchesModel> {
+    const branchesUpdated = await this.branchesDB
+      .findByIdAndUpdate(id, branches.toJSON(), { new: true, omitUndefined: true })
+      .populate('address vehicles tours users carousel.vehicles');
+
+    if (!branchesUpdated)
+      throw new BaseErrorException('Branches not found', HttpStatus.NOT_FOUND);
+
+    return BranchesModel.hydrate(branchesUpdated);
   }
 }

@@ -6,6 +6,7 @@ import {
   Branches,
   BranchesSchema,
 } from '../../../../core/infrastructure/mongo/schemas/public/branches.schema';
+import { Carousel, CarouselSchema } from '../../../../core/infrastructure/mongo/schemas/public/carousel.schema';
 import {
   Tour,
   TourSchema,
@@ -43,3 +44,8 @@ export const userSchema = {
   name: User.name,
   schema: UserSchema,
 };
+
+export const carouselSchema = {
+  name: Carousel.name,
+  schema: CarouselSchema,
+}

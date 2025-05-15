@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsHexColor, IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateBranchesDTO {
   @IsNotEmpty()
@@ -29,4 +29,25 @@ export class CreateBranchesDTO {
   @IsArray()
   @IsString({ each: true })
   users?: string[];
+}
+
+export class CreateCarouselDTO {
+  @IsNotEmpty()
+  @ApiProperty({ description: 'ID del vehículo asociado al carousel' })
+  @IsMongoId()
+  vehicleId: string;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Descripción opcional del carousel' })
+  @IsString()
+  description?: string;
+
+  @IsNotEmpty()
+  @ApiProperty({
+    description: 'Array de colores en formato hexadecimal',
+    example: ['#FF5733', '#33FF57', '#3357FF']
+  })
+  @IsArray()
+  @IsHexColor({ each: true })
+  colors: string[];
 }

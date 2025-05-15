@@ -5,3 +5,9 @@ export interface ICreateBranches {
   tours?: string[];
   users?: string[];
 }
+
+export interface ICreateCarousel {
+  vehicleId: string;
+  description?: string;
+  colors: string[];
+}
