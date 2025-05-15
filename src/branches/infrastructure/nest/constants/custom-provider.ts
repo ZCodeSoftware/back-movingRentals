@@ -6,6 +6,7 @@ import { BranchesService } from '../../../application/services/branches.service'
 import SymbolsBranches from '../../../symbols-branches';
 import { AddressRepository } from '../../mongo/repositories/address.repository';
 import { BranchesRepository } from '../../mongo/repositories/branches.repository';
+import { CarouselRepository } from '../../mongo/repositories/carousel.repository';
 import { TourRepository } from '../../mongo/repositories/tour.repository';
 import { UserRepository } from '../../mongo/repositories/user.repository';
 import { VehicleRepository } from '../../mongo/repositories/vehicle.repository';
@@ -39,3 +40,8 @@ export const userRepository = {
   provide: SymbolsUser.IUserRepository,
   useClass: UserRepository,
 };
+
+export const carouselRepository = {
+  provide: SymbolsBranches.ICarouselRepository,
+  useClass: CarouselRepository,
+}
