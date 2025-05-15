@@ -1,6 +1,7 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { AddressModel } from './address.model';
+import { CarouselModel } from './carousel.model';
 import { TourModel } from './tour.model';
 import { UserModel } from './user.model';
 import { VehicleModel } from './vehicle.model';
@@ -11,6 +12,7 @@ export class BranchesModel extends BaseModel {
   private _vehicles?: VehicleModel[];
   private _tours?: TourModel[];
   private _users?: UserModel[];
+  private _carousel?: CarouselModel[];
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -23,6 +25,7 @@ export class BranchesModel extends BaseModel {
         : null,
       tours: this._tours ? this._tours.map((tour) => tour.toJSON()) : null,
       users: this._users ? this._users.map((user) => user.toJSON()) : null,
+      carousel: this._carousel ? this._carousel.map((c) => c.toJSON()) : null,
     };
   }
 
@@ -51,6 +54,14 @@ export class BranchesModel extends BaseModel {
     this._users.push(user);
   }
 
+  addCarousel(carousel: CarouselModel[]): void {
+    if (!this._carousel) {
+      this._carousel = [];
+    } else {
+      this._carousel = carousel
+    }
+  }
+
   static create(branches: any): BranchesModel {
     const newBranches = new BranchesModel(new Identifier(branches._id));
 
@@ -66,8 +77,8 @@ export class BranchesModel extends BaseModel {
     newBranches._address = AddressModel.hydrate(branches.address);
     newBranches._vehicles = branches.vehicles
       ? branches.vehicles.map((vehicle: VehicleModel) =>
-          VehicleModel.hydrate(vehicle),
-        )
+        VehicleModel.hydrate(vehicle),
+      )
       : [];
     newBranches._tours = branches.tours
       ? branches.tours.map((tour: TourModel) => TourModel.hydrate(tour))
@@ -75,6 +86,10 @@ export class BranchesModel extends BaseModel {
     newBranches._users = branches.users
       ? branches.users.map((user: UserModel) => UserModel.hydrate(user))
       : [];
+    newBranches._carousel = branches.carousel
+      ? branches.carousel.map((carousel: CarouselModel) =>
+        CarouselModel.hydrate(carousel),
+      ) : [];
 
     return newBranches;
   }

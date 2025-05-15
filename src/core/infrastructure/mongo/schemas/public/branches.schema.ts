@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { HydratedDocument } from 'mongoose';
 import { Address } from './address.schema';
+import { Carousel } from './carousel.schema';
 import { Tour } from './tour.schema';
 import { User } from './user.schema';
 import { Vehicle } from './vehicle.schema';
@@ -32,6 +33,13 @@ export class Branches {
     required: false,
   })
   users: User[];
+
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Carousel' }],
+    required: false,
+    default: [],
+  })
+  carousel: Carousel[];
 }
 
 export const BranchesSchema = SchemaFactory.createForClass(Branches);
