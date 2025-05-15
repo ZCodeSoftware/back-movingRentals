@@ -4,6 +4,7 @@ import {
   addressRepository,
   branchesRepository,
   branchesService,
+  carouselRepository,
   tourRepository,
   userRepository,
   vehicleRepository,
@@ -11,6 +12,7 @@ import {
 import {
   addressSchema,
   branchesSchema,
+  carouselSchema,
   tourSchema,
   userSchema,
   vehicleSchema,
@@ -25,6 +27,7 @@ import { BranchesController } from './infrastructure/nest/controllers/branches.c
       vehicleSchema,
       tourSchema,
       userSchema,
+      carouselSchema
     ]),
   ],
   controllers: [BranchesController],
@@ -35,7 +38,8 @@ import { BranchesController } from './infrastructure/nest/controllers/branches.c
     vehicleRepository,
     tourRepository,
     userRepository,
+    carouselRepository
   ],
   exports: [],
 })
-export class BranchesModule {}
+export class BranchesModule { }

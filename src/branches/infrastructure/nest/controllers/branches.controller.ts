@@ -10,7 +10,7 @@ import {
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IBranchesService } from '../../../domain/services/branches.interface.service';
 import SymbolsBranches from '../../../symbols-branches';
-import { CreateBranchesDTO } from '../dtos/branches.dto';
+import { CreateBranchesDTO, CreateCarouselDTO } from '../dtos/branches.dto';
 
 @ApiTags('Branches')
 @Controller('branches')
@@ -18,7 +18,7 @@ export class BranchesController {
   constructor(
     @Inject(SymbolsBranches.IBranchesService)
     private readonly branchesService: IBranchesService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(201)
@@ -30,6 +30,18 @@ export class BranchesController {
   })
   async create(@Body() body: CreateBranchesDTO) {
     return this.branchesService.create(body);
+  }
+
+  @Post('carousel/:id')
+  @HttpCode(201)
+  @ApiResponse({ status: 201, description: 'Carousel created' })
+  @ApiResponse({ status: 400, description: `Carousel shouldn't be created` })
+  @ApiBody({
+    type: [CreateCarouselDTO],
+    description: 'Data to create a Branches',
+  })
+  async createCarousel(@Param('id') id: string, @Body() body: CreateCarouselDTO[]) {
+    return this.branchesService.createCarousel(body, id);
   }
 
   @Get()
