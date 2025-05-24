@@ -29,7 +29,6 @@ export class BookingService implements IBookingService {
   async create(
     booking: ICreateBooking,
     id: string,
-    email: string,
   ): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
     const bookingModel = BookingModel.create(res);
@@ -57,13 +56,6 @@ export class BookingService implements IBookingService {
     bookingModel.addPaymentMethod(catPaymentMethod);
 
     const bookingSave = await this.bookingRepository.create(bookingModel, id);
-
-    if (bookingSave) {
-      this.eventEmitter.emit('send-booking.created', {
-        bookingSave,
-        userEmail: email,
-      });
-    }
 
     return bookingSave;
   }
@@ -97,6 +89,7 @@ export class BookingService implements IBookingService {
   async validateBooking(
     id: string,
     paid: boolean,
+    email: string,
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -114,6 +107,19 @@ export class BookingService implements IBookingService {
 
     booking.addStatus(status);
 
-    return this.bookingRepository.update(id, booking);
+    const updatedBooking = await this.bookingRepository.update(id, booking);
+
+    if (!updatedBooking) {
+      throw new BaseErrorException('Booking not updated', HttpStatus.NOT_FOUND);
+    }
+
+    if (status.toJSON().name === TypeStatus.APPROVED) {
+      this.eventEmitter.emit('send-booking.created', {
+        updatedBooking,
+        userEmail: email,
+      });
+    }
+
+    return updatedBooking
   }
 }

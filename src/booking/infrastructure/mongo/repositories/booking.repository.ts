@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { TypeStatus } from '../../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
 import { BOOKING_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { BookingModel } from '../../../domain/models/booking.model';
@@ -79,18 +80,28 @@ export class BookingRepository implements IBookingRepository {
   }
 
   async findByUserId(userId: string): Promise<BookingModel[]> {
-    const user = await this.userDB.findById(userId).populate({
-      path: 'bookings',
-      populate: {
-        path: 'paymentMethod',
-        model: 'CatPaymentMethod',
-      }
-    });
+    const user = await this.userDB.findById(userId).select('bookings').exec();
 
-    if (!user)
-      throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+    if (!user || !user.bookings.length) {
+      return [];
+    }
 
-    return user.bookings?.map((booking) => BookingModel.hydrate(booking));
+    const bookings = await this.bookingDB
+      .find({
+        _id: { $in: user.bookings },
+      })
+      .populate({
+        path: 'status',
+        match: { name: TypeStatus.APPROVED },
+        select: 'name'
+      })
+      .populate('paymentMethod')
+      .exec()
+      .then(bookings =>
+        bookings.filter(booking => booking.status !== null)
+      );
+
+    return bookings.map((booking) => BookingModel.hydrate(booking));
   }
 
   async update(id: string, booking: BookingModel): Promise<BookingModel> {
