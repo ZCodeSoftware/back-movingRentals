@@ -23,6 +23,32 @@ export class Booking {
 
   @Prop({ type: Number, required: false })
   totalPaid?: number;
+
+  @Prop({ type: Number, unique: true })
+  bookingNumber: number;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
+
+BookingSchema.pre('save', async function (next) {
+  if (this.isNew && !this.bookingNumber) {
+    try {
+      const BookingModel = this.constructor as mongoose.Model<Booking>;
+
+      const lastBooking = await BookingModel
+        .findOne({}, { bookingNumber: 1 })
+        .sort({ bookingNumber: -1 })
+        .exec();
+
+      this.bookingNumber = lastBooking?.bookingNumber
+        ? lastBooking.bookingNumber + 1
+        : 6150;
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  } else {
+    next();
+  }
+});
