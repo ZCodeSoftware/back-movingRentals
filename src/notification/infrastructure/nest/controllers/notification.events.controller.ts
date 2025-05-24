@@ -31,12 +31,12 @@ export class NotificationEventController {
 
   @OnEvent('send-booking.created')
   async bookingCreate(payload: {
-    bookingSave: BookingModel;
+    updatedBooking: BookingModel;
     userEmail: string;
   }) {
-    const { bookingSave, userEmail } = payload;
+    const { updatedBooking, userEmail } = payload;
     await this.notificationEventService.sendBookingCreated(
-      bookingSave,
+      updatedBooking,
       userEmail,
     );
   }

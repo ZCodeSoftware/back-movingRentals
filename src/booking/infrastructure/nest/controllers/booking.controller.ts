@@ -38,8 +38,8 @@ export class BookingController {
   @ApiBody({ type: CreateBookingDTO, description: 'Data to create a Booking' })
   @UseGuards(AuthGuards)
   async create(@Body() body: CreateBookingDTO, @Req() req: IUserRequest) {
-    const { _id, email } = req.user;
-    return this.bookingService.create(body, _id, email);
+    const { _id } = req.user;
+    return this.bookingService.create(body, _id);
   }
 
   @Get()
@@ -90,11 +90,14 @@ export class BookingController {
   @ApiResponse({ status: 200, description: 'Booking validated' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiQuery({ name: 'paid', required: true, type: 'boolean' })
+  @UseGuards(AuthGuards)
   async validateBooking(
     @Param('id') id: string,
     @Query('paid') paid: boolean,
+    @Req() req: IUserRequest,
   ) {
-    return await this.bookingService.validateBooking(id, paid);
+    const { email } = req.user;
+    return await this.bookingService.validateBooking(id, paid, email);
   }
 
   @Put(':id')
