@@ -5,7 +5,6 @@ export interface IBookingService {
   create(
     booking: ICreateBooking,
     id: string,
-    email: string,
   ): Promise<BookingModel>;
   findById(id: string): Promise<BookingModel>;
   findAll(): Promise<BookingModel[]>;
@@ -17,5 +16,6 @@ export interface IBookingService {
   validateBooking(
     id: string,
     paid: boolean,
+    email: string,
   ): Promise<BookingModel>;
 }

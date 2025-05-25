@@ -10,6 +10,7 @@ export class BookingModel extends BaseModel {
   private _status: CatStatusModel;
   private _total: number;
   private _totalPaid?: number;
+  private _bookingNumber: number;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -21,6 +22,7 @@ export class BookingModel extends BaseModel {
       paymentMethod: this._paymentMethod ? this._paymentMethod.toJSON() : null,
       total: this._total,
       totalPaid: this._totalPaid,
+      bookingNumber: this._bookingNumber,
     };
   }
 
@@ -56,6 +58,7 @@ export class BookingModel extends BaseModel {
     newBooking._status = booking.status
       ? CatStatusModel.hydrate(booking.status)
       : null;
+    newBooking._bookingNumber = booking.bookingNumber;
 
     return newBooking;
   }
