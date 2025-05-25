@@ -19,12 +19,6 @@ export class Carousel {
     @Prop({
         type: [String],
         required: true,
-        validate: {
-            validator: (colors: string[]) => {
-                return colors.every(color => /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color));
-            },
-            message: 'Los colores deben ser códigos hexadecimales válidos'
-        }
     })
     colors: string[];
 }
