@@ -5,7 +5,8 @@ import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
 import { ContactUserDto } from '../../nest/dto/notifications.dto';
 import { forgotPasswordTemplate } from '../forgot-password/forgot-password.template';
-import { generateUserBookingHtml } from './user-booking-content.template';
+import { generateUserBookingConfirmationEn } from './user-booking-content-en.template';
+import { generateUserBookingConfirmation } from './user-booking-content.template';
 
 export class UserEmailProvider implements IUserEmailAdapter {
   private readonly transporter: nodemailer.Transporter;
@@ -56,15 +57,17 @@ export class UserEmailProvider implements IUserEmailAdapter {
   async sendUserBookingCreated(
     booking: BookingModel,
     userEmail: string,
+    lang: string = 'es',
   ): Promise<any> {
     try {
-      const htmlContent = generateUserBookingHtml(booking);
+      let emailContent: { subject: string; html: string };
+      emailContent = lang === 'es' ? generateUserBookingConfirmation(booking) : generateUserBookingConfirmationEn(booking);
 
       const message = {
-        from: `"Moving" <${config().business.contact_email}>`,
+        from: `"MoovAdventures" <${config().business.contact_email}>`,
         to: userEmail,
-        subject: 'Reserva creada',
-        html: htmlContent,
+        subject: emailContent.subject,
+        html: emailContent.html,
       };
 
       return await this.transporter.sendMail(message);
@@ -73,14 +76,14 @@ export class UserEmailProvider implements IUserEmailAdapter {
     }
   }
 
-  async sendUserForgotPassword(email: string, token: string): Promise<any> {
+  async sendUserForgotPassword(email: string, token: string, frontendHost: string): Promise<any> {
     try {
 
       const message = {
-        from: `"Moving" <${config().business.contact_email}>`,
+        from: `"MoovAdventures" <${config().business.contact_email}>`,
         to: email,
         subject: 'Recuperar contraseña',
-        html: forgotPasswordTemplate(token),
+        html: forgotPasswordTemplate(token, frontendHost),
       };
       return await this.transporter.sendMail(message);
     }

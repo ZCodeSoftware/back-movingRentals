@@ -90,6 +90,7 @@ export class BookingService implements IBookingService {
     id: string,
     paid: boolean,
     email: string,
+    lang: string = 'es',
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -117,6 +118,7 @@ export class BookingService implements IBookingService {
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
         userEmail: email,
+        lang,
       });
     }
 

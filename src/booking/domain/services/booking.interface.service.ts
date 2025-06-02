@@ -17,5 +17,6 @@ export interface IBookingService {
     id: string,
     paid: boolean,
     email: string,
+    lang: string,
   ): Promise<BookingModel>;
 }

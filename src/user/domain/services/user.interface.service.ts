@@ -6,5 +6,5 @@ export interface IUserService {
   findByEmail(email: string): Promise<UserModel>;
   findById(id: string): Promise<UserModel>;
   update(id: string, user: IUserUpdate): Promise<UserModel>;
-  forgotPassword(email: string): Promise<any>
+  forgotPassword(email: string, requestHost: string): Promise<any>
 }
