@@ -1,6 +1,5 @@
-import config from "../../../../config";
 
-export function forgotPasswordTemplate(token: string): string {
+export function forgotPasswordTemplate(token: string, frontendHost: string): string {
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -15,7 +14,7 @@ export function forgotPasswordTemplate(token: string): string {
             <p>Solicitaste un restablecimiento de contraseña para tu cuenta .</p>
             <p>
             haz clic en el siguiente enlace para restablecer tu contraseña:
-            <a href="${config().app.front.front_base_url}/forgotPassword?t=${token}">Restablecer contraseña</a>
+            <a href="${frontendHost}/forgotPassword?t=${token}">Restablecer contraseña</a>
             Este enlace es válido por 10 minutos.
             </p>
             <p>Si no solicitaste esto, ignora este mensaje.</p>

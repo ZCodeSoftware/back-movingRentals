@@ -37,19 +37,20 @@ export class NotificationEventService implements INotificationEventService {
   async sendBookingCreated(
     booking: BookingModel,
     userEmail: string,
+    lang: string = 'es',
   ): Promise<any> {
     try {
-      await this.userEmailAdapter.sendUserBookingCreated(booking, userEmail);
+      await this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang);
 
-      await this.adminEmailAdapter.sendAdminBookingCreated(booking);
+      /* await this.adminEmailAdapter.sendAdminBookingCreated(booking); */
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
 
-  async sendUserForgotPassword(email: string, token: string): Promise<any> {
+  async sendUserForgotPassword(email: string, token: string, frontendHost: string): Promise<any> {
     try {
-      return await this.userEmailAdapter.sendUserForgotPassword(email, token);
+      return await this.userEmailAdapter.sendUserForgotPassword(email, token, frontendHost);
     } catch (error) {
       throw new BadRequestException(error.message);
     }

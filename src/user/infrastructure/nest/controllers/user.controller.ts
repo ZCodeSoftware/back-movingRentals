@@ -1,5 +1,5 @@
 import { Controller, Inject, UseGuards } from '@nestjs/common/decorators/core';
-import { Body, Get, Post, Put, Query, Req } from '@nestjs/common/decorators/http';
+import { Body, Get, Headers, Post, Put, Query, Req } from '@nestjs/common/decorators/http';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
@@ -52,8 +52,8 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'Send email to reset password' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiQuery({ name: 'email', type: String })
-  async forgotPassword(@Query('email') email: string): Promise<any> {
+  async forgotPassword(@Query('email') email: string, @Headers('origin') requestHost: string,): Promise<any> {
 
-    return await this.userService.forgotPassword(email);
+    return await this.userService.forgotPassword(email, requestHost);
   }
 }

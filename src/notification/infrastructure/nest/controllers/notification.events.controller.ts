@@ -33,11 +33,13 @@ export class NotificationEventController {
   async bookingCreate(payload: {
     updatedBooking: BookingModel;
     userEmail: string;
+    lang: string;
   }) {
-    const { updatedBooking, userEmail } = payload;
+    const { updatedBooking, userEmail, lang } = payload;
     await this.notificationEventService.sendBookingCreated(
       updatedBooking,
       userEmail,
+      lang,
     );
   }
 
@@ -45,8 +47,9 @@ export class NotificationEventController {
   async sendUserForgotPassword(payload: {
     email: string;
     token: string;
+    frontendHost: string;
   }) {
-    const { email, token } = payload;
-    await this.notificationEventService.sendUserForgotPassword(email, token);
+    const { email, token, frontendHost } = payload;
+    await this.notificationEventService.sendUserForgotPassword(email, token, frontendHost);
   }
 }
