@@ -8,7 +8,7 @@ export default registerAs('config', () => {
       api_key: process.env.APP_API_KEY,
       app_global_prefix: process.env.APP_GLOBAL_PREFIX,
       front: {
-        front_base_url: process.env.FRONT_BASE_URL,
+        front_base_urls: JSON.parse(process.env.FRONT_BASE_URLS) ?? [],
       },
       domain: process.env.APP_DOMAIN,
       env: process.env.NODE_ENV,

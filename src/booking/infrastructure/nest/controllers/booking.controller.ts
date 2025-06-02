@@ -94,10 +94,12 @@ export class BookingController {
   async validateBooking(
     @Param('id') id: string,
     @Query('paid') paid: boolean,
+    @Query('lang') lang: string,
     @Req() req: IUserRequest,
   ) {
     const { email } = req.user;
-    return await this.bookingService.validateBooking(id, paid, email);
+    const language = lang ?? 'es';
+    return await this.bookingService.validateBooking(id, paid, email, language);
   }
 
   @Put(':id')

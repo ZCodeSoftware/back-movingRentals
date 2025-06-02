@@ -98,8 +98,16 @@ export class UserService implements IUserService {
     }
   }
 
-  async forgotPassword(email: string): Promise<any> {
+  async forgotPassword(email: string, requestHost: string): Promise<any> {
     try {
+      const validFrontendUrl = config().app.front.front_base_urls.find(
+        (url: string) => url.includes(requestHost),
+      );
+      if (!validFrontendUrl)
+        throw new BaseErrorException(
+          'Invalid request',
+          HttpStatus.BAD_REQUEST,
+        );
       const foundUser = await this.userRepository.findByEmail(email);
 
       if (!foundUser)
@@ -118,7 +126,8 @@ export class UserService implements IUserService {
 
       this.eventEmitter.emit('send-user.forgot-password', {
         email,
-        token
+        token,
+        frontendHost: validFrontendUrl,
       })
       return foundUser;
     } catch (error) {
