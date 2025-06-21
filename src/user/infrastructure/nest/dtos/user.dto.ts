@@ -106,4 +106,9 @@ export class UpdateUserDTO {
   @ApiPropertyOptional()
   @IsOptional()
   newsletter?: boolean;
+
+  @IsOptional()
+  @ApiPropertyOptional()
+  @Type(() => CreateAddressDTO)
+  address?: CreateAddressDTO;
 }

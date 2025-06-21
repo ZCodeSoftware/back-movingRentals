@@ -63,12 +63,7 @@ export class VehicleRepository implements IVehicleRepository {
             .populate('owner')
             .populate('model');
 
-        // Filtro único por nombre
-        const uniqueVehicles = vehicles.filter((v, i, self) =>
-            i === self.findIndex(v2 => v.tag === v2.tag)
-        );
-
-        return uniqueVehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
+        return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
     }
 
     async findAll(): Promise<VehicleModel[]> {

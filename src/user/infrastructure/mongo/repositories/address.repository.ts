@@ -26,9 +26,25 @@ export class AddressRepository implements IAddressRepository {
   }
 
   async findById(id: string): Promise<AddressModel> {
-    const address = await this.addressDB.findById(id);
+    const address = await this.addressDB.findById(id).populate('country');
     if (!address)
       throw new BaseErrorException('Address not found', HttpStatus.NOT_FOUND);
     return AddressModel.hydrate(address);
+  }
+
+  async update(id: string, address: AddressModel): Promise<AddressModel> {
+    const updatedAddress = await this.addressDB.findByIdAndUpdate(
+      id,
+      address.toJSON(),
+      { new: true }
+    ).populate('country');
+
+    if (!updatedAddress)
+      throw new BaseErrorException(
+        `Address couldn't be updated`,
+        HttpStatus.BAD_REQUEST,
+      );
+
+    return AddressModel.hydrate(updatedAddress);
   }
 }
