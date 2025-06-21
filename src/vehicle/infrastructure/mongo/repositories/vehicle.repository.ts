@@ -1,31 +1,40 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
-import { VEHICLE_RELATIONS } from "../../../../core/infrastructure/nest/constants/relations.constant";
-import { VehicleModel } from "../../../domain/models/vehicle.model";
-import { IVehicleRepository } from "../../../domain/repositories/vehicle.interface.repository";
-import { UpdatePriceByModelDTO } from "../../nest/dtos/vehicle.dto";
-import { VehicleSchema } from "../schemas/vehicle.schema";
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
+import { VEHICLE_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
+import { VehicleModel } from '../../../domain/models/vehicle.model';
+import { IVehicleRepository } from '../../../domain/repositories/vehicle.interface.repository';
+import { UpdatePriceByModelDTO } from '../../nest/dtos/vehicle.dto';
+import { VehicleSchema } from '../schemas/vehicle.schema';
 
 @Injectable()
 export class VehicleRepository implements IVehicleRepository {
     constructor(
-        @InjectModel('Vehicle') private readonly vehicleDB: Model<VehicleSchema>
+        @InjectModel('Vehicle') private readonly vehicleDB: Model<VehicleSchema>,
     ) { }
 
     async create(vehicle: VehicleModel): Promise<VehicleModel> {
         const schema = new this.vehicleDB(vehicle.toJSON());
         const newVehicle = await schema.save();
 
-        if (!newVehicle) throw new BaseErrorException(`Vehicle shouldn't be created`, HttpStatus.BAD_REQUEST);
+        if (!newVehicle)
+            throw new BaseErrorException(
+                `Vehicle shouldn't be created`,
+                HttpStatus.BAD_REQUEST,
+            );
 
         return VehicleModel.hydrate(newVehicle);
     }
 
     async findById(id: string): Promise<VehicleModel> {
-        const vehicle = await this.vehicleDB.findById(id).populate('category').populate('owner').populate('model');
-        if (!vehicle) throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
+        const vehicle = await this.vehicleDB
+            .findById(id)
+            .populate('category')
+            .populate('owner')
+            .populate('model');
+        if (!vehicle)
+            throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
         return VehicleModel.hydrate(vehicle);
     }
 
@@ -45,12 +54,12 @@ export class VehicleRepository implements IVehicleRepository {
                                 $or: [
                                     { start: { $lte: start }, end: { $gte: end } },
                                     { start: { $gte: start, $lte: end } },
-                                    { end: { $gte: start, $lte: end } }
-                                ]
-                            }
-                        }
-                    }
-                }
+                                    { end: { $gte: start, $lte: end } },
+                                ],
+                            },
+                        },
+                    },
+                },
             ];
         }
 
@@ -67,8 +76,13 @@ export class VehicleRepository implements IVehicleRepository {
     }
 
     async findAll(): Promise<VehicleModel[]> {
-        const vehicles = await this.vehicleDB.find().sort({ tag: 1 }).populate('category').populate('owner').populate('model');
-        return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
+        const vehicles = await this.vehicleDB
+            .find()
+            .sort({ name: 1 })
+            .populate('category')
+            .populate('owner')
+            .populate('model');
+        return vehicles?.map((vehicle) => VehicleModel.hydrate(vehicle));
     }
 
     async update(id: string, vehicle: VehicleModel): Promise<VehicleModel> {
@@ -77,20 +91,36 @@ export class VehicleRepository implements IVehicleRepository {
         const filteredUpdateObject = Object.fromEntries(
             Object.entries(updateObject).filter(([key, value]) => {
                 if (VEHICLE_RELATIONS.includes(key)) {
-                    return value !== null && value !== undefined && typeof value === 'object' && '_id' in value;
+                    return (
+                        value !== null &&
+                        value !== undefined &&
+                        typeof value === 'object' &&
+                        '_id' in value
+                    );
                 }
                 return value !== null && value !== undefined;
-            })
+            }),
         );
 
-        const updatedVehicle = await this.vehicleDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true, omitUndefined: true }).populate('category').populate('owner').populate('model');
+        const updatedVehicle = await this.vehicleDB
+            .findByIdAndUpdate(id, filteredUpdateObject, {
+                new: true,
+                omitUndefined: true,
+            })
+            .populate('category')
+            .populate('owner')
+            .populate('model');
 
-        if (!updatedVehicle) throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
+        if (!updatedVehicle)
+            throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
 
         return VehicleModel.hydrate(updatedVehicle);
     }
 
-    async updatePriceByModel(model: string, prices: UpdatePriceByModelDTO): Promise<void> {
+    async updatePriceByModel(
+        model: string,
+        prices: UpdatePriceByModelDTO,
+    ): Promise<void> {
         await this.vehicleDB.updateMany({ model }, { $set: prices });
     }
 }
