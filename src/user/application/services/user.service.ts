@@ -88,7 +88,49 @@ export class UserService implements IUserService {
 
   async update(id: string, user: IUserUpdate): Promise<UserModel> {
     try {
-      const userModel = UserModel.create(user);
+      const { address, ...rest } = user;
+      const userModel = UserModel.create(rest);
+
+
+      if (address?.countryId) {
+        const existingUser = await this.userRepository.findById(id);
+
+        if (!existingUser)
+          throw new BaseErrorException(
+            `The user with ID ${id} does not exist`,
+            HttpStatus.NOT_FOUND,
+          );
+
+        const findCountry = await this.catCountryRepository.findById(
+          address.countryId,
+        );
+
+        if (!findCountry)
+          throw new BaseErrorException(
+            'Country not found',
+            HttpStatus.BAD_REQUEST,
+          );
+
+        const addressToUpdate = await this.addressRepository.findById(
+          existingUser.toJSON().address._id.toString()
+        )
+
+        if (addressToUpdate) {
+          addressToUpdate.addCountry(findCountry);
+
+          const updatedAddress = await this.addressRepository.update(
+            existingUser.toJSON().address._id.toString(),
+            addressToUpdate
+          );
+
+          userModel.addAddress(updatedAddress);
+        } else {
+          const newAddress = AddressModel.create({});
+          newAddress.addCountry(findCountry);
+          const addressSave = await this.addressRepository.create(newAddress);
+          userModel.addAddress(addressSave);
+        }
+      }
 
       const update = await this.userRepository.update(id, userModel);
 

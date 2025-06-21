@@ -37,4 +37,20 @@ export class AddressRepository implements IAddressRepository {
     const addresss = await this.addressDB.find().populate('country');
     return addresss?.map((address) => AddressModel.hydrate(address));
   }
+
+  async update(id: string, address: AddressModel): Promise<AddressModel> {
+    const updatedAddress = await this.addressDB.findByIdAndUpdate(
+      id,
+      address.toJSON(),
+      { new: true }
+    ).populate('country');
+
+    if (!updatedAddress)
+      throw new BaseErrorException(
+        `Address couldn't be updated`,
+        HttpStatus.BAD_REQUEST,
+      );
+
+    return AddressModel.hydrate(updatedAddress);
+  }
 }

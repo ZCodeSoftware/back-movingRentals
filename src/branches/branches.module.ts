@@ -40,6 +40,6 @@ import { BranchesController } from './infrastructure/nest/controllers/branches.c
     userRepository,
     carouselRepository
   ],
-  exports: [],
+  exports: [branchesRepository],
 })
 export class BranchesModule { }
