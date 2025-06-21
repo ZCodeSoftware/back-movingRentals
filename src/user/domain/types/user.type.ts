@@ -15,4 +15,5 @@ export interface IUserUpdate {
   cellphone?: string;
   isActive?: boolean;
   newsletter?: boolean;
+  address?: ICreateAddress;
 }

@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BookingModule } from './booking/booking.module';
 import { BranchesModule } from './branches/branches.module';
+import { BusinessConfigModule } from './businessconfig/businessconfig.module';
 import { CartModule } from './cart/cart.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { ChoosingModule } from './choosing/choosing.module';
@@ -47,7 +48,8 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     ExchageRateModule,
     TicketModule,
     FaqModule,
-    ChoosingModule
+    ChoosingModule,
+    BusinessConfigModule
   ],
   controllers: [AppController],
   providers: [AppService],
