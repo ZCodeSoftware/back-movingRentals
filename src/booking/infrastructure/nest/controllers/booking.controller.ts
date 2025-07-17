@@ -96,16 +96,19 @@ export class BookingController {
   @ApiResponse({ status: 200, description: 'Booking validated' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiQuery({ name: 'paid', required: true, type: 'boolean' })
+  @ApiQuery({ name: 'lang', required: false, type: 'string', description: 'Language for response' })
+  @ApiQuery({ name: 'isManual', required: false, type: 'boolean', description: 'Indicates if the booking is manual' })
   @UseGuards(AuthGuards)
   async validateBooking(
     @Param('id') id: string,
     @Query('paid') paid: boolean,
     @Query('lang') lang: string,
+    @Query('isManual') isManual: boolean,
     @Req() req: IUserRequest,
   ) {
     const { email } = req.user;
     const language = lang ?? 'es';
-    return await this.bookingService.validateBooking(id, paid, email, language);
+    return await this.bookingService.validateBooking(id, paid, email, language, isManual);
   }
 
   @Put(':id')
