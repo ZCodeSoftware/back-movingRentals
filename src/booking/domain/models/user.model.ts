@@ -1,6 +1,7 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { BookingModel } from './booking.model';
+import { CatRoleModel } from './cat-role.model';
 
 export class UserModel extends BaseModel {
   private _name: string;
@@ -11,6 +12,7 @@ export class UserModel extends BaseModel {
   private _isActive: boolean;
   private _newsletter: boolean;
   private _bookings: BookingModel[];
+  private _role: CatRoleModel;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -26,6 +28,7 @@ export class UserModel extends BaseModel {
       bookings: this._bookings
         ? this._bookings.map((booking) => booking.toJSON())
         : null,
+      role: this._role ? this._role.toJSON() : null,
     };
   }
 
@@ -63,6 +66,7 @@ export class UserModel extends BaseModel {
     newUser._bookings = user.bookings
       ? user.bookings.map((booking: BookingModel) => BookingModel.hydrate(booking))
       : [];
+    newUser._role = user.role ? CatRoleModel.hydrate(user.role) : null;
 
     return newUser;
   }
