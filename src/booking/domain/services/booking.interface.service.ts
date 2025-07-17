@@ -1,4 +1,5 @@
 import { BookingModel } from '../models/booking.model';
+import { IPaginatedBookingResponse } from '../repositories/booking.interface.repository';
 import { ICreateBooking } from '../types/booking.type';
 
 export interface IBookingService {
@@ -7,7 +8,7 @@ export interface IBookingService {
     id: string,
   ): Promise<BookingModel>;
   findById(id: string): Promise<BookingModel>;
-  findAll(): Promise<BookingModel[]>;
+  findAll(filters: any): Promise<IPaginatedBookingResponse>;
   findByUserId(userId: string): Promise<BookingModel[]>;
   update(
     id: string,

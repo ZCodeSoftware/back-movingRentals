@@ -5,7 +5,7 @@ import { TypeStatus } from '../../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
 import { BOOKING_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { BookingModel } from '../../../domain/models/booking.model';
-import { IBookingRepository } from '../../../domain/repositories/booking.interface.repository';
+import { IBookingRepository, IPaginatedBookingResponse } from '../../../domain/repositories/booking.interface.repository';
 import { BookingSchema } from '../schemas/booking.schema';
 import { UserSchema } from '../schemas/user.schema';
 import { VehicleSchema } from '../schemas/vehicle.schema';
@@ -73,10 +73,47 @@ export class BookingRepository implements IBookingRepository {
     return BookingModel.hydrate(booking);
   }
 
-  async findAll(): Promise<BookingModel[]> {
-    const bookings = await this.bookingDB.find().populate('paymentMethod');
+  async findAll(filters: any): Promise<IPaginatedBookingResponse> {
+    const { status, paymentMethod, page = 1, limit = 10, ...otherFilters } = filters;
 
-    return bookings?.map((booking) => BookingModel.hydrate(booking));
+    const query: any = { ...otherFilters };
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (paymentMethod) {
+      query.paymentMethod = paymentMethod;
+    }
+
+    const skip = (page - 1) * limit;
+    const limitNumber = parseInt(limit);
+
+    const totalItems = await this.bookingDB.countDocuments(query);
+
+    const bookings = await this.bookingDB
+      .find(query)
+      .populate('paymentMethod')
+      .populate('status')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNumber)
+      .exec();
+
+    const totalPages = Math.ceil(totalItems / limitNumber);
+    const currentPage = parseInt(page);
+
+    return {
+      data: bookings?.map((booking) => BookingModel.hydrate(booking)) || [],
+      pagination: {
+        currentPage,
+        totalPages,
+        totalItems,
+        itemsPerPage: limitNumber,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
+    };
   }
 
   async findByUserId(userId: string): Promise<BookingModel[]> {

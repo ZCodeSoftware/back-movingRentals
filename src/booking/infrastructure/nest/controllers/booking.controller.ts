@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
+import { RoleGuards } from '../../../../auth/infrastructure/nest/guards/role.guard';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import SymbolsUser from '../../../../user/symbols-user';
 import { IBookingService } from '../../../domain/services/booking.interface.service';
@@ -44,10 +45,15 @@ export class BookingController {
 
   @Get()
   @HttpCode(200)
+  @UseGuards(AuthGuards, RoleGuards)
   @ApiResponse({ status: 200, description: 'Return all Bookings' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
-  async findAll() {
-    return this.bookingService.findAll();
+  @ApiQuery({ name: 'status', required: false, type: 'string', description: 'Filter by status ID' })
+  @ApiQuery({ name: 'paymentMethod', required: false, type: 'string', description: 'Filter by payment method ID' })
+  @ApiQuery({ name: 'page', required: false, type: 'number', description: 'Page number for pagination (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: 'number', description: 'Number of items per page (default: 10)' })
+  async findAll(@Query() filters: any) {
+    return this.bookingService.findAll(filters);
   }
   @Get('/user')
   @HttpCode(200)
