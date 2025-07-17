@@ -5,6 +5,7 @@ import { TypeStatus } from '../../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
 import { BOOKING_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { BookingModel } from '../../../domain/models/booking.model';
+import { UserModel } from '../../../domain/models/user.model';
 import { IBookingRepository, IPaginatedBookingResponse } from '../../../domain/repositories/booking.interface.repository';
 import { BookingSchema } from '../schemas/booking.schema';
 import { UserSchema } from '../schemas/user.schema';
@@ -139,6 +140,30 @@ export class BookingRepository implements IBookingRepository {
       );
 
     return bookings.map((booking) => BookingModel.hydrate(booking));
+  }
+
+  async findUserByBookingId(bookingId: string): Promise<UserModel | null> {
+    // First verify that the booking exists
+    const booking = await this.bookingDB.findById(bookingId);
+
+    if (!booking) {
+      throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Find the user that has this booking in their bookings array
+    const user = await this.userDB
+      .findOne({ bookings: bookingId })
+      .populate('role')
+      .populate('company')
+      .populate('address')
+      .populate('bookings')
+      .exec();
+
+    if (!user) {
+      throw new BaseErrorException('User not found for this booking', HttpStatus.NOT_FOUND);
+    }
+
+    return user && UserModel.hydrate(user);
   }
 
   async update(id: string, booking: BookingModel): Promise<BookingModel> {

@@ -72,6 +72,10 @@ export class BookingService implements IBookingService {
     return this.bookingRepository.findByUserId(userId);
   }
 
+  async findUserByBookingId(bookingId: string): Promise<any> {
+    return this.bookingRepository.findUserByBookingId(bookingId);
+  }
+
   async update(
     id: string,
     booking: Partial<ICreateBooking>,
@@ -91,6 +95,7 @@ export class BookingService implements IBookingService {
     paid: boolean,
     email: string,
     lang: string = 'es',
+    isManual: boolean = false,
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -108,10 +113,17 @@ export class BookingService implements IBookingService {
 
     booking.addStatus(status);
 
+    booking.payBooking(paid);
+
     const updatedBooking = await this.bookingRepository.update(id, booking);
 
     if (!updatedBooking) {
       throw new BaseErrorException('Booking not updated', HttpStatus.NOT_FOUND);
+    }
+
+    if (isManual) {
+      const user = await this.bookingRepository.findUserByBookingId(id);
+      email = user.toJSON().email || email;
     }
 
     if (status.toJSON().name === TypeStatus.APPROVED) {

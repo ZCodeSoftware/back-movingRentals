@@ -10,6 +10,7 @@ export interface IBookingService {
   findById(id: string): Promise<BookingModel>;
   findAll(filters: any): Promise<IPaginatedBookingResponse>;
   findByUserId(userId: string): Promise<BookingModel[]>;
+  findUserByBookingId(bookingId: string): Promise<any>;
   update(
     id: string,
     booking: Partial<ICreateBooking>,
@@ -19,5 +20,6 @@ export interface IBookingService {
     paid: boolean,
     email: string,
     lang: string,
+    isManual?: boolean,
   ): Promise<BookingModel>;
 }
