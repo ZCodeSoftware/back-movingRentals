@@ -4,7 +4,7 @@ import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
 import { TypeStatus } from '../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
 import { BookingModel } from '../../domain/models/booking.model';
-import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
+import { IBookingRepository, IPaginatedBookingResponse } from '../../domain/repositories/booking.interface.repository';
 import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payment-method.interface.repository';
 import { ICatStatusRepository } from '../../domain/repositories/cat-status.interface.repostory';
 import { IBookingService } from '../../domain/services/booking.interface.service';
@@ -64,8 +64,8 @@ export class BookingService implements IBookingService {
     return this.bookingRepository.findById(id);
   }
 
-  async findAll(): Promise<BookingModel[]> {
-    return this.bookingRepository.findAll();
+  async findAll(filters: any): Promise<IPaginatedBookingResponse> {
+    return this.bookingRepository.findAll(filters);
   }
 
   async findByUserId(userId: string): Promise<BookingModel[]> {
