@@ -9,11 +9,11 @@ import { UserSchema } from '../schemas/user.schema';
 export class UserRepository implements IUserRepository {
   constructor(
     @InjectModel('User') private readonly userModel: Model<UserSchema>,
-  ) {}
+  ) { }
 
   async findById(id: string): Promise<UserModel> {
     try {
-      const found = await this.userModel.findById(id);
+      const found = await this.userModel.findById(id).populate('role');
 
       if (!found) {
         throw new BaseErrorException(

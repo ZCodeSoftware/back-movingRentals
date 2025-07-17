@@ -14,7 +14,7 @@ export class UserService implements IUserService {
     private readonly userRepository: IUserRepository,
     @Inject(SymbolsBooking.IBookingRepository)
     private readonly bookingRepository: IBookingRepository,
-  ) {}
+  ) { }
 
   async addBookingInUser(
     userId: string,
@@ -34,6 +34,16 @@ export class UserService implements IUserService {
       }
 
       return this.userRepository.addBookingInUser(userId, existingUser);
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async findById(id: string): Promise<UserModel> {
+    try {
+      const foundUser = await this.userRepository.findById(id);
+
+      return foundUser;
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode);
     }
