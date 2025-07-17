@@ -16,7 +16,8 @@ export interface IBookingRepository {
   create(booking: BookingModel, userId: string): Promise<BookingModel>;
   findById(id: string): Promise<BookingModel>;
   findAll(filters: any): Promise<IPaginatedBookingResponse>;
-  findByUserId(userId: string): Promise<BookingModel[]>
+  findByUserId(userId: string): Promise<BookingModel[]>;
+  findUserByBookingId(bookingId: string): Promise<any>;
   update(
     id: string,
     booking: Partial<BookingModel>,

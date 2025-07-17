@@ -61,7 +61,7 @@ export class UserModel extends BaseModel {
     newUser._isActive = user.isActive;
     newUser._newsletter = user.newsletter;
     newUser._bookings = user.bookings
-      ? user.bookings.map((booking: BookingModel) => booking.toJSON())
+      ? user.bookings.map((booking: BookingModel) => BookingModel.hydrate(booking))
       : [];
 
     return newUser;

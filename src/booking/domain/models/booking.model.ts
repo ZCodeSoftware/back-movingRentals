@@ -34,6 +34,12 @@ export class BookingModel extends BaseModel {
     this._status = status;
   }
 
+  payBooking(paid: boolean): void {
+    if (paid) {
+      this._totalPaid = this._total;
+    }
+  }
+
   static create(booking: any): BookingModel {
     const newBooking = new BookingModel(new Identifier(booking._id));
 
