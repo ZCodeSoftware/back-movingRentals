@@ -75,9 +75,9 @@ export class BookingRepository implements IBookingRepository {
   }
 
   async findAll(filters: any): Promise<IPaginatedBookingResponse> {
-    const { status, paymentMethod, page = 1, limit = 10, ...otherFilters } = filters;
+    const { status, paymentMethod, page = 1, limit = 10 } = filters;
 
-    const query: any = { ...otherFilters };
+    const query: any = {};
 
     if (status) {
       query.status = status;
