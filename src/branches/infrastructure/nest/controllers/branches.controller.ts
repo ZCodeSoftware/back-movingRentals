@@ -9,8 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
-import { RoleGuards } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IBranchesService } from '../../../domain/services/branches.interface.service';
 import SymbolsBranches from '../../../symbols-branches';
 import { CreateBranchesDTO, CreateCarouselDTO } from '../dtos/branches.dto';
@@ -37,7 +39,8 @@ export class BranchesController {
 
   @Post('carousel/:id')
   @HttpCode(201)
-  @UseGuards(AuthGuards, RoleGuards)
+  @Roles(TypeRoles.ADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 201, description: 'Carousel created' })
   @ApiResponse({ status: 400, description: `Carousel shouldn't be created` })
   @ApiBody({

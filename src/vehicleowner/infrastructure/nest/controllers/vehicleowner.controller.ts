@@ -1,7 +1,9 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
 import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
-import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { IVehicleOwnerService } from "../../../domain/services/vehicleowner.interface.service";
 import SymbolsVehicleOwner from "../../../symbols-vehicleowner";
 import { CreateVehicleOwnerDTO, UpdateVehicleOwnerDTO } from "../dtos/vehicleowner.dto";
@@ -16,6 +18,8 @@ export class VehicleOwnerController {
 
     @Post()
     @HttpCode(201)
+    @Roles(TypeRoles.ADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @ApiResponse({ status: 201, description: 'VehicleOwner created' })
     @ApiResponse({ status: 400, description: `VehicleOwner shouldn't be created` })
     @ApiBody({ type: CreateVehicleOwnerDTO, description: 'Data to create a VehicleOwner' })
@@ -44,7 +48,8 @@ export class VehicleOwnerController {
     @ApiResponse({ status: 200, description: 'VehicleOwner updated' })
     @ApiResponse({ status: 400, description: `VehicleOwner shouldn't be updated` })
     @ApiBody({ type: UpdateVehicleOwnerDTO, description: 'Data to update a VehicleOwner' })
-    @UseGuards(AuthGuards, RoleGuards)
+    @Roles(TypeRoles.ADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     async update(@Param('id') id: string, @Body() body: UpdateVehicleOwnerDTO) {
         return this.vehicleownerService.update(id, body);
     }

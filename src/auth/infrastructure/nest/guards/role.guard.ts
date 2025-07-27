@@ -1,39 +1,40 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  HttpStatus,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
-import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
+import { CanActivate, ExecutionContext, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
+import { IUserRepository } from '../../../domain/repositories/user.interface.repository';
+
 import SymbolsUser from '../../../../user/symbols-user';
-import { IUserService } from '../../../domain/services/user.interface.service';
+import { ROLES_KEY } from '../decorators/role.decorator';
+
 
 @Injectable()
-export class RoleGuards implements CanActivate {
+export class RoleGuard implements CanActivate {
   constructor(
-    @Inject(SymbolsUser.IUserService)
-    private readonly userService: IUserService,
-  ) {}
+    private readonly reflector: Reflector,
+    @Inject(SymbolsUser.IUserRepository)
+    private readonly userRepository: IUserRepository,
+  ) { }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const roles = this.reflector.get<string[]>(ROLES_KEY, context.getHandler());
+    if (!roles) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
     if (!user) {
-      throw new BaseErrorException(
-        'Unauthenticated user',
-        HttpStatus.NOT_FOUND,
-      );
+      throw new BaseErrorException(`User doesn't exist`, HttpStatus.NOT_FOUND);
     }
 
-    const findRole = await this.userService.findById(user._id);
+    const findRole = await this.userRepository.findById(user._id);
 
-    if (findRole.toJSON().role.name === TypeRoles.ADMIN) {
+    if (roles.includes(findRole.toJSON().role.name)) {
       return true;
     } else {
       throw new BaseErrorException(
-        'Access denied: You do not have the required role.',
+        'Insufficient permissions',
         HttpStatus.UNAUTHORIZED,
       );
     }
