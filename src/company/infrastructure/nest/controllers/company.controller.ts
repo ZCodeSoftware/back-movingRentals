@@ -9,8 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
-import { RoleGuards } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { CompanyModel } from '../../../domain/models/company.model';
 import { ICompanyService } from '../../../domain/services/company.interface.service';
@@ -23,10 +25,11 @@ export class CompanyController {
   constructor(
     @Inject(SymbolsCompany.ICompanyService)
     private readonly companyService: ICompanyService,
-  ) {}
+  ) { }
 
   @Post()
-  @UseGuards(AuthGuards, RoleGuards)
+  @Roles(TypeRoles.ADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 201, description: 'Create a new company' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiBody({ type: CreateCompanyDTO })
@@ -53,7 +56,8 @@ export class CompanyController {
   }
 
   @Put()
-  @UseGuards(AuthGuards, RoleGuards)
+  @Roles(TypeRoles.ADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 201, description: 'Update a company' })
   @ApiResponse({ status: 404, description: 'Company not found' })
   async addBranchesToCompany(

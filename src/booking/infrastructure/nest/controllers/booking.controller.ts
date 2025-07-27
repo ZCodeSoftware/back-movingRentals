@@ -12,8 +12,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
-import { RoleGuards } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import SymbolsUser from '../../../../user/symbols-user';
 import { IBookingService } from '../../../domain/services/booking.interface.service';
@@ -45,7 +47,8 @@ export class BookingController {
 
   @Get()
   @HttpCode(200)
-  @UseGuards(AuthGuards, RoleGuards)
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER)
+  @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 200, description: 'Return all Bookings' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiQuery({ name: 'status', required: false, type: 'string', description: 'Filter by status ID' })

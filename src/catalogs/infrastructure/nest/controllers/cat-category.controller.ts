@@ -1,7 +1,9 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
 import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
-import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { ICatCategoryService } from "../../../domain/services/cat-category.interface.service";
 import SymbolsCatalogs from "../../../symbols-catalogs";
 import { CreateCategoryDTO, UpdateCategoryDTO } from "../dtos/cat-category.dto";
@@ -40,6 +42,8 @@ export class CatCategoryController {
     @ApiResponse({ status: 201, description: 'Category created' })
     @ApiResponse({ status: 400, description: `Category shouldn't be created` })
     @ApiBody({ type: CreateCategoryDTO, description: 'Data to create a category' })
+    @Roles(TypeRoles.ADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     async create(@Body() body: CreateCategoryDTO) {
         return this.catCategoryService.create(body);
     }
@@ -49,7 +53,8 @@ export class CatCategoryController {
     @ApiResponse({ status: 200, description: 'Category updated' })
     @ApiResponse({ status: 400, description: `Category shouldn't be updated` })
     @ApiBody({ type: UpdateCategoryDTO, description: 'Data to update a category' })
-    @UseGuards(AuthGuards, RoleGuards)
+    @Roles(TypeRoles.ADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     async update(@Param("id") id: string, @Body() body: UpdateCategoryDTO) {
         return this.catCategoryService.update(id, body);
     }
