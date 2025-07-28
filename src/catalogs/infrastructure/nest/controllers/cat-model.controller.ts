@@ -1,7 +1,9 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
 import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
-import { RoleGuards } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { ICatModelService } from "../../../domain/services/cat-model.interface.service";
 import SymbolsCatalogs from "../../../symbols-catalogs";
 import { CreateModelDTO, UpdateModelDTO } from "../dtos/cat-model.dto";
@@ -34,6 +36,8 @@ export class CatModelController {
     @ApiResponse({ status: 201, description: 'Model created' })
     @ApiResponse({ status: 400, description: `Model shouldn't be created` })
     @ApiBody({ type: CreateModelDTO, description: 'Data to create a model' })
+    @Roles(TypeRoles.ADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     async create(@Body() body: CreateModelDTO) {
         return this.catModelService.create(body);
     }
@@ -43,7 +47,8 @@ export class CatModelController {
     @ApiResponse({ status: 200, description: 'Model updated' })
     @ApiResponse({ status: 400, description: `Model shouldn't be updated` })
     @ApiBody({ type: UpdateModelDTO, description: 'Data to update a model' })
-    @UseGuards(AuthGuards, RoleGuards)
+    @Roles(TypeRoles.ADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     async update(@Param('id') id: string, @Body() body: UpdateModelDTO) {
         return this.catModelService.update(id, body);
     }
