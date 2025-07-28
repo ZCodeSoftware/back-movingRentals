@@ -10,9 +10,14 @@ export class CatRoleRepository implements ICatRoleRepository {
   constructor(
     @InjectModel('CatRole')
     private readonly catRoleModel: Model<CatRoleSchema>,
-  ) {}
+  ) { }
 
   async findByName(carRoleName: string): Promise<CatRoleModel> {
     return await this.catRoleModel.findOne({ name: carRoleName });
+  }
+
+  async findById(id: string): Promise<CatRoleModel> {
+    const role = await this.catRoleModel.findById(id);
+    return role ? CatRoleModel.hydrate(role) : null;
   }
 }

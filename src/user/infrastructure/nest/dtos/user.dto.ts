@@ -58,6 +58,11 @@ export class CreateUserDTO {
   @IsNotEmpty()
   @ApiProperty()
   cellphone: string;
+
+  @IsOptional()
+  @ApiPropertyOptional()
+  @IsString()
+  role?: string
 }
 
 export class UpdateUserDTO {
