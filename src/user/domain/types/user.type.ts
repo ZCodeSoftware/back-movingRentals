@@ -4,6 +4,7 @@ export interface IUserCreate {
   email: string;
   password: string;
   newsletter: boolean;
+  role?: string;
   address: ICreateAddress;
 }
 

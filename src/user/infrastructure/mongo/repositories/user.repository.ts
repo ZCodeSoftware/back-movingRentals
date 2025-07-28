@@ -22,10 +22,15 @@ export class UserRepository implements IUserRepository {
     private readonly catRoleRepository: ICatRoleRepository,
   ) { }
 
-  async create(user: UserModel): Promise<UserModel> {
+  async create(user: UserModel, role: string): Promise<UserModel> {
     try {
-      const userRole = await this.catRoleRepository.findByName(TypeRoles.USER);
-      user.addRole(userRole);
+      if (!role) {
+        const userRole = await this.catRoleRepository.findByName(TypeRoles.USER);
+        user.addRole(userRole);
+      } else {
+        const roleFound = await this.catRoleRepository.findById(role);
+        user.addRole(roleFound);
+      }
 
       // Crear el carrito vacío
       const cartModel = CartModel.create({

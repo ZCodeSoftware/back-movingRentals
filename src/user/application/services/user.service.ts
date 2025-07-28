@@ -30,7 +30,8 @@ export class UserService implements IUserService {
 
   async create(user: IUserCreate): Promise<UserModel> {
     try {
-      const foundEmail = await this.userRepository.findByEmail(user.email);
+      const { role, address, ...rest } = user;
+      const foundEmail = await this.userRepository.findByEmail(rest.email);
 
       if (foundEmail)
         throw new BaseErrorException(
@@ -38,18 +39,18 @@ export class UserService implements IUserService {
           HttpStatus.BAD_REQUEST,
         );
 
-      const hashedPassword = await hashPassword(user.password);
+      const hashedPassword = await hashPassword(rest.password);
 
       const userModel = UserModel.create({
-        ...user,
+        ...rest,
         password: hashedPassword,
         isActive: true,
       });
 
-      const addesModel = AddressModel.create(user.address);
+      const addesModel = AddressModel.create(address);
 
       const findCountry = await this.catCountryRepository.findById(
-        user.address.countryId,
+        address.countryId,
       );
 
       addesModel.addCountry(findCountry);
@@ -58,7 +59,7 @@ export class UserService implements IUserService {
 
       userModel.addAddress(addressSave);
 
-      const userSave = await this.userRepository.create(userModel);
+      const userSave = await this.userRepository.create(userModel, role);
 
       return userSave;
     } catch (error) {
