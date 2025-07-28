@@ -25,10 +25,10 @@ export class CatRoleController {
   constructor(
     @Inject(SymbolsCatalogs.ICatRoleService)
     private readonly catRoleService: ICatRoleService,
-  ) { }
+  ) {}
 
   @Get()
-  @Roles(TypeRoles.ADMIN)
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER)
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ type: CatRoleResponseDTO })
   async findAll(): Promise<CatRoleModel[]> {
