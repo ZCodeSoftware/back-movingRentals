@@ -2,7 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 import { Inject } from '@nestjs/common/decorators/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { plainToClass } from 'class-transformer';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CartModel } from '../../../../cart/domain/models/cart.model';
 import { CartSchema } from '../../../../cart/infrastructure/mongo/schemas/cart.schema';
 import SymbolsCatalogs from '../../../../catalogs/symbols-catalogs';
@@ -63,6 +63,24 @@ export class UserRepository implements IUserRepository {
         error.message,
         error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  async findAll(filters: any): Promise<UserModel[]> {
+    try {
+      if (!filters) {
+        filters = {};
+      }
+      if (filters.role) {
+        filters.role = typeof filters.role === 'string'
+          ? Types.ObjectId.createFromHexString(filters.role)
+          : filters.role;
+      }
+
+      const users = await this.userModel.find(filters).populate('role');
+      return users.map(user => UserModel.hydrate(user));
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
     }
   }
 

@@ -2,6 +2,7 @@ import { UserModel } from '../models/user.model';
 
 export interface IUserRepository {
   create(user: UserModel, role: string): Promise<UserModel>;
+  findAll(filters: any): Promise<UserModel[]>;
   findByEmail(email: string): Promise<UserModel>;
   findById(id: string): Promise<UserModel>;
   update(id: string, user: UserModel): Promise<UserModel>;

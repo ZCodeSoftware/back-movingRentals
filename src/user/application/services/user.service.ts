@@ -67,6 +67,16 @@ export class UserService implements IUserService {
     }
   }
 
+  async findAll(filters: any): Promise<UserModel[]> {
+    try {
+      const users = await this.userRepository.findAll(filters);
+
+      return users;
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
   async findByEmail(email: string): Promise<UserModel> {
     try {
       const foundUser = await this.userRepository.findByEmail(email);
