@@ -65,6 +65,12 @@ export class CreateUserDTO {
   role?: string
 }
 
+export class AutoCreateUserDTO {
+  @IsEmail()
+  @ApiProperty()
+  @IsNotEmpty({ message: 'The user email is required' })
+  email: string;
+}
 export class UpdateUserDTO {
   @IsString()
   @ApiPropertyOptional()
