@@ -78,17 +78,15 @@ export class UserRepository implements IUserRepository {
     };
   }> {
     try {
-      if (!filters) {
-        filters = {};
-      }
+      const query: any = {}
       if (filters.role) {
-        filters.role = typeof filters.role === 'string'
+        query.role = typeof filters.role === 'string'
           ? Types.ObjectId.createFromHexString(filters.role)
           : filters.role;
       }
 
       if (filters.email) {
-        filters.email = { $regex: filters.email, $options: 'i' };
+        query.email = { $regex: filters.email, $options: 'i' };
       }
 
       const page = parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
@@ -98,9 +96,9 @@ export class UserRepository implements IUserRepository {
       delete filters.page;
       delete filters.limit;
 
-      const totalItems = await this.userModel.countDocuments(filters);
+      const totalItems = await this.userModel.countDocuments(query);
       const users = await this.userModel
-        .find(filters)
+        .find(query)
         .populate('role')
         .skip(skip)
         .limit(limit);

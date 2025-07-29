@@ -1,10 +1,7 @@
 import { Controller, Inject, UseGuards } from '@nestjs/common/decorators/core';
 import { Body, Get, Headers, Post, Put, Query, Req } from '@nestjs/common/decorators/http';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
-import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
-import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { IUserService } from '../../../domain/services/user.interface.service';
 import SymbolsUser from '../../../symbols-user';
@@ -27,8 +24,8 @@ export class UserController {
   }
 
   @Get()
-  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR)
-  @UseGuards(AuthGuards, RoleGuard)
+  /*   @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR)
+    @UseGuards(AuthGuards, RoleGuard) */
   @ApiResponse({ status: 200, description: 'Get all users' })
   async getAllUsers(@Query() query: any): Promise<any> {
     return await this.userService.findAll(query);
