@@ -2,7 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 import { Inject } from '@nestjs/common/decorators/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { plainToClass } from 'class-transformer';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CartModel } from '../../../../cart/domain/models/cart.model';
 import { CartSchema } from '../../../../cart/infrastructure/mongo/schemas/cart.schema';
 import SymbolsCatalogs from '../../../../catalogs/symbols-catalogs';
@@ -63,6 +63,63 @@ export class UserRepository implements IUserRepository {
         error.message,
         error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  async findAll(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    try {
+      if (!filters) {
+        filters = {};
+      }
+      if (filters.role) {
+        filters.role = typeof filters.role === 'string'
+          ? Types.ObjectId.createFromHexString(filters.role)
+          : filters.role;
+      }
+
+      if (filters.email) {
+        filters.email = { $regex: filters.email, $options: 'i' };
+      }
+
+      const page = parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+      const limit = parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
+      const skip = (page - 1) * limit;
+
+      delete filters.page;
+      delete filters.limit;
+
+      const totalItems = await this.userModel.countDocuments(filters);
+      const users = await this.userModel
+        .find(filters)
+        .populate('role')
+        .skip(skip)
+        .limit(limit);
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return {
+        data: users.map(user => UserModel.hydrate(user)),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
     }
   }
 
