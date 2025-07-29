@@ -1,7 +1,7 @@
 import { BookingModel } from '../models/booking.model';
 
 export interface IPaginatedBookingResponse {
-  data: BookingModel[];
+  data: any;
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -15,7 +15,7 @@ export interface IPaginatedBookingResponse {
 export interface IBookingRepository {
   create(booking: BookingModel, userId: string): Promise<BookingModel>;
   findById(id: string): Promise<BookingModel>;
-  findAll(filters: any): Promise<IPaginatedBookingResponse>;
+  findAll(filters: any): Promise<any>;
   findByUserId(userId: string): Promise<BookingModel[]>;
   findUserByBookingId(bookingId: string): Promise<any>;
   update(
