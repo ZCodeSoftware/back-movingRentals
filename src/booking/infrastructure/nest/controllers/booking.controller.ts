@@ -47,7 +47,7 @@ export class BookingController {
 
   @Get()
   @HttpCode(200)
-  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER)
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 200, description: 'Return all Bookings' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
@@ -56,7 +56,8 @@ export class BookingController {
   @ApiQuery({ name: 'page', required: false, type: 'number', description: 'Page number for pagination (default: 1)' })
   @ApiQuery({ name: 'limit', required: false, type: 'number', description: 'Number of items per page (default: 10)' })
   async findAll(@Query() filters: any) {
-    return this.bookingService.findAll(filters);
+    const res = await this.bookingService.findAll(filters);
+    return res
   }
   @Get('/user')
   @HttpCode(200)
