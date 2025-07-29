@@ -67,7 +67,7 @@ export class UserService implements IUserService {
     }
   }
 
-  async findAll(filters: any): Promise<UserModel[]> {
+  async findAll(filters: any): Promise<{ data: UserModel[]; pagination: { currentPage: number; totalPages: number; totalItems: number; itemsPerPage: number; hasNextPage: boolean; hasPreviousPage: boolean; }; }> {
     try {
       const users = await this.userRepository.findAll(filters);
 

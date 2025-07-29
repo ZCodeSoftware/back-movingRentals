@@ -66,7 +66,17 @@ export class UserRepository implements IUserRepository {
     }
   }
 
-  async findAll(filters: any): Promise<UserModel[]> {
+  async findAll(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
     try {
       if (!filters) {
         filters = {};
@@ -77,8 +87,37 @@ export class UserRepository implements IUserRepository {
           : filters.role;
       }
 
-      const users = await this.userModel.find(filters).populate('role');
-      return users.map(user => UserModel.hydrate(user));
+      if (filters.email) {
+        filters.email = { $regex: filters.email, $options: 'i' };
+      }
+
+      const page = parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+      const limit = parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
+      const skip = (page - 1) * limit;
+
+      delete filters.page;
+      delete filters.limit;
+
+      const totalItems = await this.userModel.countDocuments(filters);
+      const users = await this.userModel
+        .find(filters)
+        .populate('role')
+        .skip(skip)
+        .limit(limit);
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return {
+        data: users.map(user => UserModel.hydrate(user)),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode);
     }
