@@ -6,7 +6,7 @@ import { BaseErrorException } from '../../../../core/domain/exceptions/base.erro
 import { BOOKING_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { BookingModel } from '../../../domain/models/booking.model';
 import { UserModel } from '../../../domain/models/user.model';
-import { IBookingRepository, IPaginatedBookingResponse } from '../../../domain/repositories/booking.interface.repository';
+import { IBookingRepository } from '../../../domain/repositories/booking.interface.repository';
 import { BookingSchema } from '../schemas/booking.schema';
 import { UserSchema } from '../schemas/user.schema';
 import { VehicleSchema } from '../schemas/vehicle.schema';
@@ -74,45 +74,71 @@ export class BookingRepository implements IBookingRepository {
     return BookingModel.hydrate(booking);
   }
 
-  async findAll(filters: any): Promise<IPaginatedBookingResponse> {
+  async findAll(filters: any): Promise<any> {
     const { status, paymentMethod, page = 1, limit = 10 } = filters;
 
     const query: any = {};
+    if (status) query.status = status;
+    if (paymentMethod) query.paymentMethod = paymentMethod;
 
-    if (status) {
-      query.status = status;
-    }
-
-    if (paymentMethod) {
-      query.paymentMethod = paymentMethod;
-    }
-
-    const skip = (page - 1) * limit;
-    const limitNumber = parseInt(limit);
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
+    const skip = (pageNumber - 1) * limitNumber;
 
     const totalItems = await this.bookingDB.countDocuments(query);
 
-    const bookings = await this.bookingDB
-      .find(query)
-      .populate('paymentMethod')
-      .populate('status')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNumber)
-      .exec();
+    const bookings = await this.bookingDB.aggregate([
+      { $match: query },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limitNumber },
+      {
+        $lookup: {
+          from: 'users',
+          let: { bookingId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $in: ['$$bookingId', '$bookings'] } } },
+            { $project: { name: 1, lastName: 1, email: 1, _id: 1, cellphone: 1 } }
+          ],
+          as: 'userData'
+        }
+      },
+      {
+        $addFields: {
+          user: { $arrayElemAt: ['$userData', 0] }
+        }
+      },
+      {
+        $project: { userData: 0 }
+      }
+    ]);
+
+    const bookingsMapped = bookings.map((booking: any) => {
+      booking.userContact = booking.user
+        ? {
+          name: booking.user.name,
+          lastName: booking.user.lastName,
+          email: booking.user.email,
+          cellphone: booking?.user?.cellphone ?? null,
+        }
+        : null;
+
+      delete booking.user;
+
+      return booking;
+    });
 
     const totalPages = Math.ceil(totalItems / limitNumber);
-    const currentPage = parseInt(page);
 
     return {
-      data: bookings?.map((booking) => BookingModel.hydrate(booking)) || [],
+      data: bookingsMapped,
       pagination: {
-        currentPage,
+        currentPage: pageNumber,
         totalPages,
         totalItems,
         itemsPerPage: limitNumber,
-        hasNextPage: currentPage < totalPages,
-        hasPreviousPage: currentPage > 1,
+        hasNextPage: pageNumber < totalPages,
+        hasPreviousPage: pageNumber > 1,
       },
     };
   }
