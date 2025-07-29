@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { TypeStatus } from '../../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
 import { BOOKING_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
@@ -78,14 +78,19 @@ export class BookingRepository implements IBookingRepository {
     const { status, paymentMethod, page = 1, limit = 10 } = filters;
 
     const query: any = {};
-    if (status) query.status = status;
-    if (paymentMethod) query.paymentMethod = paymentMethod;
 
-    const pageNumber = parseInt(page, 10) || 1;
-    const limitNumber = parseInt(limit, 10) || 10;
+    if (status) query.status = Types.ObjectId.createFromHexString(status);
+    if (paymentMethod) query.paymentMethod = Types.ObjectId.createFromHexString(paymentMethod);
+
+    const pageNumber = parseInt(page as string, 10) || 1;
+    const limitNumber = parseInt(limit as string, 10) || 10;
     const skip = (pageNumber - 1) * limitNumber;
 
-    const totalItems = await this.bookingDB.countDocuments(query);
+    const totalItemsResult = await this.bookingDB.aggregate([
+      { $match: query },
+      { $count: 'totalItems' }
+    ]);
+    const totalItems = totalItemsResult.length > 0 ? totalItemsResult[0].totalItems : 0;
 
     const bookings = await this.bookingDB.aggregate([
       { $match: query },
@@ -94,44 +99,71 @@ export class BookingRepository implements IBookingRepository {
       { $limit: limitNumber },
       {
         $lookup: {
+          from: 'cat_status',
+          localField: 'status',
+          foreignField: '_id',
+          as: 'statusData'
+        }
+      },
+      {
+        $lookup: {
+          from: 'cat_payment_method',
+          localField: 'paymentMethod',
+          foreignField: '_id',
+          as: 'paymentMethodData'
+        }
+      },
+      {
+        $lookup: {
           from: 'users',
           let: { bookingId: '$_id' },
           pipeline: [
             { $match: { $expr: { $in: ['$$bookingId', '$bookings'] } } },
-            { $project: { name: 1, lastName: 1, email: 1, _id: 1, cellphone: 1 } }
+            { $project: { name: 1, lastName: 1, email: 1, cellphone: 1 } }
           ],
           as: 'userData'
         }
       },
       {
-        $addFields: {
-          user: { $arrayElemAt: ['$userData', 0] }
-        }
+        $unwind: { path: '$statusData', preserveNullAndEmptyArrays: true }
       },
       {
-        $project: { userData: 0 }
+        $unwind: { path: '$paymentMethodData', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $unwind: { path: '$userData', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $project: {
+          _id: 1,
+          createdAt: 1,
+          cart: 1,
+          limitCancelation: 1,
+          total: 1,
+          totalPaid: 1,
+          bookingNumber: 1,
+          status: '$statusData',
+          paymentMethod: '$paymentMethodData',
+          userContact: {
+            $cond: {
+              if: '$userData',
+              then: {
+                name: '$userData.name',
+                lastName: '$userData.lastName',
+                email: '$userData.email',
+                cellphone: { $ifNull: ['$userData.cellphone', null] }
+              },
+              else: null
+            }
+          }
+        }
       }
     ]);
-
-    const bookingsMapped = bookings.map((booking: any) => {
-      booking.userContact = booking.user
-        ? {
-          name: booking.user.name,
-          lastName: booking.user.lastName,
-          email: booking.user.email,
-          cellphone: booking?.user?.cellphone ?? null,
-        }
-        : null;
-
-      delete booking.user;
-
-      return booking;
-    });
 
     const totalPages = Math.ceil(totalItems / limitNumber);
 
     return {
-      data: bookingsMapped,
+      data: bookings,
       pagination: {
         currentPage: pageNumber,
         totalPages,
