@@ -7,13 +7,14 @@ import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
 import config from '../../../config';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
 import { hashPassword } from '../../../core/domain/utils/bcrypt.util';
+import { generatePassword } from '../../../core/domain/utils/generate-password.util';
 import { AddressModel } from '../../domain/models/address.model';
 import { UserModel } from '../../domain/models/user.model';
 import { IAddressRepository } from '../../domain/repositories/address.interface.repository';
 import { ICatCountryRepository } from '../../domain/repositories/cat-country.interface.repository';
 import { IUserRepository } from '../../domain/repositories/user.interface.repository';
 import { IUserService } from '../../domain/services/user.interface.service';
-import { IUserCreate, IUserUpdate } from '../../domain/types/user.type';
+import { IAutoCreate, IUserCreate, IUserUpdate } from '../../domain/types/user.type';
 import SymbolsUser from '../../symbols-user';
 
 export class UserService implements IUserService {
@@ -60,6 +61,43 @@ export class UserService implements IUserService {
       userModel.addAddress(addressSave);
 
       const userSave = await this.userRepository.create(userModel, role);
+
+      return userSave;
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async autoCreate(user: IAutoCreate, frontendHost: string, lang: string = "es"): Promise<UserModel> {
+    try {
+      const { role, ...rest } = user;
+      const foundEmail = await this.userRepository.findByEmail(rest.email);
+      if (foundEmail)
+        throw new BaseErrorException(
+          'This email is already in use',
+          HttpStatus.BAD_REQUEST,
+        );
+      const password = generatePassword(8)
+      const hashedPassword = await hashPassword(password);
+      const userModel = UserModel.create({
+        ...rest,
+        password: hashedPassword,
+        isActive: true,
+      });
+      const userSave = await this.userRepository.create(userModel, role);
+
+      const validFrontendUrl = config().app.front.front_base_urls.find(
+        (url: string) => url.includes(frontendHost),
+      );
+
+      if (userSave) {
+        this.eventEmitter.emit('send-user.auto-create', {
+          email: userSave.toJSON().email,
+          password,
+          frontendHost: validFrontendUrl,
+          lang
+        })
+      }
 
       return userSave;
     } catch (error) {
