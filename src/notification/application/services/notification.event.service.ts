@@ -55,4 +55,12 @@ export class NotificationEventService implements INotificationEventService {
       throw new BadRequestException(error.message);
     }
   }
+
+  async sendUserAutoCreate(email: string, password: string, frontendHost: string, lang: string = "es"): Promise<any> {
+    try {
+      return await this.userEmailAdapter.sendUserAutoCreate(email, password, frontendHost, lang);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
 }

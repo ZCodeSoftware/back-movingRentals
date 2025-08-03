@@ -1,8 +1,9 @@
 import { UserModel } from '../models/user.model';
-import { IUserCreate, IUserUpdate } from '../types/user.type';
+import { IAutoCreate, IUserCreate, IUserUpdate } from '../types/user.type';
 
 export interface IUserService {
   create(user: IUserCreate): Promise<UserModel>;
+  autoCreate(user: IAutoCreate, frontendHost: string, lang: string): Promise<UserModel>
   findAll(filters: any): Promise<{
     data: UserModel[];
     pagination: {

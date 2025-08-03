@@ -5,6 +5,8 @@ import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
 import { ContactUserDto } from '../../nest/dto/notifications.dto';
 import { forgotPasswordTemplate } from '../forgot-password/forgot-password.template';
+import { userAutoCreateTemplateEn } from './auto-create.template-en';
+import { userAutoCreateTemplateEs } from './auto-create.template-es';
 import { generateUserBookingConfirmationEn } from './user-booking-content-en.template';
 import { generateUserBookingConfirmation } from './user-booking-content.template';
 
@@ -88,6 +90,21 @@ export class UserEmailProvider implements IUserEmailAdapter {
       return await this.transporter.sendMail(message);
     }
     catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendUserAutoCreate(email: string, password: string, frontendHost: string, lang?: string): Promise<any> {
+    try {
+      const template = lang === 'es' ? userAutoCreateTemplateEs : userAutoCreateTemplateEn;
+      const message = {
+        from: `"MoovAdventures" <${config().business.contact_email}>`,
+        to: email,
+        subject: 'Cuenta creada',
+        html: template(email, password, frontendHost),
+      };
+      return await this.transporter.sendMail(message);
+    } catch (error) {
       throw new InternalServerErrorException(error.message);
     }
   }
