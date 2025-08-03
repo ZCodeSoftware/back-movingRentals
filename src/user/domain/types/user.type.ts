@@ -8,6 +8,11 @@ export interface IUserCreate {
   address: ICreateAddress;
 }
 
+export interface IAutoCreate {
+  email: string;
+  role?: string;
+}
+
 export interface IUserUpdate {
   name?: string;
   lastName?: string;

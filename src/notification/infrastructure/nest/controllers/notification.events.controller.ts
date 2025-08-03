@@ -52,4 +52,10 @@ export class NotificationEventController {
     const { email, token, frontendHost } = payload;
     await this.notificationEventService.sendUserForgotPassword(email, token, frontendHost);
   }
+
+  @OnEvent('send-user.auto-create')
+  async sendUserAutoCreate(payload: { email: string; password: string, frontendHost: string, lang?: string }) {
+    const { email, password, frontendHost, lang } = payload;
+    await this.notificationEventService.sendUserAutoCreate(email, password, frontendHost, lang);
+  }
 }

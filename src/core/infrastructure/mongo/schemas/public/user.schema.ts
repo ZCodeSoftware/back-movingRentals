@@ -50,8 +50,8 @@ export class User {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Cart' })
   cart: Cart;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Address', unique: true })
-  address: Address;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Address', unique: true, required: false })
+  address?: Address;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -10,4 +10,5 @@ export interface IUserEmailAdapter {
     lang: string,
   ): Promise<any>;
   sendUserForgotPassword(email: string, token: string, frontendHost: string): Promise<any>
+  sendUserAutoCreate(email: string, password: string, frontendHost: string, lang?: string): Promise<any>
 }

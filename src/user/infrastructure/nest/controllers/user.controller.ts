@@ -8,7 +8,7 @@ import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { IUserService } from '../../../domain/services/user.interface.service';
 import SymbolsUser from '../../../symbols-user';
-import { CreateUserDTO, UpdateUserDTO } from '../dtos/user.dto';
+import { AutoCreateUserDTO, CreateUserDTO, UpdateUserDTO } from '../dtos/user.dto';
 
 @ApiTags('Users')
 @Controller('user')
@@ -30,8 +30,11 @@ export class UserController {
   @ApiResponse({ status: 201, description: 'Automatically register a new user' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiBody({ type: CreateUserDTO })
-  async automaticRegister(@Body() user: CreateUserDTO): Promise<any> {
-    return await this.userService.create(user);
+  @ApiQuery({ name: 'lang', type: String, required: false, description: 'Language for the email notification' })
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR)
+  @UseGuards(AuthGuards, RoleGuard)
+  async automaticRegister(@Body() user: AutoCreateUserDTO, @Headers('origin') requestHost: string, @Query('lang') lang: string): Promise<any> {
+    return await this.userService.autoCreate(user, requestHost, lang);
   }
 
   @Get()
