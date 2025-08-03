@@ -4,6 +4,7 @@ import { Cart, CartSchema } from '../../../../core/infrastructure/mongo/schemas/
 import { Ticket, TicketSchema } from '../../../../core/infrastructure/mongo/schemas/public/ticket.schema';
 import { Tour, TourSchema } from '../../../../core/infrastructure/mongo/schemas/public/tour.schema';
 import { Transfer, TransferSchema } from '../../../../core/infrastructure/mongo/schemas/public/transfer.schema';
+import { User, UserSchema } from '../../../../core/infrastructure/mongo/schemas/public/user.schema';
 import { Vehicle, VehicleSchema } from '../../../../core/infrastructure/mongo/schemas/public/vehicle.schema';
 
 export const cartSchema = {
@@ -39,4 +40,9 @@ export const transferSchema = {
 export const ticketSchema = {
   name: Ticket.name,
   schema: TicketSchema,
+}
+
+export const userSchema = {
+  name: User.name,
+  schema: UserSchema
 }
