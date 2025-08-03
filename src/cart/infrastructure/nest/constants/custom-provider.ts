@@ -2,6 +2,7 @@ import SymbolsBranches from '../../../../branches/symbols-branches';
 import SymbolsTicket from '../../../../ticket/symbols-ticket';
 import SymbolsTour from '../../../../tour/symbols-tour';
 import SymbolsTransfer from '../../../../transfer/symbols-transfer';
+import SymbolsUser from '../../../../user/symbols-user';
 import SymbolsVehicle from '../../../../vehicle/symbols-vehicle';
 import { CartService } from '../../../application/services/cart.service';
 import SymbolsCart from '../../../symbols-cart';
@@ -10,6 +11,7 @@ import { CartRepository } from '../../mongo/repositories/cart.repository';
 import { TicketRepository } from '../../mongo/repositories/ticket.repository';
 import { TourRepository } from '../../mongo/repositories/tour.repository';
 import { TransferRepository } from '../../mongo/repositories/transfer.repository';
+import { UserRepository } from '../../mongo/repositories/user.repository';
 import { VehicleRepository } from '../../mongo/repositories/vehicle.repository';
 
 export const cartService = {
@@ -45,4 +47,9 @@ export const transferRepository = {
 export const ticketRepository = {
   provide: SymbolsTicket.ITicketRepository,
   useClass: TicketRepository,
+}
+
+export const userRepository = {
+  provide: SymbolsUser.IUserRepository,
+  useClass: UserRepository
 }
