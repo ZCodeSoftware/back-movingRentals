@@ -4,6 +4,7 @@ import { BaseErrorException } from "../../../core/domain/exceptions/base.error.e
 import SymbolsTicket from "../../../ticket/symbols-ticket";
 import SymbolsTour from "../../../tour/symbols-tour";
 import SymbolsTransfer from "../../../transfer/symbols-transfer";
+import SymbolsUser from "../../../user/symbols-user";
 import SymbolsVehicle from "../../../vehicle/symbols-vehicle";
 import { CartModel } from "../../domain/models/cart.model";
 import { IBranchesRepository } from "../../domain/repositories/branches.interface.repository";
@@ -11,6 +12,7 @@ import { ICartRepository } from "../../domain/repositories/cart.interface.reposi
 import { ITicketRepository } from "../../domain/repositories/ticket.interface.repository";
 import { ITourRepository } from "../../domain/repositories/tour.interface.repository";
 import { ITransferRepository } from "../../domain/repositories/transfer.interface.repository";
+import { IUserRepository } from "../../domain/repositories/user.interface.repository";
 import { IVehicleRepository } from "../../domain/repositories/vehicle.interface.repository";
 import { ICartService } from "../../domain/services/cart.interface.service";
 import { UpdateCartDTO } from "../../infrastructure/nest/dtos/cart.dto";
@@ -31,6 +33,8 @@ export class CartService implements ICartService {
         private readonly transferRepository: ITransferRepository,
         @Inject(SymbolsTicket.ITicketRepository)
         private readonly ticketRepository: ITicketRepository,
+        @Inject(SymbolsUser.IUserRepository)
+        private readonly userRepository: IUserRepository,
     ) { }
 
     async update(id: string, data: UpdateCartDTO): Promise<CartModel> {
@@ -89,5 +93,19 @@ export class CartService implements ICartService {
 
     async findById(id: string): Promise<CartModel> {
         return this.cartRepository.findById(id);
+    }
+
+    async updateByEmail(email: string, data: UpdateCartDTO): Promise<CartModel> {
+        const user = await this.userRepository.findByEmail(email);
+        if (!user) {
+            throw new BaseErrorException('User not found', 404);
+        }
+
+        const cart = await this.cartRepository.findById(user.toJSON().cart);
+        if (!cart) {
+            throw new BaseErrorException('Cart not found', 404);
+        }
+
+        return this.update(cart.id.toString(), data);
     }
 }
