@@ -12,7 +12,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
+import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import SymbolsUser from '../../../../user/symbols-user';
 import { IBookingService } from '../../../domain/services/booking.interface.service';
@@ -44,8 +47,8 @@ export class BookingController {
 
   @Get()
   @HttpCode(200)
-  /*   @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
-    @UseGuards(AuthGuards, RoleGuard) */
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 200, description: 'Return all Bookings' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiQuery({ name: 'status', required: false, type: 'string', description: 'Filter by status ID' })
@@ -74,6 +77,20 @@ export class BookingController {
     return this.bookingService.findById(id);
   }
 
+  @Post('/user/manual/:email')
+  @HttpCode(201)
+  @ApiResponse({ status: 201, description: 'Manual Booking is added in User' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiBody({ type: UserBookingDTO, description: 'Data to add Manual Booking in User' })
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
+  @UseGuards(AuthGuards, RoleGuard)
+  async addManualBookingInUser(
+    @Param('email') email: string,
+    @Body() body: CreateBookingDTO,
+  ) {
+    return this.bookingService.addManualBookingInUser(body, email);
+  }
+
   @Post('/user')
   @HttpCode(201)
   @ApiResponse({ status: 201, description: 'Booking is added in User' })
@@ -99,17 +116,19 @@ export class BookingController {
   @ApiQuery({ name: 'paid', required: true, type: 'boolean' })
   @ApiQuery({ name: 'lang', required: false, type: 'string', description: 'Language for response' })
   @ApiQuery({ name: 'isManual', required: false, type: 'boolean', description: 'Indicates if the booking is manual' })
+  @ApiQuery({ name: "isValidated", required: false, type: 'boolean', description: 'Indicates if the booking is validated' })
   @UseGuards(AuthGuards)
   async validateBooking(
     @Param('id') id: string,
     @Query('paid') paid: boolean,
     @Query('lang') lang: string,
-    @Query('isManual') isManual: boolean,
     @Req() req: IUserRequest,
+    @Query('isManual') isManual = false,
+    @Query('isValidated') isValidated = false,
   ) {
     const { email } = req.user;
     const language = lang ?? 'es';
-    return await this.bookingService.validateBooking(id, paid, email, language, isManual);
+    return await this.bookingService.validateBooking(id, paid, email, language, isManual, isValidated);
   }
 
   @Put(':id')

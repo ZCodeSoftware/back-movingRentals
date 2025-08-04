@@ -11,6 +11,7 @@ export class BookingModel extends BaseModel {
   private _total: number;
   private _totalPaid?: number;
   private _bookingNumber: number;
+  private _isValidated: boolean;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -23,6 +24,7 @@ export class BookingModel extends BaseModel {
       total: this._total,
       totalPaid: this._totalPaid,
       bookingNumber: this._bookingNumber,
+      isValidated: this._isValidated,
     };
   }
 
@@ -40,6 +42,10 @@ export class BookingModel extends BaseModel {
     }
   }
 
+  validateBooking(): void {
+    this._isValidated = true;
+  }
+
   static create(booking: any): BookingModel {
     const newBooking = new BookingModel(new Identifier(booking._id));
 
@@ -47,6 +53,8 @@ export class BookingModel extends BaseModel {
     newBooking._limitCancelation = booking.limitCancelation;
     newBooking._total = booking.total;
     newBooking._totalPaid = booking.totalPaid;
+    newBooking._paymentMethod = booking.paymentMethod
+    newBooking._isValidated = booking.isValidated ?? false;
 
     return newBooking;
   }
@@ -65,6 +73,7 @@ export class BookingModel extends BaseModel {
       ? CatStatusModel.hydrate(booking.status)
       : null;
     newBooking._bookingNumber = booking.bookingNumber;
+    newBooking._isValidated = booking.isValidated;
 
     return newBooking;
   }
