@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateBookingDTO {
   @IsNotEmpty()
@@ -28,4 +28,9 @@ export class CreateBookingDTO {
   @ApiPropertyOptional()
   @IsNumber()
   totalPaid?: number;
+
+  @IsOptional()
+  @ApiPropertyOptional()
+  @IsBoolean()
+  isValidated?: boolean = false;
 }

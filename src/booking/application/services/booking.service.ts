@@ -3,10 +3,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
 import { TypeStatus } from '../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
+import SymbolsUser from '../../../user/symbols-user';
 import { BookingModel } from '../../domain/models/booking.model';
 import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
 import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payment-method.interface.repository';
 import { ICatStatusRepository } from '../../domain/repositories/cat-status.interface.repostory';
+import { IUserRepository } from '../../domain/repositories/user.interface.repository';
 import { IBookingService } from '../../domain/services/booking.interface.service';
 import { ICreateBooking } from '../../domain/types/booking.type';
 import SymbolsBooking from '../../symbols-booking';
@@ -23,6 +25,9 @@ export class BookingService implements IBookingService {
     @Inject(SymbolsCatalogs.ICatStatusRepository)
     private readonly catStatusRepository: ICatStatusRepository,
 
+    @Inject(SymbolsUser.IUserRepository)
+    private readonly userRepository: IUserRepository,
+
     private readonly eventEmitter: EventEmitter2,
   ) { }
 
@@ -34,6 +39,44 @@ export class BookingService implements IBookingService {
     const bookingModel = BookingModel.create(res);
 
     const catPaymentMethod = await this.paymentMethodRepository.findById(paymentMethod);
+
+    if (!catPaymentMethod) {
+      throw new BaseErrorException(
+        'CatPaymentMethod not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+
+    if (!status) {
+      throw new BaseErrorException(
+        'CatStatus not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    bookingModel.addStatus(status);
+
+    bookingModel.addPaymentMethod(catPaymentMethod);
+
+    const bookingSave = await this.bookingRepository.create(bookingModel, id);
+
+    return bookingSave;
+  }
+
+  async addManualBookingInUser(booking: ICreateBooking, email: string): Promise<BookingModel> {
+
+    const user = await this.userRepository.findByEmail(email);
+    if (!user) {
+      throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const id = user.toJSON()._id.toString();
+
+    const bookingModel = BookingModel.create(booking);
+
+    const catPaymentMethod = await this.paymentMethodRepository.findById(booking.paymentMethod);
 
     if (!catPaymentMethod) {
       throw new BaseErrorException(
@@ -97,6 +140,7 @@ export class BookingService implements IBookingService {
     email: string,
     lang: string = 'es',
     isManual: boolean = false,
+    isValidated: boolean = false,
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -115,6 +159,8 @@ export class BookingService implements IBookingService {
     booking.addStatus(status);
 
     booking.payBooking(paid);
+
+    isValidated && booking.validateBooking();
 
     const updatedBooking = await this.bookingRepository.update(id, booking);
 

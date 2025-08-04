@@ -26,6 +26,9 @@ export class Booking {
 
   @Prop({ type: Number, unique: true })
   bookingNumber: number;
+
+  @Prop({ type: Boolean, default: false })
+  isValidated: boolean;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);

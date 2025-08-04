@@ -47,4 +47,14 @@ export class UserRepository implements IUserRepository {
       throw new BaseErrorException(error.message, error.statusCode || 500);
     }
   }
+
+  async findByEmail(email: string): Promise<UserModel> {
+    try {
+      const found = await this.userModel.findOne({ email });
+
+      return found && UserModel.hydrate(found);
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
 }
