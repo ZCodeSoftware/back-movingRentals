@@ -6,6 +6,7 @@ export interface IBookingService {
     booking: ICreateBooking,
     id: string,
   ): Promise<BookingModel>;
+  addManualBookingInUser(booking: ICreateBooking, email: string): Promise<BookingModel>
   findById(id: string): Promise<BookingModel>;
   findAll(filters: any): Promise<any>;
   findByUserId(userId: string): Promise<BookingModel[]>;
@@ -20,5 +21,6 @@ export interface IBookingService {
     email: string,
     lang: string,
     isManual?: boolean,
+    isValidated?: boolean,
   ): Promise<BookingModel>;
 }
