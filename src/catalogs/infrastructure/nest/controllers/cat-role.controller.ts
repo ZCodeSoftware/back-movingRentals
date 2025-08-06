@@ -25,10 +25,10 @@ export class CatRoleController {
   constructor(
     @Inject(SymbolsCatalogs.ICatRoleService)
     private readonly catRoleService: ICatRoleService,
-  ) {}
+  ) { }
 
   @Get()
-  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER)
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ type: CatRoleResponseDTO })
   async findAll(): Promise<CatRoleModel[]> {
@@ -36,7 +36,7 @@ export class CatRoleController {
   }
 
   @Post()
-  @Roles(TypeRoles.ADMIN)
+  @Roles(TypeRoles.SUPERADMIN)
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ type: CatRoleResponseDTO })
   @ApiBody({ type: CreateRoleDTO })
@@ -45,7 +45,7 @@ export class CatRoleController {
   }
 
   @Delete(':carRoleId')
-  @Roles(TypeRoles.ADMIN)
+  @Roles(TypeRoles.SUPERADMIN)
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({
     description: 'El rol fue eliminado exitosamente',
