@@ -79,16 +79,15 @@ export class BookingController {
 
   @Post('/user/manual/:email')
   @HttpCode(201)
-  @ApiResponse({ status: 201, description: 'Manual Booking is added in User' })
+  @ApiResponse({ status: 201, description: 'Manual Booking is added in User from cart data' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  @ApiBody({ type: UserBookingDTO, description: 'Data to add Manual Booking in User' })
+  @ApiResponse({ status: 400, description: 'Cart is empty or invalid' })
   @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
   @UseGuards(AuthGuards, RoleGuard)
   async addManualBookingInUser(
     @Param('email') email: string,
-    @Body() body: CreateBookingDTO,
   ) {
-    return this.bookingService.addManualBookingInUser(body, email);
+    return this.bookingService.addManualBookingInUserFromCart(email);
   }
 
   @Post('/user')
