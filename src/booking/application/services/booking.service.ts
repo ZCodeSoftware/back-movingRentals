@@ -1,8 +1,9 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
-import SymbolsCart from '../../../cart/symbols-cart';
 import { ICartRepository } from '../../../cart/domain/repositories/cart.interface.repository';
+import { IUserRepository } from '../../../cart/domain/repositories/user.interface.repository';
+import SymbolsCart from '../../../cart/symbols-cart';
+import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
 import { TypeStatus } from '../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
 import SymbolsUser from '../../../user/symbols-user';
@@ -10,7 +11,6 @@ import { BookingModel } from '../../domain/models/booking.model';
 import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
 import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payment-method.interface.repository';
 import { ICatStatusRepository } from '../../domain/repositories/cat-status.interface.repostory';
-import { IUserRepository } from '../../../cart/domain/repositories/user.interface.repository';
 import { IBookingService } from '../../domain/services/booking.interface.service';
 import { ICreateBooking } from '../../domain/types/booking.type';
 import SymbolsBooking from '../../symbols-booking';
@@ -128,9 +128,9 @@ export class BookingService implements IBookingService {
 
     // 3. Validar que el carrito no esté vacío
     const hasItems = (cartData.vehicles && cartData.vehicles.length > 0) ||
-                    (cartData.transfer && cartData.transfer.length > 0) ||
-                    (cartData.tours && cartData.tours.length > 0) ||
-                    (cartData.tickets && cartData.tickets.length > 0);
+      (cartData.transfer && cartData.transfer.length > 0) ||
+      (cartData.tours && cartData.tours.length > 0) ||
+      (cartData.tickets && cartData.tickets.length > 0);
 
     if (!hasItems) {
       throw new BaseErrorException('Cart is empty', HttpStatus.BAD_REQUEST);
@@ -172,8 +172,8 @@ export class BookingService implements IBookingService {
       cart: JSON.stringify(cartData),
       total: total,
       paymentMethod: defaultPaymentMethod.toJSON()._id.toString(),
-      totalPaid: 0,
-      isValidated: false
+      totalPaid: total,
+      isValidated: true
     };
 
     const bookingModel = BookingModel.create(bookingData);
