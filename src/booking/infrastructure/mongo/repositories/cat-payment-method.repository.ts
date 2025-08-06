@@ -19,4 +19,11 @@ export class CatPaymentMethodRepository implements ICatPaymentMethodRepository {
     if (!catPaymentMethod) return null;
     return CatPaymentMethodModel.hydrate(catPaymentMethod);
   }
+
+  async findAll(): Promise<CatPaymentMethodModel[]> {
+    const catPaymentMethods = await this.catPaymentMethodModel.find();
+    return catPaymentMethods.map((catPaymentMethod) =>
+      CatPaymentMethodModel.hydrate(catPaymentMethod),
+    );
+  }
 }
