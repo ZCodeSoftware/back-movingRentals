@@ -8,5 +8,6 @@
     "source.fixAll.tslint": "always",
     "source.fixAll.stylelint": "always",
     "source.organizeImports": "always"
-  }
+  },
+  "codium.codeCompletion.enable": false
 }

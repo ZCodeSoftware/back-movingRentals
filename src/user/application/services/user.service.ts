@@ -14,7 +14,11 @@ import { IAddressRepository } from '../../domain/repositories/address.interface.
 import { ICatCountryRepository } from '../../domain/repositories/cat-country.interface.repository';
 import { IUserRepository } from '../../domain/repositories/user.interface.repository';
 import { IUserService } from '../../domain/services/user.interface.service';
-import { IAutoCreate, IUserCreate, IUserUpdate } from '../../domain/types/user.type';
+import {
+  IAutoCreate,
+  IUserCreate,
+  IUserUpdate,
+} from '../../domain/types/user.type';
 import SymbolsUser from '../../symbols-user';
 
 export class UserService implements IUserService {
@@ -26,8 +30,8 @@ export class UserService implements IUserService {
     @Inject(SymbolsCatalogs.ICatCountryRepository)
     private readonly catCountryRepository: ICatCountryRepository,
     private readonly eventEmitter: EventEmitter2,
-    private readonly jwtService: JwtService
-  ) { }
+    private readonly jwtService: JwtService,
+  ) {}
 
   async create(user: IUserCreate): Promise<UserModel> {
     try {
@@ -68,7 +72,11 @@ export class UserService implements IUserService {
     }
   }
 
-  async autoCreate(user: IAutoCreate, frontendHost: string, lang: string = "es"): Promise<UserModel> {
+  async autoCreate(
+    user: IAutoCreate,
+    frontendHost: string,
+    lang: string = 'es',
+  ): Promise<UserModel> {
     try {
       const { role, ...rest } = user;
       const foundEmail = await this.userRepository.findByEmail(rest.email);
@@ -77,13 +85,20 @@ export class UserService implements IUserService {
           'This email is already in use',
           HttpStatus.BAD_REQUEST,
         );
-      const password = generatePassword(8)
+      const password = generatePassword(8);
       const hashedPassword = await hashPassword(password);
       const userModel = UserModel.create({
         ...rest,
         password: hashedPassword,
         isActive: true,
       });
+
+      const addresModel = AddressModel.create({});
+
+      const addressSave = await this.addressRepository.create(addresModel);
+
+      userModel.addAddress(addressSave);
+
       const userSave = await this.userRepository.create(userModel, role);
 
       const validFrontendUrl = config().app.front.front_base_urls.find(
@@ -95,8 +110,8 @@ export class UserService implements IUserService {
           email: userSave.toJSON().email,
           password,
           frontendHost: validFrontendUrl,
-          lang
-        })
+          lang,
+        });
       }
 
       return userSave;
@@ -105,7 +120,17 @@ export class UserService implements IUserService {
     }
   }
 
-  async findAll(filters: any): Promise<{ data: UserModel[]; pagination: { currentPage: number; totalPages: number; totalItems: number; itemsPerPage: number; hasNextPage: boolean; hasPreviousPage: boolean; }; }> {
+  async findAll(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
     try {
       const users = await this.userRepository.findAll(filters);
 
@@ -140,7 +165,6 @@ export class UserService implements IUserService {
       const { address, ...rest } = user;
       const userModel = UserModel.create(rest);
 
-
       if (address?.countryId) {
         const existingUser = await this.userRepository.findById(id);
 
@@ -161,15 +185,15 @@ export class UserService implements IUserService {
           );
 
         const addressToUpdate = await this.addressRepository.findById(
-          existingUser.toJSON().address._id.toString()
-        )
+          existingUser.toJSON().address._id.toString(),
+        );
 
         if (addressToUpdate) {
           addressToUpdate.addCountry(findCountry);
 
           const updatedAddress = await this.addressRepository.update(
             existingUser.toJSON().address._id.toString(),
-            addressToUpdate
+            addressToUpdate,
           );
 
           userModel.addAddress(updatedAddress);
@@ -195,17 +219,11 @@ export class UserService implements IUserService {
         (url: string) => url.includes(requestHost),
       );
       if (!validFrontendUrl)
-        throw new BaseErrorException(
-          'Invalid request',
-          HttpStatus.BAD_REQUEST,
-        );
+        throw new BaseErrorException('Invalid request', HttpStatus.BAD_REQUEST);
       const foundUser = await this.userRepository.findByEmail(email);
 
       if (!foundUser)
-        throw new BaseErrorException(
-          'Invalid request',
-          HttpStatus.BAD_REQUEST,
-        );
+        throw new BaseErrorException('Invalid request', HttpStatus.BAD_REQUEST);
 
       const token = this.jwtService.sign(
         { email: foundUser.toJSON().email, _id: foundUser.toJSON()._id },
@@ -213,13 +231,13 @@ export class UserService implements IUserService {
           expiresIn: '10m',
           secret: config().auth.jwt.secret,
         },
-      )
+      );
 
       this.eventEmitter.emit('send-user.forgot-password', {
         email,
         token,
         frontendHost: validFrontendUrl,
-      })
+      });
       return foundUser;
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode);

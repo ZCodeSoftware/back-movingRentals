@@ -1,5 +1,6 @@
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
+import { CatRoleModel } from './cat-role.model';
 
 export class UserModel extends BaseModel {
   private _name: string;
@@ -10,6 +11,7 @@ export class UserModel extends BaseModel {
   private _isActive: boolean;
   private _newsletter: boolean;
   private _cart: string;
+  private _role: CatRoleModel;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -23,6 +25,7 @@ export class UserModel extends BaseModel {
       isActive: this._isActive,
       newsletter: this._newsletter,
       cart: this._cart,
+      role: this._role ? this._role.toJSON() : undefined,
     };
   }
 
@@ -52,6 +55,7 @@ export class UserModel extends BaseModel {
     newUser._isActive = user.isActive;
     newUser._newsletter = user.newsletter;
     newUser._cart = user.cart;
+    newUser._role = user.role ? CatRoleModel.hydrate(user.role) : undefined;
 
     return newUser;
   }
