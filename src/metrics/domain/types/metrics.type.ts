@@ -52,6 +52,7 @@ export interface PopularVehicle {
   tag: string;
   name: string;
   categoryName: string;
+  image?: string;
   revenue: number;
   bookingCount: number;
 }
