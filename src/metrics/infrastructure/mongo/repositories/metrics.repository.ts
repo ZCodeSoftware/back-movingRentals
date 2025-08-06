@@ -453,7 +453,32 @@ export class MetricsRepository implements IMetricsRepository {
       }
     }
 
-    return Array.from(revenues.values()).sort((a, b) => b.revenue - a.revenue);
+    const result = Array.from(revenues.values());
+    
+    // Aplicar ordenamiento
+    if (filters?.sortBy && filters?.sortOrder) {
+      result.sort((a, b) => {
+        let comparison = 0;
+        
+        switch (filters.sortBy) {
+          case 'revenue':
+            comparison = a.revenue - b.revenue;
+            break;
+          case 'categoryName':
+            comparison = a.categoryName.localeCompare(b.categoryName);
+            break;
+          default:
+            comparison = a.revenue - b.revenue;
+        }
+        
+        return filters.sortOrder === 'asc' ? comparison : -comparison;
+      });
+    } else {
+      // Ordenamiento por defecto: por revenue descendente
+      result.sort((a, b) => b.revenue - a.revenue);
+    }
+    
+    return result;
   }
 
   async getCategoryUtilization(filters?: MetricsFilters): Promise<CategoryUtilization[]> {
@@ -587,7 +612,33 @@ export class MetricsRepository implements IMetricsRepository {
       });
     }
 
-    return utilizations.sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
+    // Aplicar ordenamiento
+    if (filters?.sortBy && filters?.sortOrder) {
+      utilizations.sort((a, b) => {
+        let comparison = 0;
+        
+        switch (filters.sortBy) {
+          case 'utilizationPercentage':
+            comparison = a.utilizationPercentage - b.utilizationPercentage;
+            break;
+          case 'categoryName':
+            comparison = a.categoryName.localeCompare(b.categoryName);
+            break;
+          case 'bookingCount':
+            comparison = a.totalBookings - b.totalBookings;
+            break;
+          default:
+            comparison = a.utilizationPercentage - b.utilizationPercentage;
+        }
+        
+        return filters.sortOrder === 'asc' ? comparison : -comparison;
+      });
+    } else {
+      // Ordenamiento por defecto: por utilizationPercentage descendente
+      utilizations.sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
+    }
+    
+    return utilizations;
   }
 
   async getBookingDurations(filters?: MetricsFilters): Promise<BookingDuration[]> {
@@ -738,10 +789,33 @@ export class MetricsRepository implements IMetricsRepository {
       }
     }
 
-    return Array.from(durations.entries())
-      .map(([duration, count]) => ({ duration, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 4);
+    const result = Array.from(durations.entries())
+      .map(([duration, count]) => ({ duration, count }));
+
+    // Aplicar ordenamiento
+    if (filters?.sortBy && filters?.sortOrder) {
+      result.sort((a, b) => {
+        let comparison = 0;
+        
+        switch (filters.sortBy) {
+          case 'duration':
+            comparison = a.duration - b.duration;
+            break;
+          case 'count':
+            comparison = a.count - b.count;
+            break;
+          default:
+            comparison = a.count - b.count;
+        }
+        
+        return filters.sortOrder === 'asc' ? comparison : -comparison;
+      });
+    } else {
+      // Ordenamiento por defecto: por count descendente
+      result.sort((a, b) => b.count - a.count);
+    }
+
+    return result.slice(0, 4);
   }
 
   async getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]> {
@@ -821,8 +895,32 @@ export class MetricsRepository implements IMetricsRepository {
       }
     }
 
-    return Array.from(vehicleStats.values())
-      .sort((a, b) => b.bookingCount - a.bookingCount || b.revenue - a.revenue);
+    const result = Array.from(vehicleStats.values());
+    
+    // Aplicar ordenamiento
+    if (filters?.sortBy && filters?.sortOrder) {
+      result.sort((a, b) => {
+        let comparison = 0;
+        
+        switch (filters.sortBy) {
+          case 'revenue':
+            comparison = a.revenue - b.revenue;
+            break;
+          case 'bookingCount':
+            comparison = a.bookingCount - b.bookingCount;
+            break;
+          default:
+            comparison = a.bookingCount - b.bookingCount;
+        }
+        
+        return filters.sortOrder === 'asc' ? comparison : -comparison;
+      });
+    } else {
+      // Ordenamiento por defecto: por bookingCount descendente, luego por revenue descendente
+      result.sort((a, b) => b.bookingCount - a.bookingCount || b.revenue - a.revenue);
+    }
+    
+    return result;
   }
 
   private isDateInRange(date: Date, dateFilter: any): boolean {
