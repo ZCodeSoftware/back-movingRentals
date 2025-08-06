@@ -772,6 +772,7 @@ export class MetricsRepository implements IMetricsRepository {
       name: string;
       tag: string; 
       categoryName: string; 
+      image?: string;
       revenue: number; 
       bookingCount: number; 
     }>();
@@ -806,6 +807,7 @@ export class MetricsRepository implements IMetricsRepository {
                     name: vehicle.name,
                     tag: vehicle.tag,
                     categoryName: category.name,
+                    image: vehicle.images && vehicle.images.length > 0 ? vehicle.images[0] : undefined,
                     revenue: vehicleItem.total,
                     bookingCount: 1
                   });
