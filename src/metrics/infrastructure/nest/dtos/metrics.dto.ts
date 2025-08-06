@@ -39,4 +39,12 @@ export class MetricsFiltersDTO {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsIn(['revenue', 'bookingCount', 'categoryName', 'utilizationPercentage', 'duration', 'count'])
+  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count';
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc';
 }

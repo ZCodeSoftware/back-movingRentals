@@ -12,6 +12,8 @@ export interface MetricsFilters {
   bookingStatus?: string;
   clientType?: 'new' | 'recurring';
   location?: string; // Para transfers
+  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface MetricComparison {
