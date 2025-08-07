@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import mongoose, { HydratedDocument } from "mongoose";
 import { TypeCatTypeMovement } from "../../../../domain/enums/type-cat-type-movement";
+import { TypeCatPaymentMethodAdmin } from "../../../../domain/enums/type-cat-payment-method-admin";
 import { User } from "./user.schema";
 import { Vehicle } from "./vehicle.schema";
 
@@ -19,6 +20,9 @@ export class Movement {
 
     @Prop({ required: true, type: Date })
     date: Date;
+
+    @Prop({ required: true, enum: TypeCatPaymentMethodAdmin })
+    paymentMethod: TypeCatPaymentMethodAdmin;
 
     @Prop({ required: false, type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' })
     vehicle?: Vehicle;
