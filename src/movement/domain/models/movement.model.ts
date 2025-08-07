@@ -1,4 +1,5 @@
 import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
+import { TypeCatPaymentMethodAdmin } from '../../../core/domain/enums/type-cat-payment-method-admin';
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { UserModel } from './user.model';
@@ -8,6 +9,7 @@ export class MovementModel extends BaseModel {
   private _detail: string;
   private _amount: number;
   private _date: Date;
+  private _paymentMethod: TypeCatPaymentMethodAdmin;
   private _vehicle: string;
   private _createdBy: UserModel | string;
 
@@ -19,6 +21,7 @@ export class MovementModel extends BaseModel {
       detail: this._detail,
       amount: this._amount,
       date: this._date,
+      paymentMethod: this._paymentMethod,
       vehicle: this._vehicle,
       createdBy: this._createdBy instanceof UserModel ? this._createdBy.toJSON() : this._createdBy,
     };
@@ -30,6 +33,7 @@ export class MovementModel extends BaseModel {
     newMovement._detail = movement.detail;
     newMovement._amount = movement.amount;
     newMovement._date = movement.date;
+    newMovement._paymentMethod = movement.paymentMethod;
     newMovement._vehicle = movement.vehicle;
     newMovement._createdBy = movement.createdBy;
 
@@ -42,6 +46,7 @@ export class MovementModel extends BaseModel {
     newMovement._detail = movement.detail;
     newMovement._amount = movement.amount;
     newMovement._date = movement.date;
+    newMovement._paymentMethod = movement.paymentMethod;
     newMovement._vehicle = movement.vehicle;
     newMovement._createdBy = movement.createdBy ? UserModel.hydrate(movement.createdBy) : null;
 

@@ -6,6 +6,7 @@ export interface IVehicleService {
     findById(id: string): Promise<VehicleModel>;
     findByDate(query: any): Promise<VehicleModel[]>;
     findAll(): Promise<VehicleModel[]>;
-    update(id: string, vehicle: IUpdateVehicle): Promise<VehicleModel>
-    updateByModel(model: string, prices: IUpdatePriceByModel): Promise<void>
+    update(id: string, vehicle: IUpdateVehicle): Promise<VehicleModel>;
+    updateByModel(model: string, prices: IUpdatePriceByModel): Promise<void>;
+    updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void>;
 }
