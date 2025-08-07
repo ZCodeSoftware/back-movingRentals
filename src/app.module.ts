@@ -11,6 +11,7 @@ import { CartModule } from './cart/cart.module';
 import { CatalogsModule } from './catalogs/catalogs.module';
 import { ChoosingModule } from './choosing/choosing.module';
 import { CompanyModule } from './company/company.module';
+import { ContractModule } from './contract/contract.module';
 import { CustomCorsMiddleware } from './config/cors';
 import { CoreModule } from './core/core.module';
 import { DocumentModule } from './document/document.module';
@@ -53,7 +54,8 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     ChoosingModule,
     BusinessConfigModule,
     MetricsModule,
-    MovementModule
+    MovementModule,
+    ContractModule
   ],
   controllers: [AppController],
   providers: [AppService],

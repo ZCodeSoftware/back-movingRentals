@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { TypeCatTypeMovement } from "../../../../core/domain/enums/type-cat-type-movement";
+import { TypeCatPaymentMethodAdmin } from "../../../../core/domain/enums/type-cat-payment-method-admin";
 
 export class CreateMovementDTO {
     @IsNotEmpty()
@@ -32,6 +33,15 @@ export class CreateMovementDTO {
         type: Date,
     })
     date: Date;
+
+    @IsNotEmpty()
+    @IsEnum(TypeCatPaymentMethodAdmin)
+    @ApiProperty({
+        description: "Payment method for the movement",
+        enum: TypeCatPaymentMethodAdmin,
+        example: TypeCatPaymentMethodAdmin.MXN
+    })
+    paymentMethod: TypeCatPaymentMethodAdmin;
 
     @IsOptional()
     @IsString()

@@ -83,4 +83,8 @@ export class VehicleService implements IVehicleService {
     async updateByModel(model: string, prices: IUpdatePriceByModel): Promise<void> {
         return this.vehicleRepository.updatePriceByModel(model, prices);
     }
+
+    async updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void> {
+        return this.vehicleRepository.updateReservation(vehicleId, originalEndDate, newEndDate);
+    }
 }

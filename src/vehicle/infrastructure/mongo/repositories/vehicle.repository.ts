@@ -123,4 +123,32 @@ export class VehicleRepository implements IVehicleRepository {
     ): Promise<void> {
         await this.vehicleDB.updateMany({ model }, { $set: prices });
     }
+
+    async updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void> {
+        // First, try to find the vehicle and the specific reservation
+        const vehicle = await this.vehicleDB.findById(vehicleId);
+        if (!vehicle || !vehicle.reservations) return;
+
+        // Find the reservation that matches the original end date (with some tolerance for date differences)
+        const reservationIndex = vehicle.reservations.findIndex(reservation => {
+            const reservationEndTime = new Date(reservation.end).getTime();
+            const originalEndTime = originalEndDate.getTime();
+            // Allow 1 minute tolerance for date differences
+            const timeDifference = Math.abs(reservationEndTime - originalEndTime);
+            return timeDifference <= 60000; // 60 seconds tolerance
+        });
+
+        if (reservationIndex === -1) {
+            console.warn(`No reservation found for vehicle ${vehicleId} with end date ${originalEndDate}`);
+            return;
+        }
+
+        // Update the specific reservation using array index
+        await this.vehicleDB.updateOne(
+            { _id: vehicleId },
+            { 
+                $set: { [`reservations.${reservationIndex}.end`]: newEndDate }
+            }
+        );
+    }
 }
