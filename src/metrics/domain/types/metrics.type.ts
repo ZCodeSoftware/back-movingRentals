@@ -12,7 +12,7 @@ export interface MetricsFilters {
   bookingStatus?: string;
   clientType?: 'new' | 'recurring';
   location?: string; // Para transfers
-  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count';
+  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -26,6 +26,7 @@ export interface MetricComparison {
 export interface GeneralMetrics {
   activeClients: MetricComparison;
   totalRevenue: MetricComparison;
+  totalExpenses: MetricComparison;
   activeVehicles: MetricComparison;
   monthlyBookings: MetricComparison;
 }
@@ -33,6 +34,12 @@ export interface GeneralMetrics {
 export interface CategoryRevenue {
   categoryId: string;
   categoryName: string;
+  revenue: number;
+}
+
+export type PaymentMethodRevenue = {
+  paymentMethodId: string;
+  paymentMethodName: string;
   revenue: number;
 }
 
@@ -58,3 +65,11 @@ export interface PopularVehicle {
   revenue: number;
   bookingCount: number;
 }
+
+export type TransactionDetail = {
+  type: 'INCOME' | 'EXPENSE';
+  date: Date;
+  amount: number;
+  description: string;
+  sourceId: string;
+};

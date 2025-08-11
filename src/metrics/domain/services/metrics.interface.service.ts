@@ -4,7 +4,9 @@ import {
   CategoryUtilization,
   GeneralMetrics,
   MetricsFilters,
+  PaymentMethodRevenue,
   PopularVehicle,
+  TransactionDetail,
 } from '../types/metrics.type';
 
 export interface IMetricsService {
@@ -13,4 +15,7 @@ export interface IMetricsService {
   getCategoryUtilization(filters?: MetricsFilters): Promise<CategoryUtilization[]>;
   getBookingDurations(filters?: MetricsFilters): Promise<BookingDuration[]>;
   getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]>;
+  getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]>;
+  getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]>;
+  getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]>;
 }

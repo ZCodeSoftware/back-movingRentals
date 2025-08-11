@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import mongoose, { Model } from "mongoose";
 import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
 import { VehicleOwnerModel } from "../../../domain/models/vehicleowner.model";
 import { IVehicleOwnerRepository } from "../../../domain/repositories/vehicleowner.interface.repository";
@@ -28,8 +28,38 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
     }
 
     async findAll(): Promise<VehicleOwnerModel[]> {
-        const vehicleowners = await this.vehicleownerDB.find();
-        return vehicleowners?.map(vehicleowner => VehicleOwnerModel.hydrate(vehicleowner));
+
+        // 1. CONSTRUIR EL PIPELINE DE AGREGACIÓN
+        const pipeline: mongoose.PipelineStage[] = [
+            // --- (Opcional) Etapa de Filtro ($match) ---
+            // Si necesitas filtrar dueños (por ejemplo, solo los activos), lo harías aquí.
+            // Ejemplo: { $match: { isActive: true } }
+
+            // --- Etapa de "Join" ($lookup) ---
+            // Esta es la operación clave que une los dueños con sus vehículos.
+            {
+                $lookup: {
+                    from: 'vehicle',           // La colección de vehículos (nombre en la DB)
+                    localField: '_id',          // Campo de la colección actual (vehicle_owner)
+                    foreignField: 'owner',      // Campo en 'vehicles' que referencia al ID del dueño
+                    as: 'vehicles'              // Nombre del nuevo array que se añadirá a cada dueño
+                }
+            },
+            {
+                $sort: { name: 1 }
+            }
+        ];
+
+        // 2. EJECUTAR LA CONSULTA DE AGREGACIÓN
+        const ownersWithVehicles = await this.vehicleownerDB.aggregate(pipeline).exec();
+
+        // 3. HIDRATAR LOS RESULTADOS USANDO TU MODELO DE DOMINIO
+        // Asegúrate de que tu VehicleOwnerModel.hydrate puede manejar el nuevo array 'vehicles'.
+        const ownerModels = ownersWithVehicles.map(owner =>
+            VehicleOwnerModel.hydrate(owner)
+        );
+
+        return ownerModels;
     }
 
     async update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {

@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
-import { TypeCatTypeMovement } from "../../../../core/domain/enums/type-cat-type-movement";
 import { TypeCatPaymentMethodAdmin } from "../../../../core/domain/enums/type-cat-payment-method-admin";
+import { TypeCatTypeMovement } from "../../../../core/domain/enums/type-cat-type-movement";
+import { TypeMovementDirection } from "../../../../core/domain/enums/type-movement-direction";
 
 export class CreateMovementDTO {
     @IsNotEmpty()
@@ -11,6 +12,15 @@ export class CreateMovementDTO {
         enum: TypeCatTypeMovement,
     })
     type: TypeCatTypeMovement;
+
+    @IsNotEmpty()
+    @IsEnum(TypeMovementDirection)
+    @ApiProperty({
+        description: "Direction of the movement (IN for income, OUT for expense)",
+        enum: TypeMovementDirection,
+        example: TypeMovementDirection.OUT
+    })
+    direction: TypeMovementDirection;
 
     @IsNotEmpty()
     @IsString()
@@ -50,4 +60,12 @@ export class CreateMovementDTO {
         type: String,
     })
     vehicle?: string;
+
+    @IsOptional()
+    @IsString()
+    @ApiPropertyOptional({
+        description: "Beneficiary associated with the movement",
+        type: String,
+    })
+    beneficiary?: string;
 }

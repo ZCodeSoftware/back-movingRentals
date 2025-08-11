@@ -1,9 +1,9 @@
 import { MovementModel } from "../models/movement.model";
 
 export interface IMovementRepository {
-    create(movement: MovementModel): Promise<MovementModel>;
+    create(movement: any): Promise<MovementModel>;
     findById(id: string): Promise<MovementModel>;
-    findAll(filters: any): Promise<{
+    findAll(filters: any, userId: string): Promise<{
         data: MovementModel[];
         pagination: {
             currentPage: number;

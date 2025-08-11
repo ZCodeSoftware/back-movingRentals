@@ -13,15 +13,14 @@ export class MovementService implements IMovementService {
     ) { }
 
     async create(movement: ICreateMovement, userId: string): Promise<MovementModel> {
-        const movementModel = MovementModel.create({ ...movement, createdBy: userId });
-        return this.movementRepository.create(movementModel);
+        return this.movementRepository.create({ ...movement, createdBy: userId });
     }
 
     async findById(id: string): Promise<MovementModel> {
         return this.movementRepository.findById(id);
     }
 
-    async findAll(filters: any): Promise<{
+    async findAll(filters: any, userId: string): Promise<{
         data: MovementModel[];
         pagination: {
             currentPage: number;
@@ -32,6 +31,6 @@ export class MovementService implements IMovementService {
             hasPreviousPage: boolean;
         };
     }> {
-        return this.movementRepository.findAll(filters);
+        return this.movementRepository.findAll(filters, userId);
     }
 }

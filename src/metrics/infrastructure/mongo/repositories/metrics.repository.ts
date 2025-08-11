@@ -1,22 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import mongoose, { HydratedDocument, Model } from 'mongoose';
+import { CatCategory } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
+import { CatStatus } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-status.schema';
+import { Booking } from '../../../../core/infrastructure/mongo/schemas/public/booking.schema';
+import { Cart } from '../../../../core/infrastructure/mongo/schemas/public/cart.schema';
+import { Movement } from '../../../../core/infrastructure/mongo/schemas/public/movement.schema';
+import { User } from '../../../../core/infrastructure/mongo/schemas/public/user.schema';
+import { Vehicle } from '../../../../core/infrastructure/mongo/schemas/public/vehicle.schema';
 import { IMetricsRepository } from '../../../domain/repositories/metrics.interface.repository';
 import {
   BookingDuration,
   CategoryRevenue,
   CategoryUtilization,
   GeneralMetrics,
-  MetricsFilters,
-  PopularVehicle,
   MetricComparison,
+  MetricsFilters,
+  PaymentMethodRevenue,
+  PopularVehicle,
+  TransactionDetail,
 } from '../../../domain/types/metrics.type';
-import { User } from '../../../../core/infrastructure/mongo/schemas/public/user.schema';
-import { Vehicle } from '../../../../core/infrastructure/mongo/schemas/public/vehicle.schema';
-import { Booking } from '../../../../core/infrastructure/mongo/schemas/public/booking.schema';
-import { Cart } from '../../../../core/infrastructure/mongo/schemas/public/cart.schema';
-import { CatCategory } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-category.schema';
-import { CatStatus } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-status.schema';
 
 @Injectable()
 export class MetricsRepository implements IMetricsRepository {
@@ -24,38 +27,117 @@ export class MetricsRepository implements IMetricsRepository {
     @InjectModel('User') private readonly userModel: Model<User>,
     @InjectModel('Vehicle') private readonly vehicleModel: Model<Vehicle>,
     @InjectModel('Booking') private readonly bookingModel: Model<Booking>,
+    @InjectModel('Movement') private readonly movementModel: Model<Movement>,
     @InjectModel('Cart') private readonly cartModel: Model<Cart>,
     @InjectModel('CatCategory') private readonly categoryModel: Model<CatCategory>,
     @InjectModel('CatStatus') private readonly statusModel: Model<CatStatus>,
-  ) {}
+  ) { }
 
   async getGeneralMetrics(filters?: MetricsFilters): Promise<GeneralMetrics> {
     const currentDateFilter = this.buildDateFilter(filters?.dateFilter);
     const previousDateFilter = this.buildPreviousDateFilter(filters?.dateFilter);
-    
+
     // Obtener métricas actuales y anteriores
     const currentMetrics = await this.getMetricsForPeriod(filters, currentDateFilter);
     const previousMetrics = await this.getMetricsForPeriod(filters, previousDateFilter);
 
     return {
       activeClients: this.buildComparison(currentMetrics.activeClients, previousMetrics.activeClients),
-      totalRevenue: this.buildComparison(currentMetrics.totalRevenue, previousMetrics.totalRevenue),
+      totalRevenue: this.buildComparison(currentMetrics.totalIncome, previousMetrics.totalIncome),
+      totalExpenses: this.buildComparison(currentMetrics.totalExpenses, previousMetrics.totalExpenses),
       activeVehicles: this.buildComparison(currentMetrics.activeVehicles, previousMetrics.activeVehicles),
       monthlyBookings: this.buildComparison(currentMetrics.monthlyBookings, previousMetrics.monthlyBookings),
     };
   }
 
+  async getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]> {
+    const dateFilter = this.buildDateFilter(filters?.dateFilter);
+
+    // --- 1. OBTENER LOS EGRESOS (MOVEMENTS) ASOCIADOS AL VEHÍCULO ---
+    // Esta es una consulta directa y eficiente.
+    const expenseMatch: any = {
+      direction: 'OUT',
+      vehicle: new mongoose.Types.ObjectId(vehicleId) // Filtro clave: solo para este vehículo
+    };
+    if (dateFilter) {
+      expenseMatch.date = dateFilter;
+    }
+
+    const expensePipeline = [
+      { $match: expenseMatch },
+      {
+        $project: {
+          _id: 0,
+          type: { $literal: 'EXPENSE' },
+          date: '$date',
+          amount: '$amount',
+          description: '$detail',
+          sourceId: '$_id'
+        }
+      }
+    ];
+    const expenseDetails = await this.movementModel.aggregate(expensePipeline);
+
+    // --- 2. OBTENER LOS INGRESOS (BOOKINGS) DONDE PARTICIPÓ EL VEHÍCULO ---
+    // Como el carrito es un string, debemos procesarlo en la aplicación.
+    const incomeMatch: any = {
+      // Pre-filtramos los bookings para reducir la carga de procesamiento.
+      // Buscamos aquellos cuyo string de carrito contenga el ID del vehículo.
+      cart: new RegExp(vehicleId),
+    };
+    if (dateFilter) {
+      incomeMatch.createdAt = dateFilter;
+    }
+    const completedStatus = await this.statusModel.findOne({ name: 'completed' });
+    if (completedStatus) {
+      incomeMatch.status = completedStatus._id;
+    }
+
+    const bookings: HydratedDocument<Booking>[] = await this.bookingModel.find(incomeMatch);
+    const incomeDetails: TransactionDetail[] = [];
+
+    for (const booking of bookings) {
+      try {
+        const cart = JSON.parse(booking.cart);
+        if (cart.vehicles && Array.isArray(cart.vehicles)) {
+          for (const vehicleItem of cart.vehicles) {
+            // Verificamos que el ID del vehículo en el carrito coincide
+            const vehicleInCartId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+            if (vehicleInCartId === vehicleId) {
+              incomeDetails.push({
+                type: 'INCOME',
+                date: (booking as any).createdAt,
+                // ¡Importante! Usamos el total del item, no del booking completo.
+                amount: vehicleItem.total,
+                description: `Ingreso por Reserva #${booking.bookingNumber}`,
+                sourceId: booking._id.toString(),
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Error al procesar el carrito del booking ${booking._id}:`, error);
+      }
+    }
+
+    // --- 3. COMBINAR Y ORDENAR LOS RESULTADOS ---
+    const combinedTransactions = [...incomeDetails, ...expenseDetails];
+
+    // Ordenar por fecha, del más reciente al más antiguo
+    combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return combinedTransactions;
+  }
+
   private async getMetricsForPeriod(filters?: MetricsFilters, dateFilter?: any): Promise<{
     activeClients: number;
-    totalRevenue: number;
+    totalIncome: number;
+    totalExpenses: number;
     activeVehicles: number;
     monthlyBookings: number;
   }> {
-    // Clientes activos - aplicar filtro de tipo de cliente si existe
     let activeClients: number;
-    
     if (filters?.clientType) {
-      // Obtener usuarios con conteo de reservas
       const userBookingCounts = await this.userModel.aggregate([
         { $match: { isActive: true } },
         {
@@ -72,33 +154,30 @@ export class MetricsRepository implements IMetricsRepository {
           }
         },
         {
-          $match: filters.clientType === 'new' 
+          $match: filters.clientType === 'new'
             ? { bookingCount: { $lt: 3 } }
             : { bookingCount: { $gte: 3 } }
         },
         { $count: 'total' }
       ]);
-
       activeClients = userBookingCounts.length > 0 ? userBookingCounts[0].total : 0;
     } else {
       activeClients = await this.userModel.countDocuments({ isActive: true });
     }
 
-    // Ingresos totales de reservas completas
     const completedStatus = await this.statusModel.findOne({ name: 'completed' });
-    const bookingFilter: any = {};
-    
+    const bookingIncomeFilter: any = {};
+
     if (completedStatus) {
-      bookingFilter.status = completedStatus._id;
+      bookingIncomeFilter.status = completedStatus._id;
     }
 
     if (dateFilter) {
-      bookingFilter.createdAt = dateFilter;
+      bookingIncomeFilter.createdAt = dateFilter;
     }
 
-    // Aplicar filtros adicionales
     if (filters?.priceRange) {
-      bookingFilter.total = {
+      bookingIncomeFilter.total = {
         $gte: filters.priceRange.min,
         $lte: filters.priceRange.max
       };
@@ -107,42 +186,44 @@ export class MetricsRepository implements IMetricsRepository {
     if (filters?.bookingStatus) {
       const statusObj = await this.statusModel.findOne({ name: filters.bookingStatus });
       if (statusObj) {
-        bookingFilter.status = statusObj._id;
+        bookingIncomeFilter.status = statusObj._id;
       }
     }
 
-    const totalRevenueResult = await this.bookingModel.aggregate([
-      { $match: bookingFilter },
-      { $group: { _id: null, total: { $sum: '$total' } } }
+    const totalIncomeResult = await this.bookingModel.aggregate([
+      { $match: bookingIncomeFilter },
+      { $group: { _id: null, total: { $sum: '$totalPaid' } } }
     ]);
+    const totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
 
-    const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0;
+    const expenseFilter: any = { direction: 'OUT' };
+    if (dateFilter) {
+      expenseFilter.createdAt = dateFilter;
+    }
 
-    // Vehículos activos
+    const totalExpensesResult = await this.movementModel.aggregate([
+      { $match: expenseFilter },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
+
     let vehicleFilter: any = { isActive: true };
-    
     if (filters?.vehicleType) {
       const category = await this.categoryModel.findOne({ name: filters.vehicleType });
       if (category) {
         vehicleFilter.category = category._id;
       }
     }
-
     const activeVehicles = await this.vehicleModel.countDocuments(vehicleFilter);
 
-    // Reservas del período (reservas que tienen fechas en el rango especificado)
     let monthlyBookings = 0;
-    
     if (dateFilter) {
-      // Para reservas del período, necesitamos parsear el cart JSON y verificar las fechas
       const bookings = await this.bookingModel.find({}).select('cart');
-      
       for (const booking of bookings) {
         try {
           const cart = JSON.parse(booking.cart);
           let hasDateInRange = false;
-          
-          // Verificar fechas en vehicles
+
           if (cart.vehicles && Array.isArray(cart.vehicles)) {
             for (const vehicle of cart.vehicles) {
               if (vehicle.dates && vehicle.dates.start && vehicle.dates.end) {
@@ -155,8 +236,7 @@ export class MetricsRepository implements IMetricsRepository {
               }
             }
           }
-          
-          // Verificar fechas en transfer
+
           if (!hasDateInRange && cart.transfer && Array.isArray(cart.transfer)) {
             for (const transfer of cart.transfer) {
               if (transfer.date) {
@@ -168,8 +248,7 @@ export class MetricsRepository implements IMetricsRepository {
               }
             }
           }
-          
-          // Verificar fechas en tours
+
           if (!hasDateInRange && cart.tours && Array.isArray(cart.tours)) {
             for (const tour of cart.tours) {
               if (tour.date) {
@@ -181,8 +260,7 @@ export class MetricsRepository implements IMetricsRepository {
               }
             }
           }
-          
-          // Verificar fechas en tickets
+
           if (!hasDateInRange && cart.tickets && Array.isArray(cart.tickets)) {
             for (const ticket of cart.tickets) {
               if (ticket.date) {
@@ -194,13 +272,12 @@ export class MetricsRepository implements IMetricsRepository {
               }
             }
           }
-          
+
           if (hasDateInRange) {
             monthlyBookings++;
           }
         } catch (error) {
-          // Ignorar bookings con cart JSON inválido
-          console.warn('Invalid cart JSON in booking:', booking._id);
+          // Ignore invalid cart JSON
         }
       }
     } else {
@@ -209,15 +286,16 @@ export class MetricsRepository implements IMetricsRepository {
 
     return {
       activeClients,
-      totalRevenue,
+      totalIncome,
+      totalExpenses,
       activeVehicles,
       monthlyBookings,
     };
   }
 
   private buildComparison(current: number, previous: number): MetricComparison {
-    const percentageChange = previous === 0 ? 
-      (current > 0 ? 100 : 0) : 
+    const percentageChange = previous === 0 ?
+      (current > 0 ? 100 : 0) :
       ((current - previous) / previous) * 100;
 
     let trend: 'up' | 'down' | 'stable';
@@ -279,7 +357,7 @@ export class MetricsRepository implements IMetricsRepository {
           const currentStart = dateFilter.startDate;
           const currentEnd = dateFilter.endDate;
           const duration = currentEnd.getTime() - currentStart.getTime();
-          
+
           // Período anterior del mismo tamaño
           end = new Date(currentStart.getTime());
           start = new Date(currentStart.getTime() - duration);
@@ -301,7 +379,7 @@ export class MetricsRepository implements IMetricsRepository {
   async getCategoryRevenue(filters?: MetricsFilters): Promise<CategoryRevenue[]> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
     const completedStatus = await this.statusModel.findOne({ name: 'completed' });
-    
+
     const matchStage: any = {};
     if (completedStatus) {
       matchStage.status = completedStatus._id;
@@ -332,7 +410,7 @@ export class MetricsRepository implements IMetricsRepository {
     for (const booking of bookings) {
       try {
         const cart = JSON.parse(booking.cart);
-        
+
         // Procesar vehicles
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
@@ -342,7 +420,7 @@ export class MetricsRepository implements IMetricsRepository {
                 const category = vehicle.category as any; // Cast para acceder a _id
                 const categoryId = category._id.toString();
                 const categoryName = category.name;
-                
+
                 // Aplicar filtro de tipo de vehículo si existe
                 if (!filters?.vehicleType || categoryName === filters.vehicleType) {
                   const existing = revenues.get(categoryId);
@@ -368,11 +446,11 @@ export class MetricsRepository implements IMetricsRepository {
               // Los tours tienen su propia categoría y precio
               const tourPrice = tourItem.tour.price || 0;
               const totalTourRevenue = tourPrice * tourItem.quantity;
-              
+
               if (tourItem.tour.category) {
                 const categoryId = tourItem.tour.category._id;
                 const categoryName = tourItem.tour.category.name;
-                
+
                 // Aplicar filtro de tipo si existe
                 if (!filters?.vehicleType || categoryName === filters.vehicleType) {
                   const existing = revenues.get(categoryId);
@@ -397,11 +475,11 @@ export class MetricsRepository implements IMetricsRepository {
             if (transferItem.transfer && transferItem.quantity) {
               const transferPrice = transferItem.transfer.price || 0;
               const totalTransferRevenue = transferPrice * transferItem.quantity;
-              
+
               if (transferItem.transfer.category) {
                 const categoryId = transferItem.transfer.category._id;
                 const categoryName = transferItem.transfer.category.name;
-                
+
                 // Aplicar filtro de tipo si existe
                 if (!filters?.vehicleType || categoryName === filters.vehicleType) {
                   const existing = revenues.get(categoryId);
@@ -426,11 +504,11 @@ export class MetricsRepository implements IMetricsRepository {
             if (ticketItem.ticket && ticketItem.quantity) {
               const ticketPrice = ticketItem.ticket.totalPrice || 0;
               const totalTicketRevenue = ticketPrice * ticketItem.quantity;
-              
+
               if (ticketItem.ticket.category) {
                 const categoryId = ticketItem.ticket.category._id;
                 const categoryName = ticketItem.ticket.category.name;
-                
+
                 // Aplicar filtro de tipo si existe
                 if (!filters?.vehicleType || categoryName === filters.vehicleType) {
                   const existing = revenues.get(categoryId);
@@ -454,12 +532,12 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     const result = Array.from(revenues.values());
-    
+
     // Aplicar ordenamiento
     if (filters?.sortBy && filters?.sortOrder) {
       result.sort((a, b) => {
         let comparison = 0;
-        
+
         switch (filters.sortBy) {
           case 'revenue':
             comparison = a.revenue - b.revenue;
@@ -470,28 +548,90 @@ export class MetricsRepository implements IMetricsRepository {
           default:
             comparison = a.revenue - b.revenue;
         }
-        
+
         return filters.sortOrder === 'asc' ? comparison : -comparison;
       });
     } else {
       // Ordenamiento por defecto: por revenue descendente
       result.sort((a, b) => b.revenue - a.revenue);
     }
-    
+
+    return result;
+  }
+
+  async getPaymentMethodRevenue(): Promise<PaymentMethodRevenue[]> {
+    // Es buena práctica asegurarse de que el ingreso proviene de reservas finalizadas.
+    const completedStatus = await this.statusModel.findOne({ name: "APROBADO" }).select('_id');
+    if (!completedStatus) {
+      console.warn('Estado "APROBADO" no encontrado, el resultado puede ser impreciso.');
+      return [];
+    }
+
+    const aggregationPipeline: any[] = [
+      {
+        // Paso 1: Filtrar solo los documentos relevantes.
+        $match: {
+          status: completedStatus._id, // Solo reservas completadas.
+          totalPaid: { $exists: true, $gt: 0 },
+          paymentMethod: { $ne: null }
+        }
+      },
+      {
+        // Paso 2: Agrupar por el campo 'paymentMethod' y sumar 'totalPaid'.
+        $group: {
+          _id: '$paymentMethod', // Agrupa por el ObjectId del método de pago.
+          revenue: { $sum: '$totalPaid' } // Suma el total pagado para cada grupo.
+        }
+      },
+      {
+        // Paso 3: Unir con la colección de métodos de pago para obtener el nombre.
+        $lookup: {
+          from: 'cat_payment_method', // El nombre de la colección de métodos de pago.
+          localField: '_id',
+          foreignField: '_id',
+          as: 'paymentMethodInfo'
+        }
+      },
+      {
+        // Paso 4: Descomprimir el array resultado del $lookup.
+        $unwind: {
+          path: '$paymentMethodInfo',
+          preserveNullAndEmptyArrays: true // Mantener registros aunque el método de pago no se encuentre.
+        }
+      },
+      {
+        // Paso 5: Formatear la salida final.
+        $project: {
+          _id: 0, // No incluir el campo _id.
+          paymentMethodId: '$_id',
+          paymentMethodName: { $ifNull: ['$paymentMethodInfo.name', 'No especificado'] }, // Usar el nombre o un texto por defecto.
+          revenue: '$revenue'
+        }
+      },
+      {
+        // Paso 6: Ordenar los resultados por los ingresos de mayor a menor.
+        $sort: {
+          revenue: -1
+        }
+      }
+    ];
+
+    const result = await this.bookingModel.aggregate<PaymentMethodRevenue>(aggregationPipeline);
+
     return result;
   }
 
   async getCategoryUtilization(filters?: MetricsFilters): Promise<CategoryUtilization[]> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
-    
+
     // Obtener todas las categorías
     let categoryFilter: any = {};
     if (filters?.vehicleType) {
       categoryFilter.name = filters.vehicleType;
     }
-    
+
     const categories = await this.categoryModel.find(categoryFilter);
-    
+
     // Primero, contar el total de reservas para calcular porcentajes
     const bookingFilter: any = {};
     if (dateFilter) {
@@ -506,18 +646,18 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     const allBookings = await this.bookingModel.find(bookingFilter).select('cart');
-    
+
     // Contar reservas por categoría y total general
     const categoryBookings = new Map<string, { categoryId: string; categoryName: string; count: number; totalVehicles: number }>();
     let totalBookingsCount = 0;
 
     // Inicializar todas las categorías con 0
     for (const category of categories) {
-      const totalVehicles = await this.vehicleModel.countDocuments({ 
+      const totalVehicles = await this.vehicleModel.countDocuments({
         category: category._id,
-        isActive: true 
+        isActive: true
       });
-      
+
       categoryBookings.set(category._id.toString(), {
         categoryId: category._id.toString(),
         categoryName: category.name,
@@ -530,7 +670,7 @@ export class MetricsRepository implements IMetricsRepository {
     for (const booking of allBookings) {
       try {
         const cart = JSON.parse(booking.cart);
-        
+
         // Procesar vehículos
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
@@ -599,10 +739,10 @@ export class MetricsRepository implements IMetricsRepository {
 
     // Calcular porcentajes de distribución
     const utilizations: CategoryUtilization[] = [];
-    
+
     for (const categoryData of categoryBookings.values()) {
       const utilizationPercentage = totalBookingsCount > 0 ? (categoryData.count / totalBookingsCount) * 100 : 0;
-      
+
       utilizations.push({
         categoryId: categoryData.categoryId,
         categoryName: categoryData.categoryName,
@@ -616,7 +756,7 @@ export class MetricsRepository implements IMetricsRepository {
     if (filters?.sortBy && filters?.sortOrder) {
       utilizations.sort((a, b) => {
         let comparison = 0;
-        
+
         switch (filters.sortBy) {
           case 'utilizationPercentage':
             comparison = a.utilizationPercentage - b.utilizationPercentage;
@@ -630,21 +770,21 @@ export class MetricsRepository implements IMetricsRepository {
           default:
             comparison = a.utilizationPercentage - b.utilizationPercentage;
         }
-        
+
         return filters.sortOrder === 'asc' ? comparison : -comparison;
       });
     } else {
       // Ordenamiento por defecto: por utilizationPercentage descendente
       utilizations.sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
     }
-    
+
     return utilizations;
   }
 
   async getBookingDurations(filters?: MetricsFilters): Promise<BookingDuration[]> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
     const matchStage: any = {};
-    
+
     if (dateFilter) {
       matchStage.createdAt = dateFilter;
     }
@@ -669,7 +809,7 @@ export class MetricsRepository implements IMetricsRepository {
     for (const booking of bookings) {
       try {
         const cart = JSON.parse(booking.cart);
-        
+
         // Procesar duraciones de vehículos (calculadas por fechas de inicio y fin)
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
@@ -685,7 +825,7 @@ export class MetricsRepository implements IMetricsRepository {
               const startDate = new Date(vehicleItem.dates.start);
               const endDate = new Date(vehicleItem.dates.end);
               const durationHours = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
-              
+
               if (durationHours > 0) {
                 const existing = durations.get(durationHours);
                 durations.set(durationHours, (existing || 0) + 1);
@@ -709,11 +849,11 @@ export class MetricsRepository implements IMetricsRepository {
               // Parsear la duración estimada (ej: "4 horas" -> 4)
               const durationText = tourItem.tour.estimatedDuration;
               const durationMatch = durationText.match(/(\d+)/);
-              
+
               if (durationMatch) {
                 const durationHours = parseInt(durationMatch[1]);
                 const quantity = tourItem.quantity || 1;
-                
+
                 // Contar cada tour reservado
                 for (let i = 0; i < quantity; i++) {
                   const existing = durations.get(durationHours);
@@ -739,11 +879,11 @@ export class MetricsRepository implements IMetricsRepository {
               // Parsear la duración estimada (ej: "2 hs" -> 2)
               const durationText = transferItem.transfer.estimatedDuration;
               const durationMatch = durationText.match(/(\d+)/);
-              
+
               if (durationMatch) {
                 const durationHours = parseInt(durationMatch[1]);
                 const quantity = transferItem.quantity || 1;
-                
+
                 // Contar cada transfer reservado
                 for (let i = 0; i < quantity; i++) {
                   const existing = durations.get(durationHours);
@@ -769,11 +909,11 @@ export class MetricsRepository implements IMetricsRepository {
               // Parsear la duración estimada
               const durationText = ticketItem.ticket.estimatedDuration;
               const durationMatch = durationText.match(/(\d+)/);
-              
+
               if (durationMatch) {
                 const durationHours = parseInt(durationMatch[1]);
                 const quantity = ticketItem.quantity || 1;
-                
+
                 // Contar cada ticket reservado
                 for (let i = 0; i < quantity; i++) {
                   const existing = durations.get(durationHours);
@@ -796,7 +936,7 @@ export class MetricsRepository implements IMetricsRepository {
     if (filters?.sortBy && filters?.sortOrder) {
       result.sort((a, b) => {
         let comparison = 0;
-        
+
         switch (filters.sortBy) {
           case 'duration':
             comparison = a.duration - b.duration;
@@ -807,7 +947,7 @@ export class MetricsRepository implements IMetricsRepository {
           default:
             comparison = a.count - b.count;
         }
-        
+
         return filters.sortOrder === 'asc' ? comparison : -comparison;
       });
     } else {
@@ -821,7 +961,7 @@ export class MetricsRepository implements IMetricsRepository {
   async getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
     const matchStage: any = {};
-    
+
     if (dateFilter) {
       matchStage.createdAt = dateFilter;
     }
@@ -841,14 +981,14 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     const bookings = await this.bookingModel.find(matchStage).select('cart');
-    const vehicleStats = new Map<string, { 
-      vehicleId: string; 
+    const vehicleStats = new Map<string, {
+      vehicleId: string;
       name: string;
-      tag: string; 
-      categoryName: string; 
+      tag: string;
+      categoryName: string;
       image?: string;
-      revenue: number; 
-      bookingCount: number; 
+      revenue: number;
+      bookingCount: number;
     }>();
 
     for (const booking of bookings) {
@@ -860,10 +1000,10 @@ export class MetricsRepository implements IMetricsRepository {
               const vehicle = await this.vehicleModel
                 .findById(vehicleItem.vehicle)
                 .populate('category');
-              
+
               if (vehicle && vehicle.category) {
                 const category = vehicle.category as any;
-                
+
                 // Aplicar filtro de tipo de vehículo si existe
                 if (filters?.vehicleType && category.name !== filters.vehicleType) {
                   continue;
@@ -871,7 +1011,7 @@ export class MetricsRepository implements IMetricsRepository {
 
                 const vehicleId = vehicle._id.toString();
                 const existing = vehicleStats.get(vehicleId);
-                
+
                 if (existing) {
                   existing.revenue += vehicleItem.total;
                   existing.bookingCount += 1;
@@ -896,12 +1036,12 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     const result = Array.from(vehicleStats.values());
-    
+
     // Aplicar ordenamiento
     if (filters?.sortBy && filters?.sortOrder) {
       result.sort((a, b) => {
         let comparison = 0;
-        
+
         switch (filters.sortBy) {
           case 'revenue':
             comparison = a.revenue - b.revenue;
@@ -912,14 +1052,14 @@ export class MetricsRepository implements IMetricsRepository {
           default:
             comparison = a.bookingCount - b.bookingCount;
         }
-        
+
         return filters.sortOrder === 'asc' ? comparison : -comparison;
       });
     } else {
       // Ordenamiento por defecto: por bookingCount descendente, luego por revenue descendente
       result.sort((a, b) => b.bookingCount - a.bookingCount || b.revenue - a.revenue);
     }
-    
+
     return result;
   }
 
@@ -975,5 +1115,69 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     return { $gte: start, $lt: end };
+  }
+
+  async getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]> {
+    const dateFilter = this.buildDateFilter(filters?.dateFilter);
+
+    // --- 1. OBTENER LOS DETALLES DE INGRESOS (BOOKINGS) ---
+    const incomeMatch: any = {
+      totalPaid: { $exists: true, $gt: 0 } // Solo reservas con un pago registrado
+    };
+    if (dateFilter) {
+      incomeMatch.createdAt = dateFilter;
+    }
+    // Consideramos solo reservas completadas
+    const completedStatus = await this.statusModel.findOne({ name: 'completed' });
+    if (completedStatus) {
+      incomeMatch.status = completedStatus._id;
+    }
+
+    const incomePipeline = [
+      { $match: incomeMatch },
+      {
+        $project: {
+          _id: 0,
+          type: { $literal: 'INCOME' },
+          date: '$createdAt',
+          amount: '$totalPaid',
+          description: { $concat: ["Ingreso por Reserva #", { $toString: "$bookingNumber" }] },
+          sourceId: '$_id'
+        }
+      }
+    ];
+    const incomeDetails = await this.bookingModel.aggregate(incomePipeline);
+
+    // --- 2. OBTENER LOS DETALLES DE EGRESOS (MOVEMENTS) ---
+    const expenseMatch: any = {
+      direction: 'OUT'
+    };
+    if (dateFilter) {
+      // Usamos 'date' para los movimientos, no 'createdAt'
+      expenseMatch.date = dateFilter;
+    }
+
+    const expensePipeline = [
+      { $match: expenseMatch },
+      {
+        $project: {
+          _id: 0,
+          type: { $literal: 'EXPENSE' },
+          date: '$date',
+          amount: '$amount',
+          description: '$detail',
+          sourceId: '$_id'
+        }
+      }
+    ];
+    const expenseDetails = await this.movementModel.aggregate(expensePipeline);
+
+    // --- 3. COMBINAR Y ORDENAR LOS RESULTADOS ---
+    const combinedTransactions = [...incomeDetails, ...expenseDetails];
+
+    // Ordenar por fecha, del más reciente al más antiguo
+    combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return combinedTransactions;
   }
 }

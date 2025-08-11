@@ -14,6 +14,7 @@ import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
+import { TypeCatTypeMovement } from '../../../../core/domain/enums/type-cat-type-movement';
 import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { IMovementService } from '../../../domain/services/movement.interface.service';
@@ -26,7 +27,7 @@ export class MovementController {
   constructor(
     @Inject(SymbolsMovement.IMovementService)
     private readonly movementService: IMovementService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(201)
@@ -57,6 +58,12 @@ export class MovementController {
   })
   @ApiResponse({ status: 404, description: 'Movement not found' })
   @ApiQuery({
+    name: 'direction',
+    required: false,
+    enum: ['IN', 'OUT'],
+    description: 'Filter by movement direction (IN for income, OUT for expense)',
+  })
+  @ApiQuery({
     name: 'page',
     required: false,
     type: 'number',
@@ -68,20 +75,32 @@ export class MovementController {
     type: 'number',
     description: 'Number of items per page (default: 10)',
   })
-  @Roles(TypeRoles.SUPERADMIN)
+  @ApiQuery({
+    name: 'beneficiaryModel',
+    required: false,
+    type: 'string',
+    description: 'Filter by beneficiary model ID',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: TypeCatTypeMovement,
+    description: 'Filter by vehicle owner model ID',
+  })
+  @Roles(TypeRoles.SUPERADMIN, TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR)
   @UseGuards(AuthGuards, RoleGuard)
-  async findAll(@Query() filters: any) {
+  async findAll(@Query() filters: any, @Req() req: IUserRequest) {
     if (filters.lang) {
       delete filters.lang;
     }
-    return this.movementService.findAll(filters);
+    return this.movementService.findAll(filters, req.user._id);
   }
 
   @Get(':id')
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Return Movement by id' })
   @ApiResponse({ status: 404, description: 'Movement not found' })
-  @Roles(TypeRoles.SUPERADMIN)
+  @Roles(TypeRoles.SUPERADMIN, TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR)
   @UseGuards(AuthGuards, RoleGuard)
   async findById(@Param('id') id: string) {
     return this.movementService.findById(id);

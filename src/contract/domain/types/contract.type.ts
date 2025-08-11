@@ -1,4 +1,5 @@
-export interface IContractExtensionDTO {
+
+export interface IContractExtension {
   newEndDateTime?: string | Date;
   paymentMethod?: string;
   extensionAmount?: number;
@@ -8,8 +9,17 @@ export interface IContractExtensionDTO {
 
 export interface ICreateContract {
   booking: string;
-  contractNumber: number;
   reservingUser: string;
   status?: string;
-  extension?: IContractExtensionDTO;
+  extension?: IContractExtension;
+}
+
+export interface IUpdateContract {
+  booking?: string;
+  reservingUser?: string;
+  status?: string;
+  extension?: IContractExtension;
+
+  newCart?: any;
+  reasonForChange?: string;
 }
