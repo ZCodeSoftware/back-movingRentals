@@ -11,7 +11,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
@@ -19,7 +19,7 @@ import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-request/user.request';
 import { IContractService } from '../../../domain/services/contract.interface.service';
 import SymbolsContract from '../../../symbols-contract';
-import { CreateContractDTO, UpdateContractDTO } from '../dtos/contract.dto';
+import { CreateContractDTO, ReportEventDTO, UpdateContractDTO } from '../dtos/contract.dto';
 
 @ApiTags('Contract')
 @Controller('contract')
@@ -56,7 +56,7 @@ export class ContractController {
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 200, description: 'Return all Contracts with pagination' })
   @ApiResponse({ status: 404, description: 'Contracts not found' })
-  @ApiQuery({ name: 'contractNumber', required: false, type: 'number', description: 'Filter by contract number' })
+  @ApiQuery({ name: 'bookingNumber', required: false, type: 'number', description: 'Filter by booking number' })
   @ApiQuery({ name: 'status', required: false, type: 'string', description: 'Filter by status ID' })
   @ApiQuery({ name: 'reservingUser', required: false, type: 'string', description: 'Filter by reserving user ID' })
   @ApiQuery({ name: 'createdByUser', required: false, type: 'string', description: 'Filter by created by user ID' })
@@ -66,8 +66,8 @@ export class ContractController {
     if (filters.lang) {
       delete filters.lang
     }
-    if (filters.contractNumber) {
-      filters.contractNumber = parseInt(filters.contractNumber, 10);
+    if (filters.bookingNumber) {
+      filters.bookingNumber = parseInt(filters.bookingNumber, 10);
     }
 
     if (filters.page) {
@@ -91,6 +91,20 @@ export class ContractController {
     return this.contractService.findById(id);
   }
 
+  @Post(':id/report-event') // Cambiado el nombre para mayor claridad
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiOperation({ summary: 'Registra un evento personalizado en el timeline de un contrato' })
+  @ApiBody({ type: ReportEventDTO, description: 'Datos del evento a registrar' })
+  async reportEvent(
+    @Param('id') contractId: string,
+    @Body() body: ReportEventDTO,
+    @Req() req: any
+  ) {
+    const userId = req.user._id;
+    return this.contractService.reportEvent(contractId, userId, body);
+  }
+
   @Put(':id')
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Contract updated' })
@@ -101,6 +115,7 @@ export class ContractController {
   async update(
     @Param('id') id: string,
     @Body() body: UpdateContractDTO,
+    @Req() req: IUserRequest,
   ) {
     const contractData = {
       ...body,
@@ -110,6 +125,6 @@ export class ContractController {
       } : undefined,
     };
 
-    return this.contractService.update(id, contractData);
+    return this.contractService.update(id, contractData, req.user._id);
   }
 }

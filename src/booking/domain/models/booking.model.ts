@@ -25,6 +25,8 @@ export class BookingModel extends BaseModel {
       totalPaid: this._totalPaid,
       bookingNumber: this._bookingNumber,
       isValidated: this._isValidated,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
     };
   }
 
@@ -74,6 +76,8 @@ export class BookingModel extends BaseModel {
       : null;
     newBooking._bookingNumber = booking.bookingNumber;
     newBooking._isValidated = booking.isValidated;
+    newBooking._createdAt = booking.createdAt;
+    newBooking._updatedAt = booking.updatedAt;
 
     return newBooking;
   }

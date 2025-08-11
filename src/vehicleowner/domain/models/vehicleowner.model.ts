@@ -4,13 +4,19 @@ import { Identifier } from '../../../core/domain/value-objects/identifier';
 export class VehicleOwnerModel extends BaseModel {
   private _name: string;
   private _commissionPercentage: number;
+  private _vehicles?: any[];
+
+  get vehicles(): any[] {
+    return this._vehicles;
+  }
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
     return {
       ...aggregate,
       name: this._name,
-      commissionPercentage: this._commissionPercentage
+      commissionPercentage: this._commissionPercentage,
+      vehicles: this._vehicles
     };
   }
 
@@ -26,6 +32,7 @@ export class VehicleOwnerModel extends BaseModel {
     const newVehicleOwner = new VehicleOwnerModel(new Identifier(vehicleowner._id));
     newVehicleOwner._name = vehicleowner.name;
     newVehicleOwner._commissionPercentage = vehicleowner.commissionPercentage;
+    newVehicleOwner._vehicles = vehicleowner.vehicles || [];
 
     return newVehicleOwner;
   }

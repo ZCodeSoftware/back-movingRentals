@@ -1,19 +1,42 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
+import { VehicleOwner } from "../../../../core/infrastructure/mongo/schemas/public/vehicle-owner.schema";
+import { UserSchema } from "../../../../user/infrastructure/mongo/schemas/user.schema";
 import { MovementModel } from "../../../domain/models/movement.model";
+import { UserModel } from "../../../domain/models/user.model";
 import { IMovementRepository } from "../../../domain/repositories/movement.interface.repository";
+import { CreateMovementDTO } from "../../nest/dtos/movement.dto";
 import { MovementSchema } from "../schemas/movement.schema";
 
 @Injectable()
 export class MovementRepository implements IMovementRepository {
     constructor(
-        @InjectModel('Movement') private readonly movementDB: Model<MovementSchema>
+        @InjectModel('Movement') private readonly movementDB: Model<MovementSchema>,
+        @InjectModel('User') private readonly userDB: Model<UserSchema>,
+        @InjectModel(VehicleOwner.name) private readonly vehicleOwnerDB: Model<VehicleOwner>,
     ) { }
 
-    async create(movement: MovementModel): Promise<MovementModel> {
-        const schema = new this.movementDB(movement.toJSON());
+    async create(movement: CreateMovementDTO): Promise<MovementModel> {
+        let beneficiaryModel: 'User' | 'VehicleOwner' | undefined;
+        if (movement.beneficiary) {
+            const user = await this.userDB.findById(movement.beneficiary);
+            if (!user) {
+                const vehicleOwner = await this.vehicleOwnerDB.findById(movement.beneficiary);
+                if (!vehicleOwner) {
+                    throw new BaseErrorException('Beneficiary not found', HttpStatus.NOT_FOUND)
+                } else {
+                    beneficiaryModel = 'VehicleOwner';
+                }
+            } else {
+                beneficiaryModel = 'User';
+            }
+        }
+
+        const movementToSave = { ...movement, beneficiaryModel };
+        const schema = new this.movementDB(movementToSave);
         const newMovement = await schema.save();
 
         if (!newMovement) throw new BaseErrorException(`Movement shouldn't be created`, HttpStatus.BAD_REQUEST);
@@ -24,7 +47,8 @@ export class MovementRepository implements IMovementRepository {
             populate: {
                 path: 'role'
             }
-        });
+        })
+            .populate('beneficiary');
 
         return MovementModel.hydrate(populatedMovement);
     }
@@ -40,7 +64,7 @@ export class MovementRepository implements IMovementRepository {
         return MovementModel.hydrate(movement);
     }
 
-    async findAll(filters: any): Promise<{
+    async findAll(filters: any, userId: string): Promise<{
         data: MovementModel[];
         pagination: {
             currentPage: number;
@@ -53,12 +77,24 @@ export class MovementRepository implements IMovementRepository {
     }> {
         const { page = 1, limit = 10 } = filters;
 
+        const user = await this.userDB.findById(userId).populate('role');
+
+        if (!user) throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+
+        const userModel = UserModel.hydrate(user);
+
+
         const pageNumber = parseInt(page as string, 10) || 1;
         const limitNumber = parseInt(limit as string, 10) || 10;
         const skip = (pageNumber - 1) * limitNumber;
 
         // Remove pagination parameters from filters
         const searchFilters = { ...filters };
+
+        if (userModel.toJSON().role.name === TypeRoles.SELLER || userModel.toJSON().role.name === TypeRoles.SUPERVISOR) {
+            searchFilters.createdBy = userModel.toJSON()._id;
+        }
+
         delete searchFilters.page;
         delete searchFilters.limit;
 
@@ -68,7 +104,8 @@ export class MovementRepository implements IMovementRepository {
                 populate: {
                     path: 'role'
                 }
-            }),
+            })
+                .populate('beneficiary'),
             this.movementDB.countDocuments(searchFilters)
         ]);
 

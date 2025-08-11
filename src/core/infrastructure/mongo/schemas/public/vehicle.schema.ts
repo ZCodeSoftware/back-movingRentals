@@ -6,7 +6,7 @@ import { VehicleOwner } from "./vehicle-owner.schema";
 
 export type VehicleDocument = HydratedDocument<Vehicle>;
 
-class Reservation {
+export class Reservation {
     @Prop({ required: true })
     start: Date;
 

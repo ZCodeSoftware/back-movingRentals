@@ -1,15 +1,16 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MetricsController } from './infrastructure/nest/controllers/metrics.controller';
-import { metricsService, metricsRepository } from './infrastructure/nest/constants/custom-provider';
+import { metricsRepository, metricsService } from './infrastructure/nest/constants/custom-provider';
 import {
-  userSchema,
-  vehicleSchema,
   bookingSchema,
   cartSchema,
   categorySchema,
+  movementSchema,
   statusSchema,
+  userSchema,
+  vehicleSchema,
 } from './infrastructure/nest/constants/custom-schema';
+import { MetricsController } from './infrastructure/nest/controllers/metrics.controller';
 
 @Module({
   imports: [
@@ -20,10 +21,11 @@ import {
       cartSchema,
       categorySchema,
       statusSchema,
+      movementSchema
     ]),
   ],
   controllers: [MetricsController],
   providers: [metricsService, metricsRepository],
   exports: [metricsService],
 })
-export class MetricsModule {}
+export class MetricsModule { }
