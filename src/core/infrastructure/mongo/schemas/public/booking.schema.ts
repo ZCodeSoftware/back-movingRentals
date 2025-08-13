@@ -9,6 +9,9 @@ export class Booking {
   @Prop({ type: String, required: true })
   cart: string;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CartVersion', required: false })
+  activeCartVersion?: mongoose.Types.ObjectId;
+
   @Prop({ type: Date, nullable: true })
   limitCancelation: Date;
 

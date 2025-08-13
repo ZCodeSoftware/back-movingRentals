@@ -1,14 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { IMetricsRepository } from '../../domain/repositories/metrics.interface.repository';
+import { IMetricsService } from '../../domain/services/metrics.interface.service';
 import {
   BookingDuration,
   CategoryRevenue,
   CategoryUtilization,
   GeneralMetrics,
   MetricsFilters,
+  PaymentMethodRevenue,
   PopularVehicle,
+  TransactionDetail,
 } from '../../domain/types/metrics.type';
-import { IMetricsRepository } from '../../domain/repositories/metrics.interface.repository';
-import { IMetricsService } from '../../domain/services/metrics.interface.service';
 import SymbolsMetrics from '../../symbols-metrics';
 
 @Injectable()
@@ -16,7 +18,7 @@ export class MetricsService implements IMetricsService {
   constructor(
     @Inject(SymbolsMetrics.IMetricsRepository)
     private readonly metricsRepository: IMetricsRepository,
-  ) {}
+  ) { }
 
   async getGeneralMetrics(filters?: MetricsFilters): Promise<GeneralMetrics> {
     return await this.metricsRepository.getGeneralMetrics(filters);
@@ -24,6 +26,10 @@ export class MetricsService implements IMetricsService {
 
   async getCategoryRevenue(filters?: MetricsFilters): Promise<CategoryRevenue[]> {
     return await this.metricsRepository.getCategoryRevenue(filters);
+  }
+
+  async getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]> {
+    return await this.metricsRepository.getPaymentMethodRevenue(filters);
   }
 
   async getCategoryUtilization(filters?: MetricsFilters): Promise<CategoryUtilization[]> {
@@ -37,4 +43,13 @@ export class MetricsService implements IMetricsService {
   async getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]> {
     return await this.metricsRepository.getPopularVehicles(filters);
   }
+
+  async getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]> {
+    return await this.metricsRepository.getTransactionDetails(filters);
+  }
+
+  async getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]> {
+    return await this.metricsRepository.getVehicleFinancialDetails(vehicleId, filters);
+  }
+
 }

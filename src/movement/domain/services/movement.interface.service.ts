@@ -4,7 +4,7 @@ import { ICreateMovement } from "../types/movement.type";
 export interface IMovementService {
     create(movement: ICreateMovement, userId: string): Promise<MovementModel>;
     findById(id: string): Promise<MovementModel>;
-    findAll(filters: any): Promise<{
+    findAll(filters: any, userId: string): Promise<{
         data: MovementModel[];
         pagination: {
             currentPage: number;

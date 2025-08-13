@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common/decorators/modules';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Vehicle, VehicleSchema } from '../core/infrastructure/mongo/schemas/public/vehicle.schema';
+import { cartSchema } from '../catalogs/infrastructure/constants/custom-schema';
 import { VehicleRepository } from '../vehicle/infrastructure/mongo/repositories/vehicle.repository';
 import SymbolsVehicle from '../vehicle/symbols-vehicle';
 import {
@@ -8,7 +8,11 @@ import {
   contractService,
 } from './infrastructure/nest/constants/custom-provider';
 import {
+  bookingSchema,
+  cartVersionSchema,
+  contractHistorySchema,
   contractSchema,
+  vehicleSchema,
 } from './infrastructure/nest/constants/custom-schema';
 import { ContractController } from './infrastructure/nest/controllers/contract.controller';
 
@@ -16,12 +20,16 @@ import { ContractController } from './infrastructure/nest/controllers/contract.c
   imports: [
     MongooseModule.forFeature([
       contractSchema,
-      { name: Vehicle.name, schema: VehicleSchema }
+      bookingSchema,
+      vehicleSchema,
+      contractHistorySchema,
+      cartVersionSchema,
+      cartSchema
     ])
   ],
   controllers: [ContractController],
   providers: [
-    contractService, 
+    contractService,
     contractRepository,
     {
       provide: SymbolsVehicle.IVehicleRepository,
@@ -30,4 +38,4 @@ import { ContractController } from './infrastructure/nest/controllers/contract.c
   ],
   exports: []
 })
-export class ContractModule {}
+export class ContractModule { }

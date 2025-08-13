@@ -38,9 +38,6 @@ export class Contract {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   createdByUser: User;
 
-  @Prop({ type: Number, required: true, unique: true, min: 2000, max: 10000 })
-  contractNumber: number;
-
   @Prop({ type: ContractExtensionSchema, required: false })
   extension?: ContractExtension;
 

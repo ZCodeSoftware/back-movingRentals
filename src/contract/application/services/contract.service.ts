@@ -1,10 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ContractHistory } from '../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
 import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
 import { ContractModel } from '../../domain/models/contract.model';
 import { IContractFilters, IContractRepository, IPaginatedContractResponse } from '../../domain/repositories/contract.interface.repository';
 import { IContractService } from '../../domain/services/contract.interface.service';
-import { ICreateContract } from '../../domain/types/contract.type';
+import { ICreateContract, IUpdateContract } from '../../domain/types/contract.type';
+import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
 
 @Injectable()
@@ -39,80 +41,29 @@ export class ContractService implements IContractService {
     return await this.contractRepository.findAll(filters);
   }
 
-  async update(id: string, contract: Partial<ICreateContract>): Promise<ContractModel> {
-    // Get the current contract to check for existing extension
-    const currentContract = await this.contractRepository.findById(id);
-
-    // Convert the DTO to the appropriate format for the repository
-    const updateData: any = {};
-
-    if (contract.booking) {
-      updateData.booking = contract.booking;
+  async update(id: string, updateData: IUpdateContract, userId: string): Promise<ContractModel> {
+    const contractExists = await this.contractRepository.findById(id);
+    if (!contractExists) {
+      throw new NotFoundException(`El contrato con ID "${id}" no fue encontrado.`);
     }
 
-    if (contract.reservingUser) {
-      updateData.reservingUser = contract.reservingUser;
+    try {
+      return await this.contractRepository.update(id, updateData, userId);
+    } catch (error) {
+      // Capturar errores del repositorio y, si es necesario, transformarlos en errores HTTP.
+      console.error(`Fallo en la capa de servicio al actualizar el contrato ${id}`, error);
+      throw new InternalServerErrorException('Ocurrió un error al intentar actualizar el contrato.');
     }
-
-    if (contract.status) {
-      updateData.status = contract.status;
-    }
-
-    if (contract.extension) {
-      updateData.extension = {
-        ...contract.extension,
-        newEndDateTime: contract.extension.newEndDateTime ? new Date(contract.extension.newEndDateTime) : undefined,
-      };
-
-      // Update vehicle reservations if extension has a new end date
-      if (contract.extension.newEndDateTime) {
-        await this.updateVehicleReservations(
-          currentContract,
-          new Date(contract.extension.newEndDateTime)
-        );
-      }
-    }
-
-    return await this.contractRepository.update(id, updateData);
   }
 
-  private async updateVehicleReservations(contract: ContractModel, newEndDate: Date): Promise<void> {
-    try {
-      // Get the booking to access the cart
-      const booking = contract.toJSON().booking;
-      if (!booking || !booking.cart) return;
-
-      // Parse the cart JSON string to get the cart data at the time of booking
-      // This preserves the exact state when the booking was made
-      let cartData: any;
-      try {
-        cartData = JSON.parse(booking.cart);
-      } catch (parseError) {
-        console.error('Error parsing cart JSON:', parseError);
-        return;
-      }
-
-      if (!cartData.vehicles || cartData.vehicles.length === 0) return;
-
-      // Update reservations for each vehicle in the cart
-      for (const vehicleItem of cartData.vehicles) {
-        if (vehicleItem.vehicle && vehicleItem.dates) {
-          const vehicleId = typeof vehicleItem.vehicle === 'string'
-            ? vehicleItem.vehicle
-            : String(vehicleItem.vehicle._id);
-
-          const originalEndDate = new Date(vehicleItem.dates.end);
-
-          await this.vehicleRepository.updateReservation(
-            vehicleId,
-            originalEndDate,
-            newEndDate
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error updating vehicle reservations:', error);
-      // Don't throw error to avoid breaking the contract update
-    }
+  async reportEvent(contractId: string, userId: string, eventData: ReportEventDTO): Promise<ContractHistory> {
+    // El servicio simplemente pasa los datos al repositorio
+    return this.contractRepository.createHistoryEvent(
+      contractId,
+      userId,
+      eventData.eventType,
+      eventData.details,
+      eventData.metadata
+    );
   }
 }

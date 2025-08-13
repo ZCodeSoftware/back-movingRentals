@@ -29,6 +29,8 @@ export class VehicleOwnerController {
 
     @Get()
     @HttpCode(200)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @ApiResponse({ status: 200, description: 'Return all VehicleOwners' })
     @ApiResponse({ status: 404, description: 'VehicleOwner not found' })
     async findAll() {

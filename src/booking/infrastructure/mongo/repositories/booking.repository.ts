@@ -79,8 +79,8 @@ export class BookingRepository implements IBookingRepository {
 
     const query: any = {};
 
-    if (status) query.status = Types.ObjectId.createFromHexString(status);
-    if (paymentMethod) query.paymentMethod = Types.ObjectId.createFromHexString(paymentMethod);
+    if (status) query.status = new Types.ObjectId(String(status));
+    if (paymentMethod) query.paymentMethod = new Types.ObjectId(String(paymentMethod));
 
     const pageNumber = parseInt(page as string, 10) || 1;
     const limitNumber = parseInt(limit as string, 10) || 10;
@@ -125,6 +125,14 @@ export class BookingRepository implements IBookingRepository {
         }
       },
       {
+        $lookup: {
+          from: 'contracts',
+          localField: '_id',
+          foreignField: 'booking',
+          as: 'contractData'
+        }
+      },
+      {
         $unwind: { path: '$statusData', preserveNullAndEmptyArrays: true }
       },
       {
@@ -132,6 +140,9 @@ export class BookingRepository implements IBookingRepository {
       },
       {
         $unwind: { path: '$userData', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $unwind: { path: '$contractData', preserveNullAndEmptyArrays: true }
       },
       {
         $project: {
@@ -152,6 +163,22 @@ export class BookingRepository implements IBookingRepository {
                 lastName: '$userData.lastName',
                 email: '$userData.email',
                 cellphone: { $ifNull: ['$userData.cellphone', null] }
+              },
+              else: null
+            }
+          },
+          hasExtension: {
+            $toBool: "$contractData.extension"
+          },
+          contract: {
+            $cond: {
+              if: "$contractData",
+              then: {
+                _id: "$contractData._id",
+                statusId: "$contractData.status",
+                reservingUser: "$contractData.reservingUser",
+                createdByUser: "$contractData.createdByUser",
+                extension: { $ifNull: ["$contractData.extension", null] }
               },
               else: null
             }
