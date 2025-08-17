@@ -75,7 +75,7 @@ export class MovementRepository implements IMovementRepository {
             hasPreviousPage: boolean;
         };
     }> {
-        const { page = 1, limit = 10 } = filters;
+        const { page = 1, limit = 10, startDate, endDate, vehicleId } = filters;
 
         const user = await this.userDB.findById(userId).populate('role');
 
@@ -83,30 +83,50 @@ export class MovementRepository implements IMovementRepository {
 
         const userModel = UserModel.hydrate(user);
 
-
         const pageNumber = parseInt(page as string, 10) || 1;
         const limitNumber = parseInt(limit as string, 10) || 10;
         const skip = (pageNumber - 1) * limitNumber;
 
-        // Remove pagination parameters from filters
-        const searchFilters = { ...filters };
+        const query: any = {};
 
         if (userModel.toJSON().role.name === TypeRoles.SELLER || userModel.toJSON().role.name === TypeRoles.SUPERVISOR) {
-            searchFilters.createdBy = userModel.toJSON()._id;
+            query.createdBy = userModel.toJSON()._id;
         }
 
-        delete searchFilters.page;
-        delete searchFilters.limit;
+        if (vehicleId) {
+            query.vehicle = vehicleId;
+        }
+
+        if (startDate || endDate) {
+            query.date = {};
+            if (startDate) {
+                query.date.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                const endOfDay = new Date(endDate);
+                endOfDay.setUTCHours(23, 59, 59, 999);
+                query.date.$lte = endOfDay;
+            }
+        }
+
+        const otherFilters = { ...filters };
+        delete otherFilters.page;
+        delete otherFilters.limit;
+        delete otherFilters.startDate;
+        delete otherFilters.endDate;
+        delete otherFilters.vehicleId;
+
+        const finalQuery = { ...query, ...otherFilters };
 
         const [movements, totalItems] = await Promise.all([
-            this.movementDB.find(searchFilters).skip(skip).limit(limitNumber).populate({
+            this.movementDB.find(finalQuery).skip(skip).limit(limitNumber).populate({
                 path: 'createdBy',
                 populate: {
                     path: 'role'
                 }
             })
                 .populate('beneficiary'),
-            this.movementDB.countDocuments(searchFilters)
+            this.movementDB.countDocuments(finalQuery)
         ]);
 
         const totalPages = Math.ceil(totalItems / limitNumber);

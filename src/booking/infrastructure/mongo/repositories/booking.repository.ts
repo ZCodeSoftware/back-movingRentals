@@ -75,12 +75,32 @@ export class BookingRepository implements IBookingRepository {
   }
 
   async findAll(filters: any): Promise<any> {
-    const { status, paymentMethod, page = 1, limit = 10 } = filters;
+    const { status, paymentMethod, userId, startDate, endDate, page = 1, limit = 10 } = filters;
 
     const query: any = {};
 
     if (status) query.status = new Types.ObjectId(String(status));
     if (paymentMethod) query.paymentMethod = new Types.ObjectId(String(paymentMethod));
+
+    if (userId) {
+      const user = await this.userDB.findById(userId).select('bookings').lean();
+
+      const userBookingIds = user ? user.bookings : [];
+
+      query._id = { $in: userBookingIds };
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+        query.createdAt.$lte = endOfDay;
+      }
+    }
 
     const pageNumber = parseInt(page as string, 10) || 1;
     const limitNumber = parseInt(limit as string, 10) || 10;

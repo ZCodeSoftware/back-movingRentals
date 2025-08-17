@@ -87,6 +87,24 @@ export class MovementController {
     enum: TypeCatTypeMovement,
     description: 'Filter by vehicle owner model ID',
   })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by start date',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by end date',
+  })
+  @ApiQuery({
+    name: "vehicleId",
+    required: false,
+    type: "string",
+    description: 'Filter by vehicle id'
+  })
   @Roles(TypeRoles.SUPERADMIN, TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR)
   @UseGuards(AuthGuards, RoleGuard)
   async findAll(@Query() filters: any, @Req() req: IUserRequest) {
