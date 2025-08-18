@@ -53,6 +53,9 @@ export class BookingController {
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiQuery({ name: 'status', required: false, type: 'string', description: 'Filter by status ID' })
   @ApiQuery({ name: 'paymentMethod', required: false, type: 'string', description: 'Filter by payment method ID' })
+  @ApiQuery({ name: 'userId', required: false, type: 'string', description: 'Filter by user ID' })
+  @ApiQuery({ name: 'startDate', required: false, type: 'string', description: 'Filter by start date' })
+  @ApiQuery({ name: 'endDate', required: false, type: 'string', description: 'Filter by end date' })
   @ApiQuery({ name: 'page', required: false, type: 'number', description: 'Page number for pagination (default: 1)' })
   @ApiQuery({ name: 'limit', required: false, type: 'number', description: 'Number of items per page (default: 10)' })
   async findAll(@Query() filters: any) {
