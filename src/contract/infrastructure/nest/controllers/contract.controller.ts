@@ -34,7 +34,7 @@ export class ContractController {
   @ApiResponse({ status: 201, description: 'Contract created' })
   @ApiResponse({ status: 400, description: `Contract shouldn't be created` })
   @ApiBody({ type: CreateContractDTO, description: 'Data to create a Contract' })
-  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN, TypeRoles.USER)
   @UseGuards(AuthGuards, RoleGuard)
   async create(@Body() body: CreateContractDTO, @Req() req: IUserRequest) {
     const { _id } = req.user;
