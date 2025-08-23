@@ -20,12 +20,14 @@ export class UserRepository implements IUserRepository {
     @InjectModel('Cart') private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) { }
+  ) {}
 
   async create(user: UserModel, role: string): Promise<UserModel> {
     try {
       if (!role) {
-        const userRole = await this.catRoleRepository.findByName(TypeRoles.USER);
+        const userRole = await this.catRoleRepository.findByName(
+          TypeRoles.USER,
+        );
         user.addRole(userRole);
       } else {
         const roleFound = await this.catRoleRepository.findById(role);
@@ -78,19 +80,22 @@ export class UserRepository implements IUserRepository {
     };
   }> {
     try {
-      const query: any = {}
+      const query: any = {};
       if (filters.role) {
-        query.role = typeof filters.role === 'string'
-          ? Types.ObjectId.createFromHexString(filters.role)
-          : filters.role;
+        query.role =
+          typeof filters.role === 'string'
+            ? Types.ObjectId.createFromHexString(filters.role)
+            : filters.role;
       }
 
       if (filters.email) {
         query.email = { $regex: filters.email, $options: 'i' };
       }
 
-      const page = parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
-      const limit = parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
+      const page =
+        parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+      const limit =
+        parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
       const skip = (page - 1) * limit;
 
       delete filters.page;
@@ -106,7 +111,7 @@ export class UserRepository implements IUserRepository {
       const totalPages = Math.ceil(totalItems / limit);
 
       return {
-        data: users.map(user => UserModel.hydrate(user)),
+        data: users.map((user) => UserModel.hydrate(user)),
         pagination: {
           currentPage: page,
           totalPages,
@@ -161,7 +166,12 @@ export class UserRepository implements IUserRepository {
         .findById(id)
         .populate('role')
         .populate('documentation')
-        .populate('address');
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        });
 
       if (!existingUser) {
         throw new BaseErrorException(

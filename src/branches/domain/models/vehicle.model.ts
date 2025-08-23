@@ -9,6 +9,7 @@ export class VehicleModel extends BaseModel {
   private _description?: string;
   private _images: string;
   private _price?: number;
+  private _pricePer24?: number;
   private _category: CatCategoryModel;
 
   public toJSON() {
@@ -21,6 +22,7 @@ export class VehicleModel extends BaseModel {
       description: this._description,
       images: this._images,
       price: this._price,
+      pricePer24: this._pricePer24,
       category: this._category ? this._category.toJSON() : {},
     };
   }
@@ -37,6 +39,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
     newVehicle._price = vehicle.price;
+    newVehicle._pricePer24 = vehicle.pricePer24;
 
     return newVehicle;
   }
@@ -49,6 +52,7 @@ export class VehicleModel extends BaseModel {
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
     newVehicle._price = vehicle.price;
+    newVehicle._pricePer24 = vehicle.pricePer24;
     newVehicle._category = vehicle.category
       ? CatCategoryModel.hydrate(vehicle.category)
       : null;
