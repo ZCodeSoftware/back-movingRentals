@@ -264,6 +264,11 @@ export class ContractRepository implements IContractRepository {
     const page = filters.page || 1;
     const limit = filters.limit || 10;
     const skip = (page - 1) * limit;
+
+    const escapeRegex = (text: string) => {
+      return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    };
+
     const pipeline: any[] = [];
     pipeline.push({
       $lookup: {
@@ -276,6 +281,20 @@ export class ContractRepository implements IContractRepository {
     pipeline.push({
       $unwind: '$bookingData',
     });
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'reservingUser',
+        foreignField: '_id',
+        as: 'reservingUserData',
+      },
+    });
+    pipeline.push({
+      $unwind: {
+        path: '$reservingUserData',
+        preserveNullAndEmptyArrays: true,
+      },
+    });
     const matchConditions: any = {};
     if (filters.bookingNumber) {
       matchConditions['bookingData.bookingNumber'] = filters.bookingNumber;
@@ -284,9 +303,8 @@ export class ContractRepository implements IContractRepository {
       matchConditions.status = new mongoose.Types.ObjectId(filters.status);
     }
     if (filters.reservingUser) {
-      matchConditions.reservingUser = new mongoose.Types.ObjectId(
-        filters.reservingUser,
-      );
+      const regex = new RegExp(escapeRegex(filters.reservingUser), 'i');
+      matchConditions['reservingUserData.email'] = regex;
     }
     if (filters.createdByUser) {
       matchConditions.createdByUser = new mongoose.Types.ObjectId(

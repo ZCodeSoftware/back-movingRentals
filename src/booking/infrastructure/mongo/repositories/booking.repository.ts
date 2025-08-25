@@ -17,7 +17,7 @@ export class BookingRepository implements IBookingRepository {
     @InjectModel('Booking') private readonly bookingDB: Model<BookingSchema>,
     @InjectModel('User') private readonly userDB: Model<UserSchema>,
     @InjectModel('Vehicle') private readonly vehicleDB: Model<VehicleSchema>,
-  ) { }
+  ) {}
 
   async create(booking: BookingModel, id: string): Promise<BookingModel> {
     const schema = new this.bookingDB(booking.toJSON());
@@ -36,18 +36,19 @@ export class BookingRepository implements IBookingRepository {
     user.bookings.push(newBooking);
     await user.save();
 
-
-    const parsedCart = JSON.parse(booking.toJSON().cart)
+    const parsedCart = JSON.parse(booking.toJSON().cart);
 
     if (parsedCart?.vehicles?.length > 0) {
       for (const vehicleBooking of parsedCart.vehicles) {
         if (vehicleBooking.dates?.start && vehicleBooking.dates?.end) {
-          const vehicle = await this.vehicleDB.findById(vehicleBooking.vehicle._id);
+          const vehicle = await this.vehicleDB.findById(
+            vehicleBooking.vehicle._id,
+          );
 
           if (vehicle) {
             const newReservation = {
               start: new Date(vehicleBooking.dates.start),
-              end: new Date(vehicleBooking.dates.end)
+              end: new Date(vehicleBooking.dates.end),
             };
 
             if (!vehicle.reservations) {
@@ -75,12 +76,21 @@ export class BookingRepository implements IBookingRepository {
   }
 
   async findAll(filters: any): Promise<any> {
-    const { status, paymentMethod, userId, startDate, endDate, page = 1, limit = 10 } = filters;
+    const {
+      status,
+      paymentMethod,
+      userId,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+    } = filters;
 
     const query: any = {};
 
     if (status) query.status = new Types.ObjectId(String(status));
-    if (paymentMethod) query.paymentMethod = new Types.ObjectId(String(paymentMethod));
+    if (paymentMethod)
+      query.paymentMethod = new Types.ObjectId(String(paymentMethod));
 
     if (userId) {
       const user = await this.userDB.findById(userId).select('bookings').lean();
@@ -108,9 +118,10 @@ export class BookingRepository implements IBookingRepository {
 
     const totalItemsResult = await this.bookingDB.aggregate([
       { $match: query },
-      { $count: 'totalItems' }
+      { $count: 'totalItems' },
     ]);
-    const totalItems = totalItemsResult.length > 0 ? totalItemsResult[0].totalItems : 0;
+    const totalItems =
+      totalItemsResult.length > 0 ? totalItemsResult[0].totalItems : 0;
 
     const bookings = await this.bookingDB.aggregate([
       { $match: query },
@@ -122,16 +133,16 @@ export class BookingRepository implements IBookingRepository {
           from: 'cat_status',
           localField: 'status',
           foreignField: '_id',
-          as: 'statusData'
-        }
+          as: 'statusData',
+        },
       },
       {
         $lookup: {
           from: 'cat_payment_method',
           localField: 'paymentMethod',
           foreignField: '_id',
-          as: 'paymentMethodData'
-        }
+          as: 'paymentMethodData',
+        },
       },
       {
         $lookup: {
@@ -139,30 +150,33 @@ export class BookingRepository implements IBookingRepository {
           let: { bookingId: '$_id' },
           pipeline: [
             { $match: { $expr: { $in: ['$$bookingId', '$bookings'] } } },
-            { $project: { name: 1, lastName: 1, email: 1, cellphone: 1 } }
+            { $project: { name: 1, lastName: 1, email: 1, cellphone: 1 } },
           ],
-          as: 'userData'
-        }
+          as: 'userData',
+        },
       },
       {
         $lookup: {
           from: 'contracts',
           localField: '_id',
           foreignField: 'booking',
-          as: 'contractData'
-        }
+          as: 'contractData',
+        },
       },
       {
-        $unwind: { path: '$statusData', preserveNullAndEmptyArrays: true }
+        $unwind: { path: '$statusData', preserveNullAndEmptyArrays: true },
       },
       {
-        $unwind: { path: '$paymentMethodData', preserveNullAndEmptyArrays: true }
+        $unwind: {
+          path: '$paymentMethodData',
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
-        $unwind: { path: '$userData', preserveNullAndEmptyArrays: true }
+        $unwind: { path: '$userData', preserveNullAndEmptyArrays: true },
       },
       {
-        $unwind: { path: '$contractData', preserveNullAndEmptyArrays: true }
+        $unwind: { path: '$contractData', preserveNullAndEmptyArrays: true },
       },
       {
         $project: {
@@ -182,29 +196,29 @@ export class BookingRepository implements IBookingRepository {
                 name: '$userData.name',
                 lastName: '$userData.lastName',
                 email: '$userData.email',
-                cellphone: { $ifNull: ['$userData.cellphone', null] }
+                cellphone: { $ifNull: ['$userData.cellphone', null] },
               },
-              else: null
-            }
+              else: null,
+            },
           },
           hasExtension: {
-            $toBool: "$contractData.extension"
+            $toBool: '$contractData.extension',
           },
           contract: {
             $cond: {
-              if: "$contractData",
+              if: '$contractData',
               then: {
-                _id: "$contractData._id",
-                statusId: "$contractData.status",
-                reservingUser: "$contractData.reservingUser",
-                createdByUser: "$contractData.createdByUser",
-                extension: { $ifNull: ["$contractData.extension", null] }
+                _id: '$contractData._id',
+                statusId: '$contractData.status',
+                reservingUser: '$contractData.reservingUser',
+                createdByUser: '$contractData.createdByUser',
+                extension: { $ifNull: ['$contractData.extension', null] },
               },
-              else: null
-            }
-          }
-        }
-      }
+              else: null,
+            },
+          },
+        },
+      },
     ]);
 
     const totalPages = Math.ceil(totalItems / limitNumber);
@@ -236,12 +250,12 @@ export class BookingRepository implements IBookingRepository {
       .populate({
         path: 'status',
         match: { name: TypeStatus.APPROVED },
-        select: 'name'
+        select: 'name',
       })
       .populate('paymentMethod')
       .exec()
-      .then(bookings =>
-        bookings.filter(booking => booking.status !== null)
+      .then((bookings) =>
+        bookings.filter((booking) => booking.status !== null),
       );
 
     return bookings.map((booking) => BookingModel.hydrate(booking));
@@ -265,7 +279,10 @@ export class BookingRepository implements IBookingRepository {
       .exec();
 
     if (!user) {
-      throw new BaseErrorException('User not found for this booking', HttpStatus.NOT_FOUND);
+      throw new BaseErrorException(
+        'User not found for this booking',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return user && UserModel.hydrate(user);
@@ -277,23 +294,26 @@ export class BookingRepository implements IBookingRepository {
     const filteredUpdateObject = Object.fromEntries(
       Object.entries(updateObject).filter(([key, value]) => {
         if (BOOKING_RELATIONS.includes(key)) {
-          return value !== null && value !== undefined && typeof value === 'object' && '_id' in value;
+          return (
+            value !== null &&
+            value !== undefined &&
+            typeof value === 'object' &&
+            '_id' in value
+          );
         }
         return value !== null && value !== undefined;
-      })
+      }),
     );
 
-    const updatedBooking = await this.bookingDB.findByIdAndUpdate(
-      id,
-      filteredUpdateObject,
-      { new: true, omitUndefined: true }
-    ).populate('paymentMethod');
+    const updatedBooking = await this.bookingDB
+      .findByIdAndUpdate(id, filteredUpdateObject, {
+        new: true,
+        omitUndefined: true,
+      })
+      .populate('paymentMethod status');
 
     if (!updatedBooking) {
-      throw new BaseErrorException(
-        'Booking not found',
-        HttpStatus.NOT_FOUND
-      );
+      throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
 
     return BookingModel.hydrate(updatedBooking);
