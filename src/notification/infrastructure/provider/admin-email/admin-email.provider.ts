@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import config from '../../../../config';
 import { IAdminEmailAdapter } from '../../../../notification/domain/adapter/admin-email.interface.adapter';
-import { generateAdminBookingHtml } from './admin-booking-content.template';
+import { generateAdminBookingNotification } from './admin-booking-content.template';
 import { lowStockReportTemplate } from './low-stock-report.template';
 
 export class AdminEmailProvider implements IAdminEmailAdapter {
@@ -40,17 +40,21 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
 
   async sendAdminBookingCreated(booking: BookingModel): Promise<any> {
     try {
-      const htmlContent = generateAdminBookingHtml(booking);
+      const { subject, html } = generateAdminBookingNotification(booking);
 
       const message = {
         from: `"Moving" <${config().business.contact_email}>`,
         to: config().business.contact_email,
-        subject: 'Nueva Reserva',
-        html: htmlContent,
+        subject: subject,
+        html: html,
       };
 
       return await this.transporter.sendMail(message);
     } catch (error) {
+      console.error(
+        'Error al enviar el correo de notificación al admin:',
+        error,
+      );
       throw new InternalServerErrorException(error.message);
     }
   }

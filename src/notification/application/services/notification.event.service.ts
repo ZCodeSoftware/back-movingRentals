@@ -13,7 +13,7 @@ export class NotificationEventService implements INotificationEventService {
 
     @Inject(SymbolsNotification.IAdminEmailAdapter)
     private readonly adminEmailAdapter: IAdminEmailAdapter,
-  ) { }
+  ) {}
 
   async reservationUserEmail(email: string, name: string): Promise<any> {
     try {
@@ -40,25 +40,58 @@ export class NotificationEventService implements INotificationEventService {
     lang: string = 'es',
   ): Promise<any> {
     try {
-      await this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang);
+      await this.userEmailAdapter.sendUserBookingCreated(
+        booking,
+        userEmail,
+        lang,
+      );
+    } catch (userError) {
+      console.error(
+        `[CRITICAL] Fallo al enviar email de confirmación al usuario ${userEmail} para la reserva #${booking.id}:`,
+        userError,
+      );
+      throw new BadRequestException(userError.message);
+    }
 
-      /* await this.adminEmailAdapter.sendAdminBookingCreated(booking); */
+    try {
+      await this.adminEmailAdapter.sendAdminBookingCreated(booking);
+    } catch (adminError) {
+      console.error(
+        `[NON-CRITICAL] Fallo al enviar email de notificación al administrador para la reserva #${booking.id}:`,
+        adminError,
+      );
+    }
+  }
+
+  async sendUserForgotPassword(
+    email: string,
+    token: string,
+    frontendHost: string,
+  ): Promise<any> {
+    try {
+      return await this.userEmailAdapter.sendUserForgotPassword(
+        email,
+        token,
+        frontendHost,
+      );
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
 
-  async sendUserForgotPassword(email: string, token: string, frontendHost: string): Promise<any> {
+  async sendUserAutoCreate(
+    email: string,
+    password: string,
+    frontendHost: string,
+    lang: string = 'es',
+  ): Promise<any> {
     try {
-      return await this.userEmailAdapter.sendUserForgotPassword(email, token, frontendHost);
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  async sendUserAutoCreate(email: string, password: string, frontendHost: string, lang: string = "es"): Promise<any> {
-    try {
-      return await this.userEmailAdapter.sendUserAutoCreate(email, password, frontendHost, lang);
+      return await this.userEmailAdapter.sendUserAutoCreate(
+        email,
+        password,
+        frontendHost,
+        lang,
+      );
     } catch (error) {
       throw new BadRequestException(error.message);
     }
