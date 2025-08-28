@@ -9,6 +9,7 @@ if (config().app.env === 'dev') {
     'http://localhost:3000',
     'http://localhost:5173',
     'https://0jfvmjkq-5173.brs.devtunnels.ms',
+    'https://nx50gc3r-5173.brs.devtunnels.ms',
   ];
 }
 
@@ -19,6 +20,7 @@ const whiteList = [
   'https://www.moovadventures.com',
   'https://moovadventures.mx',
   'https://www.moovadventures.mx',
+  'https://nx50gc3r-5173.brs.devtunnels.ms',
   ...whiteListDev,
 ];
 
