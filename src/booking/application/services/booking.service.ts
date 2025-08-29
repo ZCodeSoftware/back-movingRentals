@@ -237,10 +237,16 @@ export class BookingService implements IBookingService {
     if (!booking) {
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
-
-    const status = await this.catStatusRepository.getStatusByName(
-      paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
-    );
+    let status;
+    if (booking.toJSON().paymentMethod.name === "Mercado Pago" || booking.toJSON().paymentMethod.name === "Credito" || booking.toJSON().paymentMethod.name === "Debito") {
+      status = await this.catStatusRepository.getStatusByName(
+        paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
+      );
+    } else {
+      status = await this.catStatusRepository.getStatusByName(
+        TypeStatus.PENDING
+      );
+    }
 
     if (!status) {
       throw new BaseErrorException('CatStatus not found', HttpStatus.NOT_FOUND);
@@ -263,7 +269,10 @@ export class BookingService implements IBookingService {
       email = user.toJSON().email || email;
     }
 
-    if (status.toJSON().name === TypeStatus.APPROVED) {
+    if ((status.toJSON().name === TypeStatus.APPROVED
+      || (booking.toJSON().paymentMethod.name !== "Mercado Pago"
+        && booking.toJSON().paymentMethod.name !== "Credito"
+        && booking.toJSON().paymentMethod.name !== "Debito")) && status.toJSON().name !== TypeStatus.REJECTED) {
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
         userEmail: email,
