@@ -89,8 +89,9 @@ export class BookingController {
   @UseGuards(AuthGuards, RoleGuard)
   async addManualBookingInUser(
     @Param('email') email: string,
+    @Body() body: Partial<CreateBookingDTO>
   ) {
-    return this.bookingService.addManualBookingInUserFromCart(email);
+    return this.bookingService.addManualBookingInUserFromCart(email, body);
   }
 
   @Post('/user')

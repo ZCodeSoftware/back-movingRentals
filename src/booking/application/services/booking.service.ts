@@ -13,6 +13,7 @@ import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payme
 import { ICatStatusRepository } from '../../domain/repositories/cat-status.interface.repostory';
 import { IBookingService } from '../../domain/services/booking.interface.service';
 import { ICreateBooking } from '../../domain/types/booking.type';
+import { CreateBookingDTO } from '../../infrastructure/nest/dtos/booking.dto';
 import SymbolsBooking from '../../symbols-booking';
 
 @Injectable()
@@ -108,7 +109,7 @@ export class BookingService implements IBookingService {
     return bookingSave;
   }
 
-  async addManualBookingInUserFromCart(email: string): Promise<BookingModel> {
+  async addManualBookingInUserFromCart(email: string, body: Partial<CreateBookingDTO>): Promise<BookingModel> {
     // 1. Buscar el usuario por email
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
@@ -160,18 +161,17 @@ export class BookingService implements IBookingService {
     }
 
     // 5. Buscar un método de pago por defecto (el primero disponible)
-    const paymentMethods = await this.paymentMethodRepository.findAll();
-    if (!paymentMethods || paymentMethods.length === 0) {
+    const paymentMethods = await this.paymentMethodRepository.findById(body.paymentMethod);
+    if (!paymentMethods) {
       throw new BaseErrorException('No payment methods available', HttpStatus.BAD_REQUEST);
     }
 
     const defaultPaymentMethod = paymentMethods[0];
 
     // 6. Crear el booking con los datos del carrito
-    const bookingData: ICreateBooking = {
+    const bookingData = {
       cart: JSON.stringify(cartData),
       total: total,
-      paymentMethod: defaultPaymentMethod.toJSON()._id.toString(),
       totalPaid: total,
       isValidated: true
     };
@@ -238,7 +238,7 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
     let status;
-    if (booking.toJSON().paymentMethod.name === "Mercado Pago" || booking.toJSON().paymentMethod.name === "Credito" || booking.toJSON().paymentMethod.name === "Debito") {
+    if (booking.toJSON().paymentMethod.name === "Credito/Debito") {
       status = await this.catStatusRepository.getStatusByName(
         paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
       );
