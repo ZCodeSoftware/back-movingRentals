@@ -1,3 +1,4 @@
+import { CreateBookingDTO } from '../../infrastructure/nest/dtos/booking.dto';
 import { BookingModel } from '../models/booking.model';
 import { ICreateBooking } from '../types/booking.type';
 
@@ -7,7 +8,7 @@ export interface IBookingService {
     id: string,
   ): Promise<BookingModel>;
   addManualBookingInUser(booking: ICreateBooking, email: string): Promise<BookingModel>
-  addManualBookingInUserFromCart(email: string): Promise<BookingModel>
+  addManualBookingInUserFromCart(email: string, body: Partial<CreateBookingDTO>): Promise<BookingModel>
   findById(id: string): Promise<BookingModel>;
   findAll(filters: any): Promise<any>;
   findByUserId(userId: string): Promise<BookingModel[]>;
