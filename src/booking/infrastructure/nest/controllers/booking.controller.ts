@@ -32,7 +32,7 @@ export class BookingController {
     private readonly bookingService: IBookingService,
     @Inject(SymbolsUser.IUserService)
     private readonly userService: IUserService,
-  ) { }
+  ) {}
 
   @Post()
   @HttpCode(201)
@@ -47,20 +47,60 @@ export class BookingController {
 
   @Get()
   @HttpCode(200)
-  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 200, description: 'Return all Bookings' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
-  @ApiQuery({ name: 'status', required: false, type: 'string', description: 'Filter by status ID' })
-  @ApiQuery({ name: 'paymentMethod', required: false, type: 'string', description: 'Filter by payment method ID' })
-  @ApiQuery({ name: 'userId', required: false, type: 'string', description: 'Filter by user ID' })
-  @ApiQuery({ name: 'startDate', required: false, type: 'string', description: 'Filter by start date' })
-  @ApiQuery({ name: 'endDate', required: false, type: 'string', description: 'Filter by end date' })
-  @ApiQuery({ name: 'page', required: false, type: 'number', description: 'Page number for pagination (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: 'number', description: 'Number of items per page (default: 10)' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: 'string',
+    description: 'Filter by status ID',
+  })
+  @ApiQuery({
+    name: 'paymentMethod',
+    required: false,
+    type: 'string',
+    description: 'Filter by payment method ID',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    type: 'string',
+    description: 'Filter by user ID',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by start date',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by end date',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: 'number',
+    description: 'Page number for pagination (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: 'number',
+    description: 'Number of items per page (default: 10)',
+  })
   async findAll(@Query() filters: any) {
     const res = await this.bookingService.findAll(filters);
-    return res
+    return res;
   }
   @Get('/user')
   @HttpCode(200)
@@ -82,15 +122,29 @@ export class BookingController {
 
   @Post('/user/manual/:email')
   @HttpCode(201)
-  @ApiResponse({ status: 201, description: 'Manual Booking is added in User from cart data' })
+  @ApiResponse({
+    status: 201,
+    description: 'Manual Booking is added in User from cart data',
+  })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 400, description: 'Cart is empty or invalid' })
-  @Roles(TypeRoles.ADMIN, TypeRoles.SELLER, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERADMIN,
+    TypeRoles.SUPERVISOR,
+  )
   @UseGuards(AuthGuards, RoleGuard)
   async addManualBookingInUser(
     @Param('email') email: string,
+    @Body() body: Partial<CreateBookingDTO>,
+    @Query('lang') lang: string = 'es',
   ) {
-    return this.bookingService.addManualBookingInUserFromCart(email);
+    return this.bookingService.addManualBookingInUserFromCart(
+      email,
+      body,
+      lang,
+    );
   }
 
   @Post('/user')
@@ -116,9 +170,24 @@ export class BookingController {
   @ApiResponse({ status: 200, description: 'Booking validated' })
   @ApiResponse({ status: 404, description: 'Booking not found' })
   @ApiQuery({ name: 'paid', required: true, type: 'boolean' })
-  @ApiQuery({ name: 'lang', required: false, type: 'string', description: 'Language for response' })
-  @ApiQuery({ name: 'isManual', required: false, type: 'boolean', description: 'Indicates if the booking is manual' })
-  @ApiQuery({ name: "isValidated", required: false, type: 'boolean', description: 'Indicates if the booking is validated' })
+  @ApiQuery({
+    name: 'lang',
+    required: false,
+    type: 'string',
+    description: 'Language for response',
+  })
+  @ApiQuery({
+    name: 'isManual',
+    required: false,
+    type: 'boolean',
+    description: 'Indicates if the booking is manual',
+  })
+  @ApiQuery({
+    name: 'isValidated',
+    required: false,
+    type: 'boolean',
+    description: 'Indicates if the booking is validated',
+  })
   @UseGuards(AuthGuards)
   async validateBooking(
     @Param('id') id: string,
@@ -130,7 +199,14 @@ export class BookingController {
   ) {
     const { email } = req.user;
     const language = lang ?? 'es';
-    return await this.bookingService.validateBooking(id, paid, email, language, isManual, isValidated);
+    return await this.bookingService.validateBooking(
+      id,
+      paid,
+      email,
+      language,
+      isManual,
+      isValidated,
+    );
   }
 
   @Put(':id')

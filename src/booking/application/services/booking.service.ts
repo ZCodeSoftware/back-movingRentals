@@ -13,6 +13,7 @@ import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payme
 import { ICatStatusRepository } from '../../domain/repositories/cat-status.interface.repostory';
 import { IBookingService } from '../../domain/services/booking.interface.service';
 import { ICreateBooking } from '../../domain/types/booking.type';
+import { CreateBookingDTO } from '../../infrastructure/nest/dtos/booking.dto';
 import SymbolsBooking from '../../symbols-booking';
 
 @Injectable()
@@ -34,16 +35,14 @@ export class BookingService implements IBookingService {
     private readonly cartRepository: ICartRepository,
 
     private readonly eventEmitter: EventEmitter2,
-  ) { }
+  ) {}
 
-  async create(
-    booking: ICreateBooking,
-    id: string,
-  ): Promise<BookingModel> {
+  async create(booking: ICreateBooking, id: string): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
     const bookingModel = BookingModel.create(res);
 
-    const catPaymentMethod = await this.paymentMethodRepository.findById(paymentMethod);
+    const catPaymentMethod =
+      await this.paymentMethodRepository.findById(paymentMethod);
 
     if (!catPaymentMethod) {
       throw new BaseErrorException(
@@ -52,13 +51,12 @@ export class BookingService implements IBookingService {
       );
     }
 
-    const status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+    const status = await this.catStatusRepository.getStatusByName(
+      TypeStatus.PENDING,
+    );
 
     if (!status) {
-      throw new BaseErrorException(
-        'CatStatus not found',
-        HttpStatus.NOT_FOUND,
-      );
+      throw new BaseErrorException('CatStatus not found', HttpStatus.NOT_FOUND);
     }
 
     bookingModel.addStatus(status);
@@ -70,8 +68,10 @@ export class BookingService implements IBookingService {
     return bookingSave;
   }
 
-  async addManualBookingInUser(booking: ICreateBooking, email: string): Promise<BookingModel> {
-
+  async addManualBookingInUser(
+    booking: ICreateBooking,
+    email: string,
+  ): Promise<BookingModel> {
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
       throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
@@ -81,7 +81,9 @@ export class BookingService implements IBookingService {
 
     const bookingModel = BookingModel.create(booking);
 
-    const catPaymentMethod = await this.paymentMethodRepository.findById(booking.paymentMethod);
+    const catPaymentMethod = await this.paymentMethodRepository.findById(
+      booking.paymentMethod,
+    );
 
     if (!catPaymentMethod) {
       throw new BaseErrorException(
@@ -90,13 +92,12 @@ export class BookingService implements IBookingService {
       );
     }
 
-    const status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+    const status = await this.catStatusRepository.getStatusByName(
+      TypeStatus.PENDING,
+    );
 
     if (!status) {
-      throw new BaseErrorException(
-        'CatStatus not found',
-        HttpStatus.NOT_FOUND,
-      );
+      throw new BaseErrorException('CatStatus not found', HttpStatus.NOT_FOUND);
     }
 
     bookingModel.addStatus(status);
@@ -108,7 +109,11 @@ export class BookingService implements IBookingService {
     return bookingSave;
   }
 
-  async addManualBookingInUserFromCart(email: string): Promise<BookingModel> {
+  async addManualBookingInUserFromCart(
+    email: string,
+    body: Partial<CreateBookingDTO>,
+    lang: string = 'es',
+  ): Promise<BookingModel> {
     // 1. Buscar el usuario por email
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
@@ -127,7 +132,8 @@ export class BookingService implements IBookingService {
     const cartData = cart.toJSON();
 
     // 3. Validar que el carrito no esté vacío
-    const hasItems = (cartData.vehicles && cartData.vehicles.length > 0) ||
+    const hasItems =
+      (cartData.vehicles && cartData.vehicles.length > 0) ||
       (cartData.transfer && cartData.transfer.length > 0) ||
       (cartData.tours && cartData.tours.length > 0) ||
       (cartData.tickets && cartData.tickets.length > 0);
@@ -141,54 +147,78 @@ export class BookingService implements IBookingService {
 
     // Sumar vehículos
     if (cartData.vehicles) {
-      total += cartData.vehicles.reduce((sum, item) => sum + (item.total || 0), 0);
+      total += cartData.vehicles.reduce(
+        (sum, item) => sum + (item.total || 0),
+        0,
+      );
     }
 
     // Sumar transfers
     if (cartData.transfer) {
-      total += cartData.transfer.reduce((sum, item) => sum + ((item.transfer.price || 0) * (item.quantity || 1)), 0);
+      total += cartData.transfer.reduce(
+        (sum, item) => sum + (item.transfer.price || 0) * (item.quantity || 1),
+        0,
+      );
     }
 
     // Sumar tours
     if (cartData.tours) {
-      total += cartData.tours.reduce((sum, item) => sum + ((item.tour.price || 0) * (item.quantity || 1)), 0);
+      total += cartData.tours.reduce(
+        (sum, item) => sum + (item.tour.price || 0) * (item.quantity || 1),
+        0,
+      );
     }
 
     // Sumar tickets
     if (cartData.tickets) {
-      total += cartData.tickets.reduce((sum, item) => sum + ((item.ticket.totalPrice || 0) * (item.quantity || 1)), 0);
+      total += cartData.tickets.reduce(
+        (sum, item) =>
+          sum + (item.ticket.totalPrice || 0) * (item.quantity || 1),
+        0,
+      );
     }
 
     // 5. Buscar un método de pago por defecto (el primero disponible)
-    const paymentMethods = await this.paymentMethodRepository.findAll();
-    if (!paymentMethods || paymentMethods.length === 0) {
-      throw new BaseErrorException('No payment methods available', HttpStatus.BAD_REQUEST);
+    const paymentMethods = await this.paymentMethodRepository.findById(
+      body.paymentMethod,
+    );
+    if (!paymentMethods) {
+      throw new BaseErrorException(
+        'No payment methods available',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    const defaultPaymentMethod = paymentMethods[0];
-
     // 6. Crear el booking con los datos del carrito
-    const bookingData: ICreateBooking = {
+    const bookingData = {
       cart: JSON.stringify(cartData),
       total: total,
-      paymentMethod: defaultPaymentMethod.toJSON()._id.toString(),
       totalPaid: total,
-      isValidated: true
+      isValidated: true,
     };
 
     const bookingModel = BookingModel.create(bookingData);
 
     // 7. Agregar status pendiente
-    const status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+    const status = await this.catStatusRepository.getStatusById(body.status);
     if (!status) {
       throw new BaseErrorException('CatStatus not found', HttpStatus.NOT_FOUND);
     }
 
     bookingModel.addStatus(status);
-    bookingModel.addPaymentMethod(defaultPaymentMethod);
+    bookingModel.addPaymentMethod(paymentMethods);
 
     // 8. Crear el booking
-    const bookingSave = await this.bookingRepository.create(bookingModel, userId);
+    const bookingSave = await this.bookingRepository.create(
+      bookingModel,
+      userId,
+    );
+
+    this.eventEmitter.emit('send-booking.created', {
+      updatedBooking: bookingSave,
+      userEmail: email,
+      lang,
+    });
 
     return bookingSave;
   }
@@ -199,7 +229,7 @@ export class BookingService implements IBookingService {
 
   async findAll(filters: any): Promise<any> {
     const res = await this.bookingRepository.findAll(filters);
-    return res
+    return res;
   }
 
   async findByUserId(userId: string): Promise<BookingModel[]> {
@@ -217,7 +247,8 @@ export class BookingService implements IBookingService {
     const { paymentMethod, ...res } = booking;
     const bookingModel = BookingModel.create(res);
 
-    const catPaymentMethod = await this.paymentMethodRepository.findById(paymentMethod);
+    const catPaymentMethod =
+      await this.paymentMethodRepository.findById(paymentMethod);
 
     if (catPaymentMethod) bookingModel.addPaymentMethod(catPaymentMethod);
 
@@ -238,13 +269,13 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
     let status;
-    if (booking.toJSON().paymentMethod.name === "Mercado Pago" || booking.toJSON().paymentMethod.name === "Credito" || booking.toJSON().paymentMethod.name === "Debito") {
+    if (booking.toJSON().paymentMethod.name === 'Credito/Debito') {
       status = await this.catStatusRepository.getStatusByName(
         paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
       );
     } else {
       status = await this.catStatusRepository.getStatusByName(
-        TypeStatus.PENDING
+        TypeStatus.PENDING,
       );
     }
 
@@ -269,10 +300,13 @@ export class BookingService implements IBookingService {
       email = user.toJSON().email || email;
     }
 
-    if ((status.toJSON().name === TypeStatus.APPROVED
-      || (booking.toJSON().paymentMethod.name !== "Mercado Pago"
-        && booking.toJSON().paymentMethod.name !== "Credito"
-        && booking.toJSON().paymentMethod.name !== "Debito")) && status.toJSON().name !== TypeStatus.REJECTED) {
+    if (
+      (status.toJSON().name === TypeStatus.APPROVED ||
+        (booking.toJSON().paymentMethod.name !== 'Mercado Pago' &&
+          booking.toJSON().paymentMethod.name !== 'Credito' &&
+          booking.toJSON().paymentMethod.name !== 'Debito')) &&
+      status.toJSON().name !== TypeStatus.REJECTED
+    ) {
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
         userEmail: email,
@@ -280,6 +314,6 @@ export class BookingService implements IBookingService {
       });
     }
 
-    return updatedBooking
+    return updatedBooking;
   }
 }

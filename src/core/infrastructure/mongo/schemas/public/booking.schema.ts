@@ -9,7 +9,11 @@ export class Booking {
   @Prop({ type: String, required: true })
   cart: string;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CartVersion', required: false })
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CartVersion',
+    required: false,
+  })
   activeCartVersion?: mongoose.Types.ObjectId;
 
   @Prop({ type: Date, nullable: true })
@@ -41,14 +45,14 @@ BookingSchema.pre('save', async function (next) {
     try {
       const BookingModel = this.constructor as mongoose.Model<Booking>;
 
-      const lastBooking = await BookingModel
-        .findOne({}, { bookingNumber: 1 })
+      const lastBooking = await BookingModel.findOne({}, { bookingNumber: 1 })
         .sort({ bookingNumber: -1 })
         .exec();
 
-      this.bookingNumber = lastBooking?.bookingNumber
-        ? lastBooking.bookingNumber + 1
-        : 6150;
+      this.bookingNumber =
+        lastBooking?.bookingNumber && lastBooking.bookingNumber < 7300
+          ? lastBooking.bookingNumber + 1
+          : 7300;
 
       next();
     } catch (error) {
