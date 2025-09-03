@@ -50,7 +50,7 @@ BookingSchema.pre('save', async function (next) {
         .exec();
 
       this.bookingNumber =
-        lastBooking?.bookingNumber && lastBooking.bookingNumber < 7300
+        lastBooking?.bookingNumber && lastBooking.bookingNumber > 7300
           ? lastBooking.bookingNumber + 1
           : 7300;
 
