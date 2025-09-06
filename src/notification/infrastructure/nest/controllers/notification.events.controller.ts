@@ -58,4 +58,22 @@ export class NotificationEventController {
     const { email, password, frontendHost, lang } = payload;
     await this.notificationEventService.sendUserAutoCreate(email, password, frontendHost, lang);
   }
+
+  @OnEvent('send-booking.cancelled')
+  async sendBookingCancelled(payload: {
+    booking: BookingModel;
+    userEmail: string;
+    lang: string;
+  }) {
+    const { booking, userEmail, lang } = payload;
+    try {
+      await this.notificationEventService.sendBookingCancelled(
+        booking,
+        userEmail,
+        lang,
+      );
+    } catch (error) {
+      console.error('Error sending booking cancellation emails:', error);
+    }
+  }
 }
