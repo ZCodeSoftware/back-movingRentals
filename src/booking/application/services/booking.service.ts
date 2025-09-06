@@ -243,9 +243,15 @@ export class BookingService implements IBookingService {
         paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
       );
     } else {
-      status = await this.catStatusRepository.getStatusByName(
-        TypeStatus.PENDING
-      );
+      if (booking.toJSON().paymentMethod.name === "Efectivo") {
+        status = await this.catStatusRepository.getStatusByName(
+          TypeStatus.APPROVED
+        );
+      } else {
+        status = await this.catStatusRepository.getStatusByName(
+          TypeStatus.PENDING
+        );
+      }
     }
 
     if (!status) {
@@ -281,5 +287,52 @@ export class BookingService implements IBookingService {
     }
 
     return updatedBooking
+  }
+
+  async cancelBooking(
+    id: string,
+    email: string,
+    lang: string = 'es',
+  ): Promise<BookingModel> {
+    const booking = await this.bookingRepository.findById(id);
+
+    if (!booking) {
+      throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Verificar que la reserva no esté ya cancelada
+    const currentStatus = booking.toJSON().status;
+    if (currentStatus && currentStatus.name === TypeStatus.CANCELLED) {
+      throw new BaseErrorException('Booking is already cancelled', HttpStatus.BAD_REQUEST);
+    }
+
+    // Obtener el estado CANCELADO
+    const cancelledStatus = await this.catStatusRepository.getStatusByName(TypeStatus.CANCELLED);
+
+    if (!cancelledStatus) {
+      throw new BaseErrorException('Cancelled status not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Actualizar el estado de la reserva a CANCELADO
+    booking.addStatus(cancelledStatus);
+
+    const updatedBooking = await this.bookingRepository.update(id, booking);
+
+    if (!updatedBooking) {
+      throw new BaseErrorException('Booking not updated', HttpStatus.NOT_FOUND);
+    }
+
+    // Obtener información del usuario para el email
+    const user = await this.bookingRepository.findUserByBookingId(id);
+    const userEmail = user.toJSON().email || email;
+
+    // Emitir evento para enviar emails de cancelación
+    this.eventEmitter.emit('send-booking.cancelled', {
+      booking: updatedBooking,
+      userEmail,
+      lang,
+    });
+
+    return updatedBooking;
   }
 }

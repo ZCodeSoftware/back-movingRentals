@@ -5,6 +5,7 @@ import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import config from '../../../../config';
 import { IAdminEmailAdapter } from '../../../../notification/domain/adapter/admin-email.interface.adapter';
 import { generateAdminBookingNotification } from './admin-booking-content.template';
+import { generateAdminBookingCancellation } from './admin-booking-cancelled.template';
 import { lowStockReportTemplate } from './low-stock-report.template';
 
 export class AdminEmailProvider implements IAdminEmailAdapter {
@@ -53,6 +54,28 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
     } catch (error) {
       console.error(
         'Error al enviar el correo de notificación al admin:',
+        error,
+      );
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendAdminBookingCancelled(booking: BookingModel): Promise<any> {
+    try {
+      const html = generateAdminBookingCancellation(booking);
+      const bookingNumber = booking.toJSON().bookingNumber || 'N/A';
+
+      const message = {
+        from: `"MoovAdventures" <${config().business.contact_email}>`,
+        to: config().business.contact_email,
+        subject: `🚨 Reserva Cancelada - #${bookingNumber}`,
+        html: html,
+      };
+
+      return await this.transporter.sendMail(message);
+    } catch (error) {
+      console.error(
+        'Error al enviar el correo de cancelación al admin:',
         error,
       );
       throw new InternalServerErrorException(error.message);

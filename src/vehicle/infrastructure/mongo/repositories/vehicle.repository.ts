@@ -75,9 +75,16 @@ export class VehicleRepository implements IVehicleRepository {
         return vehicles?.map(vehicle => VehicleModel.hydrate(vehicle));
     }
 
-    async findAll(): Promise<VehicleModel[]> {
+    async findAll(filters: any): Promise<VehicleModel[]> {
+
+        const query = {}
+
+        if (filters.name) {
+            query['name'] = { $regex: `.*${filters.name}.*`, $options: 'i' };
+        }
+
         const vehicles = await this.vehicleDB
-            .find()
+            .find(query)
             .sort({ name: 1 })
             .populate('category')
             .populate('owner')
@@ -146,7 +153,7 @@ export class VehicleRepository implements IVehicleRepository {
         // Update the specific reservation using array index
         await this.vehicleDB.updateOne(
             { _id: vehicleId },
-            { 
+            {
                 $set: { [`reservations.${reservationIndex}.end`]: newEndDate }
             }
         );

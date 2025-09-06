@@ -48,6 +48,11 @@ export class BookingModel extends BaseModel {
     this._isValidated = true;
   }
 
+  cancelBooking(): void {
+    // Este método puede ser usado para lógica adicional de cancelación si es necesario
+    // Por ahora, la cancelación se maneja principalmente cambiando el estado
+  }
+
   static create(booking: any): BookingModel {
     const newBooking = new BookingModel(new Identifier(booking._id));
 
