@@ -131,4 +131,54 @@ export class NotificationEventService implements INotificationEventService {
       throw new BadRequestException(error.message);
     }
   }
+
+  async sendBookingCancelled(
+    booking: BookingModel,
+    userEmail: string,
+    lang: string = 'es',
+  ): Promise<any> {
+    const bookingIdForLogs = booking.toJSON().bookingNumber || booking.toJSON()._id || 'UNKNOWN';
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Proceso de notificación de cancelación iniciado.`,
+    );
+    
+    try {
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Intentando enviar correo de cancelación al USUARIO...`,
+      );
+      // Enviar email al usuario
+      await this.userEmailAdapter.sendUserBookingCancelled(
+        booking,
+        userEmail,
+        lang,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Email de cancelación enviado exitosamente al USUARIO: ${userEmail}`,
+      );
+    } catch (userError) {
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] [CRITICAL] Fallo al enviar email de cancelación al USUARIO. Stack: ${userError.stack}`,
+      );
+      throw new BadRequestException(userError.message);
+    }
+
+    try {
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Intentando enviar correo de cancelación al ADMIN...`,
+      );
+      // Enviar email al admin
+      await this.adminEmailAdapter.sendAdminBookingCancelled(booking);
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Email de cancelación enviado exitosamente al ADMIN`,
+      );
+    } catch (adminError) {
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] [NON-CRITICAL] Fallo al enviar email de cancelación al ADMIN. Stack: ${adminError.stack}`,
+      );
+    }
+
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Proceso de notificación de cancelación finalizado.`,
+    );
+  }
 }

@@ -57,8 +57,8 @@ export class VehicleService implements IVehicleService {
         return this.vehicleRepository.findById(id);
     }
 
-    async findAll(): Promise<VehicleModel[]> {
-        return this.vehicleRepository.findAll();
+    async findAll(filters: any): Promise<VehicleModel[]> {
+        return this.vehicleRepository.findAll(filters);
     }
 
     async update(id: string, vehicle: IUpdateVehicle): Promise<VehicleModel> {

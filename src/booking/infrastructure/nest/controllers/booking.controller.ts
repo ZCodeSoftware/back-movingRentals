@@ -221,4 +221,21 @@ export class BookingController {
   ) {
     return this.bookingService.update(id, body);
   }
+
+  @Put('cancel/:id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Booking cancelled successfully' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @ApiResponse({ status: 400, description: 'Booking is already cancelled' })
+  @ApiQuery({ name: 'lang', required: false, type: 'string', description: 'Language for email notifications' })
+  @UseGuards(AuthGuards)
+  async cancelBooking(
+    @Param('id') id: string,
+    @Query('lang') lang: string,
+    @Req() req: IUserRequest,
+  ) {
+    const { email } = req.user;
+    const language = lang ?? 'es';
+    return await this.bookingService.cancelBooking(id, email, language);
+  }
 }

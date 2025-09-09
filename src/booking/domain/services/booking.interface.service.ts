@@ -26,4 +26,9 @@ export interface IBookingService {
     isManual?: boolean,
     isValidated?: boolean,
   ): Promise<BookingModel>;
+  cancelBooking(
+    id: string,
+    email: string,
+    lang?: string,
+  ): Promise<BookingModel>;
 }

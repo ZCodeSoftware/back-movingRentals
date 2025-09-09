@@ -32,10 +32,13 @@ export class VehicleController {
     @ApiResponse({ status: 200, description: 'Return all Vehicles' })
     @ApiResponse({ status: 404, description: 'Vehicle not found' })
     async findAll(@Query() query: any) {
+        if (query.lang) {
+            delete query.lang;
+        }
         if (query.start || query.end) {
             return this.vehicleService.findByDate(query);
         }
-        return this.vehicleService.findAll();
+        return this.vehicleService.findAll(query);
     }
 
     @Get(':id')

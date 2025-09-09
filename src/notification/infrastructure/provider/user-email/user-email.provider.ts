@@ -9,6 +9,8 @@ import { userAutoCreateTemplateEn } from './auto-create.template-en';
 import { userAutoCreateTemplateEs } from './auto-create.template-es';
 import { generateUserBookingConfirmationEn } from './user-booking-content-en.template';
 import { generateUserBookingConfirmation } from './user-booking-content.template';
+import { generateUserBookingCancellation } from './user-booking-cancelled.template';
+import { generateUserBookingCancellationEn } from './user-booking-cancelled-en.template';
 
 export class UserEmailProvider implements IUserEmailAdapter {
   private readonly transporter: nodemailer.Transporter;
@@ -103,6 +105,28 @@ export class UserEmailProvider implements IUserEmailAdapter {
         subject: 'Cuenta creada',
         html: template(email, password, frontendHost),
       };
+      return await this.transporter.sendMail(message);
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendUserBookingCancelled(
+    booking: BookingModel,
+    userEmail: string,
+    lang: string = 'es',
+  ): Promise<any> {
+    try {
+      let emailContent: { subject: string; html: string };
+      emailContent = lang === 'es' ? generateUserBookingCancellation(booking) : generateUserBookingCancellationEn(booking);
+
+      const message = {
+        from: `"MoovAdventures" <${config().business.contact_email}>`,
+        to: userEmail,
+        subject: emailContent.subject,
+        html: emailContent.html,
+      };
+
       return await this.transporter.sendMail(message);
     } catch (error) {
       throw new InternalServerErrorException(error.message);
