@@ -1,20 +1,31 @@
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 
-export function generateAdminBookingCancellation(booking: BookingModel, userData?: any): string {
+export function generateAdminBookingCancellation(
+  booking: BookingModel,
+  userData?: any,
+): string {
   const bookingData = booking.toJSON();
+  console.log(
+    '✉️ [ADMIN CANCEL] bookingData:',
+    JSON.stringify(bookingData, null, 2),
+  );
+  console.log('✉️ [ADMIN CANCEL] userData:', JSON.stringify(userData, null, 2));
   const bookingNumber = bookingData.bookingNumber || 'N/A';
   const total = bookingData.total || 0;
-  const createdAt = bookingData.createdAt ? new Date(bookingData.createdAt).toLocaleDateString('es-ES') : 'N/A';
+  const createdAt = bookingData.createdAt
+    ? new Date(bookingData.createdAt).toLocaleDateString('es-ES')
+    : 'N/A';
   const cancelledAt = new Date().toLocaleDateString('es-ES');
-  
+
   const customerName = userData?.name || 'No especificado';
   const customerEmail = userData?.email || 'No especificado';
-  const customerPhone = userData?.phone || userData?.cellphone || 'No especificado';
+  const customerPhone =
+    userData?.phone || userData?.cellphone || 'No especificado';
 
   let cartDetails = '';
   try {
     const cart = JSON.parse(bookingData.cart || '{}');
-    
+
     // Procesar vehículos
     if (cart.vehicles && cart.vehicles.length > 0) {
       cartDetails += '<h4>🚗 Vehículos:</h4><ul>';
@@ -93,14 +104,7 @@ export function generateAdminBookingCancellation(booking: BookingModel, userData
           <p><strong>Estado Actual:</strong> CANCELADA</p>
           <p><strong>Total:</strong> $${total.toLocaleString('es-ES')}</p>
         </div>
-
-        <div class="customer-info">
-          <h3>👤 Información del Cliente</h3>
-          <p><strong>Nombre:</strong> ${customerName}</p>
-          <p><strong>Email:</strong> ${customerEmail}</p>
-          <p><strong>Teléfono:</strong> ${customerPhone}</p>
-        </div>
-
+     
         <div class="booking-details">
           <h3>🛍️ Detalles de la Reserva Cancelada</h3>
           ${cartDetails}
