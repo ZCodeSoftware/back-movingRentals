@@ -1,5 +1,9 @@
 import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
+import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
 import { ContractHistory } from '../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
+import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
+import SymbolsMovement from '../../../movement/symbols-movement';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
 import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
 import { ContractModel } from '../../domain/models/contract.model';
@@ -8,10 +12,6 @@ import { IContractService } from '../../domain/services/contract.interface.servi
 import { ICreateContract, IUpdateContract } from '../../domain/types/contract.type';
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
-import SymbolsMovement from '../../../movement/symbols-movement';
-import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
-import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
-import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -54,7 +54,22 @@ export class ContractService implements IContractService {
     }
 
     try {
-      return await this.contractRepository.update(id, updateData, userId);
+      const updated = await this.contractRepository.update(id, updateData, userId);
+
+      // Generar movimiento al actualizar el contrato (por ejemplo, extensión)
+      const ext = updateData.extension as any;
+      if (ext && typeof ext.extensionAmount === 'number' && ext.extensionAmount > 0 && ext.paymentMethod) {
+        await this.movementService.create({
+          type: TypeCatTypeMovement.LOCAL,
+          direction: TypeMovementDirection.IN,
+          detail: 'Actualización de contrato (extensión)',
+          amount: ext.extensionAmount,
+          date: new Date() as any,
+          paymentMethod: updated.toJSON().extension.paymentMethod.name,
+        }, userId);
+      }
+
+      return updated;
     } catch (error) {
       // Capturar errores del repositorio y, si es necesario, transformarlos en errores HTTP.
       console.error(`Fallo en la capa de servicio al actualizar el contrato ${id}`, error);
@@ -63,27 +78,12 @@ export class ContractService implements IContractService {
   }
 
   async reportEvent(contractId: string, userId: string, eventData: ReportEventDTO): Promise<ContractHistory> {
-    // 1) Crear el registro en contract_history referenciando el catálogo
-    const history = await this.contractRepository.createHistoryEvent(
+    return await this.contractRepository.createHistoryEvent(
       contractId,
       userId,
       eventData.eventType,
       eventData.details,
       eventData.metadata
     );
-
-    // 2) Crear el movimiento de ingreso asociado
-    await this.movementService.create({
-      type: TypeCatTypeMovement.LOCAL,
-      direction: TypeMovementDirection.IN,
-      detail: `Evento: ${eventData.details}`,
-      amount: eventData.amount,
-      date: eventData.date ? new Date(eventData.date) as any : (new Date() as any),
-      paymentMethod: eventData.paymentMethod,
-      vehicle: eventData.vehicle,
-      beneficiary: eventData.beneficiary,
-    }, userId);
-
-    return history;
   }
 }

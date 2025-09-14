@@ -53,7 +53,7 @@ export class ContractRepository implements IContractRepository {
     @InjectModel(ContractHistory.name)
     private readonly contractHistoryModel: Model<ContractHistory>,
     @InjectModel(Vehicle.name) private readonly vehicleModel: Model<Vehicle>,
-  ) {}
+  ) { }
 
   async create(
     contract: ContractModel,
@@ -388,7 +388,7 @@ export class ContractRepository implements IContractRepository {
       if (
         contractUpdateData.reservingUser &&
         originalContract.reservingUser.toString() !==
-          contractUpdateData.reservingUser
+        contractUpdateData.reservingUser
       ) {
         changesToLog.push({
           field: 'reservingUser',
@@ -421,11 +421,6 @@ export class ContractRepository implements IContractRepository {
       }
 
       if (newCart) {
-        if (!reasonForChange) {
-          throw new Error(
-            "Debe proporcionar un motivo ('reasonForChange') al modificar el carrito.",
-          );
-        }
         // Pasamos la sesión, y esta función ahora OPERA dentro de ella, pero no la finaliza.
         await this.applyBookingChangesFromExtension(
           id,
@@ -507,7 +502,7 @@ export class ContractRepository implements IContractRepository {
       if (
         oldVehicleItem &&
         newVehicleItem.dates.end.toString() !==
-          oldVehicleItem.dates.end.toString()
+        oldVehicleItem.dates.end.toString()
       ) {
         const originalEndDate = new Date(oldVehicleItem.dates.end);
         const newEndDate = new Date(newVehicleItem.dates.end);
