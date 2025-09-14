@@ -5,14 +5,13 @@ import { User } from './user.schema';
 
 export type ContractHistoryDocument = HydratedDocument<ContractHistory>;
 
-// El enum se mantiene para las acciones del sistema
 export enum ContractAction {
     CONTRACT_CREATED = 'CONTRACT_CREATED',
     STATUS_UPDATED = 'STATUS_UPDATED',
     EXTENSION_ADDED = 'EXTENSION_ADDED',
     EXTENSION_UPDATED = 'EXTENSION_UPDATED',
     BOOKING_MODIFIED = 'BOOKING_MODIFIED',
-    NOTE_ADDED = 'NOTE_ADDED', // Usaremos esta acción para todos los eventos manuales
+    NOTE_ADDED = 'NOTE_ADDED',
 }
 
 @Schema({ _id: false })
@@ -36,9 +35,9 @@ export class ContractHistory {
     @Prop({ type: String, enum: ContractAction, required: true })
     action: ContractAction;
 
-    // --- NUEVO CAMPO PARA EL TIPO DE EVENTO DEFINIDO POR EL USUARIO ---
-    @Prop({ type: String, required: false, index: true })
-    eventType?: string; // Ej: "Pérdida de Casco", "Daño en Pintura", "Multa de Tráfico"
+    // --- CAMPO RELACIONADO AL CATALOGO DE EVENTOS DE CONTRATO ---
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatContractEvent', required: false, index: true })
+    eventType?: any; // Referencia al catálogo CatContractEvent
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
     performedBy: User;

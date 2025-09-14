@@ -8,6 +8,10 @@ import { IContractService } from '../../domain/services/contract.interface.servi
 import { ICreateContract, IUpdateContract } from '../../domain/types/contract.type';
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
+import SymbolsMovement from '../../../movement/symbols-movement';
+import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
+import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
+import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -16,6 +20,8 @@ export class ContractService implements IContractService {
     private readonly contractRepository: IContractRepository,
     @Inject(SymbolsVehicle.IVehicleRepository)
     private readonly vehicleRepository: IVehicleRepository,
+    @Inject(SymbolsMovement.IMovementService)
+    private readonly movementService: IMovementService,
   ) { }
 
   async create(contract: ICreateContract, userId: string): Promise<ContractModel> {
@@ -57,13 +63,27 @@ export class ContractService implements IContractService {
   }
 
   async reportEvent(contractId: string, userId: string, eventData: ReportEventDTO): Promise<ContractHistory> {
-    // El servicio simplemente pasa los datos al repositorio
-    return this.contractRepository.createHistoryEvent(
+    // 1) Crear el registro en contract_history referenciando el catálogo
+    const history = await this.contractRepository.createHistoryEvent(
       contractId,
       userId,
       eventData.eventType,
       eventData.details,
       eventData.metadata
     );
+
+    // 2) Crear el movimiento de ingreso asociado
+    await this.movementService.create({
+      type: TypeCatTypeMovement.LOCAL,
+      direction: TypeMovementDirection.IN,
+      detail: `Evento: ${eventData.details}`,
+      amount: eventData.amount,
+      date: eventData.date ? new Date(eventData.date) as any : (new Date() as any),
+      paymentMethod: eventData.paymentMethod,
+      vehicle: eventData.vehicle,
+      beneficiary: eventData.beneficiary,
+    }, userId);
+
+    return history;
   }
 }
