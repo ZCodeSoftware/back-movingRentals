@@ -37,7 +37,7 @@ export class ContractController {
   constructor(
     @Inject(SymbolsContract.IContractService)
     private readonly contractService: IContractService,
-  ) {}
+  ) { }
 
   @Post()
   @HttpCode(201)
@@ -62,11 +62,11 @@ export class ContractController {
       ...body,
       extension: body.extension
         ? {
-            ...body.extension,
-            newEndDateTime: body.extension.newEndDateTime
-              ? body.extension.newEndDateTime
-              : undefined,
-          }
+          ...body.extension,
+          newEndDateTime: body.extension.newEndDateTime
+            ? body.extension.newEndDateTime
+            : undefined,
+        }
         : undefined,
     };
 
@@ -157,7 +157,7 @@ export class ContractController {
     return this.contractService.findById(id);
   }
 
-  @Post(':id/report-event') // Cambiado el nombre para mayor claridad
+  @Post(':id/report-event')
   @Roles(
     TypeRoles.ADMIN,
     TypeRoles.SELLER,
@@ -166,7 +166,7 @@ export class ContractController {
   )
   @UseGuards(AuthGuards, RoleGuard)
   @ApiOperation({
-    summary: 'Registra un evento personalizado en el timeline de un contrato',
+    summary: 'Registra un evento en el timeline e ingresa un movimiento de dinero',
   })
   @ApiBody({
     type: ReportEventDTO,
@@ -205,11 +205,11 @@ export class ContractController {
       ...body,
       extension: body.extension
         ? {
-            ...body.extension,
-            newEndDateTime: body.extension.newEndDateTime
-              ? body.extension.newEndDateTime
-              : undefined,
-          }
+          ...body.extension,
+          newEndDateTime: body.extension.newEndDateTime
+            ? body.extension.newEndDateTime
+            : undefined,
+        }
         : undefined,
     };
 

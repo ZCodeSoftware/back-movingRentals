@@ -21,6 +21,8 @@ import {
   countryService,
   userRepository,
   userService,
+  catContractEventRepository,
+  catContractEventService,
 } from './infrastructure/constants/custom-provider';
 import {
   addressSchema,
@@ -34,6 +36,7 @@ import {
   priceConditionSchema,
   roleSchema,
   userSchema,
+  catContractEventSchema,
 } from './infrastructure/constants/custom-schema';
 import { CatCategoryController } from './infrastructure/nest/controllers/cat-category.controller';
 import { CatCountryController } from './infrastructure/nest/controllers/cat-country.controller';
@@ -43,6 +46,8 @@ import { CatPaymentMethodController } from './infrastructure/nest/controllers/ca
 import { CatPriceConditionController } from './infrastructure/nest/controllers/cat-price-condition.controller';
 import { CatRoleController } from './infrastructure/nest/controllers/cat-role.controller';
 import { CatStatusController } from './infrastructure/nest/controllers/cat-status.controller';
+import { CatContractEventController } from './infrastructure/nest/controllers/cat-contract-event.controller';
+import { ContractEventSeed } from './infrastructure/mongo/seed/contract-event.seed';
 
 @Module({
   imports: [
@@ -58,7 +63,8 @@ import { CatStatusController } from './infrastructure/nest/controllers/cat-statu
       countrySchema,
       addressSchema,
       catModelSchema,
-      catStatusSchema
+      catStatusSchema,
+      catContractEventSchema
     ]),
   ],
   controllers: [
@@ -69,7 +75,8 @@ import { CatStatusController } from './infrastructure/nest/controllers/cat-statu
     CatPaymentMethodController,
     CatCountryController,
     CatModelController,
-    CatStatusController
+    CatStatusController,
+    CatContractEventController
   ],
   providers: [
     catRoleRepository,
@@ -90,7 +97,10 @@ import { CatStatusController } from './infrastructure/nest/controllers/cat-statu
     catModelRepository,
     catModelService,
     catStatusRepository,
-    catStatusService
+    catStatusService,
+    catContractEventRepository,
+    catContractEventService,
+    ContractEventSeed
   ],
   exports: [],
 })

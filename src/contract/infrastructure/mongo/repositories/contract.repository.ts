@@ -169,6 +169,7 @@ export class ContractRepository implements IContractRepository {
       .find({ contract: contractId })
       .sort({ createdAt: 'asc' })
       .populate('performedBy', 'name lastName email')
+      .populate('eventType')
       .exec();
   }
 
@@ -549,11 +550,14 @@ export class ContractRepository implements IContractRepository {
     details: string,
     metadata?: Record<string, any>,
   ): Promise<ContractHistory> {
+    // Permitir que eventType sea un ObjectId string del catálogo
+    const eventTypeId = (mongoose.Types.ObjectId.isValid(eventType)) ? new mongoose.Types.ObjectId(eventType) : undefined;
+
     const historyEntry = new this.contractHistoryModel({
       contract: contractId,
       performedBy: userId,
       action: ContractAction.NOTE_ADDED,
-      eventType: eventType,
+      eventType: eventTypeId,
       details: details,
       eventMetadata: metadata,
       changes: [],

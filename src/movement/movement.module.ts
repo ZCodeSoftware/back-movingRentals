@@ -15,6 +15,6 @@ import { MovementController } from './infrastructure/nest/controllers/movement.c
   imports: [MongooseModule.forFeature([movementSchema, userSchema, vehicleOwnerSchema])],
   controllers: [MovementController],
   providers: [movementService, movementRepository],
-  exports: []
+  exports: [movementService]
 })
 export class MovementModule { }

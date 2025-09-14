@@ -20,6 +20,8 @@ import { CatPriceConditionRepository } from '../mongo/repositories/cat-price-con
 import { CatRoleRepository } from '../mongo/repositories/cat-role.repository';
 import { CatStatusRepository } from '../mongo/repositories/cat-status.repository';
 import { CatModelRepository } from '../mongo/repositories/cat.model.repository';
+import { CatContractEventRepository } from '../mongo/repositories/cat-contract-event.repository';
+import { CatContractEventService } from '../../application/services/cat-contract-event.service';
 
 export const catRoleRepository = {
   provide: SymbolsCatalogs.ICatRoleRepository,
@@ -115,4 +117,14 @@ export const catStatusRepository = {
 export const catStatusService = {
   provide: SymbolsCatalogs.ICatStatusService,
   useClass: CatStatusService,
+}
+
+export const catContractEventRepository = {
+  provide: SymbolsCatalogs.ICatContractEventRepository,
+  useClass: CatContractEventRepository,
+}
+
+export const catContractEventService = {
+  provide: SymbolsCatalogs.ICatContractEventService,
+  useClass: CatContractEventService,
 }
