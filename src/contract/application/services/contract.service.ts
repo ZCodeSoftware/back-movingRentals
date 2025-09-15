@@ -1,6 +1,9 @@
 import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
 import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
+import { CatContractEvent } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import { ContractHistory } from '../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
 import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
 import SymbolsMovement from '../../../movement/symbols-movement';
@@ -12,9 +15,6 @@ import { IContractService } from '../../domain/services/contract.interface.servi
 import { ICreateContract, IUpdateContract } from '../../domain/types/contract.type';
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { CatContractEvent } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -64,7 +64,7 @@ export class ContractService implements IContractService {
       // Generar movimiento al actualizar el contrato (por ejemplo, extensión)
       const ext = updateData.extension as any;
       if (ext && typeof ext.extensionAmount === 'number' && ext.extensionAmount > 0 && ext.paymentMethod) {
-        const catEvent = await this.catContractEventModel.findOne({ name: /EXTENSION DE RENTA/i });
+        const catEvent = await this.catContractEventModel.findById(updateData.eventType);
         const movementDetail = catEvent?.name ?? 'EXTENSION DE RENTA';
         await this.movementService.create({
           type: TypeCatTypeMovement.LOCAL,

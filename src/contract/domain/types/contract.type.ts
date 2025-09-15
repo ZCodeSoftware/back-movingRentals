@@ -19,7 +19,7 @@ export interface IUpdateContract {
   reservingUser?: string;
   status?: string;
   extension?: IContractExtension;
-
+  eventType?: string
   newCart?: any;
   reasonForChange?: string;
 }
