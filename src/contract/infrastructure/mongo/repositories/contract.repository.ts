@@ -6,6 +6,7 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 import { Model } from 'mongoose';
+import { CatContractEvent } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import { Booking } from '../../../../core/infrastructure/mongo/schemas/public/booking.schema';
 import { CartVersion } from '../../../../core/infrastructure/mongo/schemas/public/cart-version.version';
 import { Cart } from '../../../../core/infrastructure/mongo/schemas/public/cart.schema';
@@ -14,7 +15,6 @@ import {
   ContractHistory,
 } from '../../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
 import { Contract } from '../../../../core/infrastructure/mongo/schemas/public/contract.schema';
-import { CatContractEvent } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import {
   Reservation,
   Vehicle,
@@ -54,8 +54,9 @@ export class ContractRepository implements IContractRepository {
     @InjectModel(ContractHistory.name)
     private readonly contractHistoryModel: Model<ContractHistory>,
     @InjectModel(Vehicle.name) private readonly vehicleModel: Model<Vehicle>,
-    @InjectModel(CatContractEvent.name) private readonly catContractEventModel: Model<CatContractEvent>,
-  ) { }
+    @InjectModel(CatContractEvent.name)
+    private readonly catContractEventModel: Model<CatContractEvent>,
+  ) {}
 
   async create(
     contract: ContractModel,
@@ -355,7 +356,6 @@ export class ContractRepository implements IContractRepository {
     };
   }
 
-  // --- AJUSTADO ---
   async update(
     id: string,
     contractData: UpdateContractDTO,
@@ -390,7 +390,7 @@ export class ContractRepository implements IContractRepository {
       if (
         contractUpdateData.reservingUser &&
         originalContract.reservingUser.toString() !==
-        contractUpdateData.reservingUser
+          contractUpdateData.reservingUser
       ) {
         changesToLog.push({
           field: 'reservingUser',
@@ -504,7 +504,7 @@ export class ContractRepository implements IContractRepository {
       if (
         oldVehicleItem &&
         newVehicleItem.dates.end.toString() !==
-        oldVehicleItem.dates.end.toString()
+          oldVehicleItem.dates.end.toString()
       ) {
         const originalEndDate = new Date(oldVehicleItem.dates.end);
         const newEndDate = new Date(newVehicleItem.dates.end);
@@ -548,10 +548,14 @@ export class ContractRepository implements IContractRepository {
     metadata?: Record<string, any>,
   ): Promise<ContractHistory> {
     // Permitir que eventType sea un ObjectId string del catálogo
-    const eventTypeId = (mongoose.Types.ObjectId.isValid(eventType)) ? new mongoose.Types.ObjectId(eventType) : undefined;
+    const eventTypeId = mongoose.Types.ObjectId.isValid(eventType)
+      ? new mongoose.Types.ObjectId(eventType)
+      : undefined;
     let detailToUse = details;
     if (eventTypeId) {
-      const catEvent = await this.catContractEventModel.findById(eventTypeId).lean();
+      const catEvent = await this.catContractEventModel
+        .findById(eventTypeId)
+        .lean();
       if (catEvent && (catEvent as any).name) {
         detailToUse = (catEvent as any).name;
       }

@@ -1,4 +1,9 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
@@ -10,9 +15,16 @@ import SymbolsMovement from '../../../movement/symbols-movement';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
 import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
 import { ContractModel } from '../../domain/models/contract.model';
-import { IContractFilters, IContractRepository, IPaginatedContractResponse } from '../../domain/repositories/contract.interface.repository';
+import {
+  IContractFilters,
+  IContractRepository,
+  IPaginatedContractResponse,
+} from '../../domain/repositories/contract.interface.repository';
 import { IContractService } from '../../domain/services/contract.interface.service';
-import { ICreateContract, IUpdateContract } from '../../domain/types/contract.type';
+import {
+  ICreateContract,
+  IUpdateContract,
+} from '../../domain/types/contract.type';
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
 
@@ -27,16 +39,23 @@ export class ContractService implements IContractService {
     private readonly movementService: IMovementService,
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
-  ) { }
+  ) {}
 
-  async create(contract: ICreateContract, userId: string): Promise<ContractModel> {
+  async create(
+    contract: ICreateContract,
+    userId: string,
+  ): Promise<ContractModel> {
     const processedContract = {
       ...contract,
       createdByUser: userId,
-      extension: contract.extension ? {
-        ...contract.extension,
-        newEndDateTime: contract.extension.newEndDateTime ? new Date(contract.extension.newEndDateTime) : undefined,
-      } : undefined,
+      extension: contract.extension
+        ? {
+            ...contract.extension,
+            newEndDateTime: contract.extension.newEndDateTime
+              ? new Date(contract.extension.newEndDateTime)
+              : undefined,
+          }
+        : undefined,
     };
 
     const contractModel = ContractModel.create(processedContract);
@@ -48,49 +67,77 @@ export class ContractService implements IContractService {
     return await this.contractRepository.findById(id);
   }
 
-  async findAll(filters: IContractFilters): Promise<IPaginatedContractResponse> {
+  async findAll(
+    filters: IContractFilters,
+  ): Promise<IPaginatedContractResponse> {
     return await this.contractRepository.findAll(filters);
   }
 
-  async update(id: string, updateData: IUpdateContract, userId: string): Promise<ContractModel> {
+  async update(
+    id: string,
+    updateData: IUpdateContract,
+    userId: string,
+  ): Promise<ContractModel> {
     const contractExists = await this.contractRepository.findById(id);
     if (!contractExists) {
-      throw new NotFoundException(`El contrato con ID "${id}" no fue encontrado.`);
+      throw new NotFoundException(
+        `El contrato con ID "${id}" no fue encontrado.`,
+      );
     }
 
     try {
-      const updated = await this.contractRepository.update(id, updateData, userId);
-
-      // Generar movimiento al actualizar el contrato (por ejemplo, extensión)
+      const updated = await this.contractRepository.update(
+        id,
+        updateData,
+        userId,
+      );
       const ext = updateData.extension as any;
-      if (ext && typeof ext.extensionAmount === 'number' && ext.extensionAmount > 0 && ext.paymentMethod) {
-        const catEvent = await this.catContractEventModel.findById(updateData.eventType);
+      if (
+        ext &&
+        typeof ext.extensionAmount === 'number' &&
+        ext.extensionAmount > 0 &&
+        ext.paymentMethod
+      ) {
+        const catEvent = await this.catContractEventModel.findById(
+          updateData.eventType,
+        );
         const movementDetail = catEvent?.name ?? 'EXTENSION DE RENTA';
-        await this.movementService.create({
-          type: TypeCatTypeMovement.LOCAL,
-          direction: TypeMovementDirection.IN,
-          detail: movementDetail,
-          amount: ext.extensionAmount,
-          date: new Date() as any,
-          paymentMethod: updated.toJSON().extension.paymentMethod.name,
-        }, userId);
+        await this.movementService.create(
+          {
+            type: TypeCatTypeMovement.LOCAL,
+            direction: TypeMovementDirection.IN,
+            detail: movementDetail,
+            amount: ext.extensionAmount,
+            date: new Date() as any,
+            paymentMethod: updated.toJSON().extension.paymentMethod.name,
+          },
+          userId,
+        );
       }
 
       return updated;
     } catch (error) {
-      // Capturar errores del repositorio y, si es necesario, transformarlos en errores HTTP.
-      console.error(`Fallo en la capa de servicio al actualizar el contrato ${id}`, error);
-      throw new InternalServerErrorException('Ocurrió un error al intentar actualizar el contrato.');
+      console.error(
+        `Fallo en la capa de servicio al actualizar el contrato ${id}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Ocurrió un error al intentar actualizar el contrato.',
+      );
     }
   }
 
-  async reportEvent(contractId: string, userId: string, eventData: ReportEventDTO): Promise<ContractHistory> {
+  async reportEvent(
+    contractId: string,
+    userId: string,
+    eventData: ReportEventDTO,
+  ): Promise<ContractHistory> {
     return await this.contractRepository.createHistoryEvent(
       contractId,
       userId,
       eventData.eventType,
       eventData.details,
-      eventData.metadata
+      eventData.metadata,
     );
   }
 }
