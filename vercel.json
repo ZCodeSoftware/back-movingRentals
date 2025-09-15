@@ -8,13 +8,16 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "/src/main.ts",
-      "methods": ["GET", "POST", "PUT","PATCH","HEAD","DELETE","OPTIONS"]
+      "src": "/api/docs",
+      "dest": "src/main.ts"
     },
     {
-      "src": "/api/docs",
-      "dest": "/api/docs"
+      "src": "/(.*)",
+      "dest": "src/main.ts",
+      "methods": ["GET", "POST", "PUT", "PATCH", "HEAD", "DELETE", "OPTIONS"]
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
