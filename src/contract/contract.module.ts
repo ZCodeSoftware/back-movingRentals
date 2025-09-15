@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common/decorators/modules';
 import { MongooseModule } from '@nestjs/mongoose';
-import { cartSchema } from '../catalogs/infrastructure/constants/custom-schema';
+import { cartSchema, catContractEventSchema } from '../catalogs/infrastructure/constants/custom-schema';
 import { MovementModule } from '../movement/movement.module';
 import { VehicleRepository } from '../vehicle/infrastructure/mongo/repositories/vehicle.repository';
 import SymbolsVehicle from '../vehicle/symbols-vehicle';
@@ -25,7 +25,8 @@ import { ContractController } from './infrastructure/nest/controllers/contract.c
       vehicleSchema,
       contractHistorySchema,
       cartVersionSchema,
-      cartSchema
+      cartSchema,
+      catContractEventSchema
     ])
     ,
     MovementModule

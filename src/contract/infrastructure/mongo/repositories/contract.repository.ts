@@ -14,6 +14,7 @@ import {
   ContractHistory,
 } from '../../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
 import { Contract } from '../../../../core/infrastructure/mongo/schemas/public/contract.schema';
+import { CatContractEvent } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import {
   Reservation,
   Vehicle,
@@ -53,6 +54,7 @@ export class ContractRepository implements IContractRepository {
     @InjectModel(ContractHistory.name)
     private readonly contractHistoryModel: Model<ContractHistory>,
     @InjectModel(Vehicle.name) private readonly vehicleModel: Model<Vehicle>,
+    @InjectModel(CatContractEvent.name) private readonly catContractEventModel: Model<CatContractEvent>,
   ) { }
 
   async create(
@@ -547,13 +549,20 @@ export class ContractRepository implements IContractRepository {
   ): Promise<ContractHistory> {
     // Permitir que eventType sea un ObjectId string del catálogo
     const eventTypeId = (mongoose.Types.ObjectId.isValid(eventType)) ? new mongoose.Types.ObjectId(eventType) : undefined;
+    let detailToUse = details;
+    if (eventTypeId) {
+      const catEvent = await this.catContractEventModel.findById(eventTypeId).lean();
+      if (catEvent && (catEvent as any).name) {
+        detailToUse = (catEvent as any).name;
+      }
+    }
 
     const historyEntry = new this.contractHistoryModel({
       contract: contractId,
       performedBy: userId,
       action: ContractAction.NOTE_ADDED,
       eventType: eventTypeId,
-      details: details,
+      details: detailToUse,
       eventMetadata: metadata,
       changes: [],
     });
