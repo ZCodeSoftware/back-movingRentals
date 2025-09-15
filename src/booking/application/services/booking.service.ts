@@ -131,7 +131,6 @@ export class BookingService implements IBookingService {
 
     const cartData = cart.toJSON();
 
-    // 3. Validar que el carrito no esté vacío
     const hasItems =
       (cartData.vehicles && cartData.vehicles.length > 0) ||
       (cartData.transfer && cartData.transfer.length > 0) ||
