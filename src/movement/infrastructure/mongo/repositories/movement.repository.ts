@@ -119,7 +119,7 @@ export class MovementRepository implements IMovementRepository {
         const finalQuery = { ...query, ...otherFilters };
 
         const [movements, totalItems] = await Promise.all([
-            this.movementDB.find(finalQuery).skip(skip).limit(limitNumber).populate({
+            this.movementDB.find(finalQuery).sort({ createdAt: -1 }).skip(skip).limit(limitNumber).populate({
                 path: 'createdBy',
                 populate: {
                     path: 'role'

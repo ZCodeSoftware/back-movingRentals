@@ -12,6 +12,9 @@ import { IContractService } from '../../domain/services/contract.interface.servi
 import { ICreateContract, IUpdateContract } from '../../domain/types/contract.type';
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { CatContractEvent } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -22,6 +25,8 @@ export class ContractService implements IContractService {
     private readonly vehicleRepository: IVehicleRepository,
     @Inject(SymbolsMovement.IMovementService)
     private readonly movementService: IMovementService,
+    @InjectModel(CatContractEvent.name)
+    private readonly catContractEventModel: Model<CatContractEvent>,
   ) { }
 
   async create(contract: ICreateContract, userId: string): Promise<ContractModel> {
@@ -59,10 +64,12 @@ export class ContractService implements IContractService {
       // Generar movimiento al actualizar el contrato (por ejemplo, extensión)
       const ext = updateData.extension as any;
       if (ext && typeof ext.extensionAmount === 'number' && ext.extensionAmount > 0 && ext.paymentMethod) {
+        const catEvent = await this.catContractEventModel.findOne({ name: /EXTENSION DE RENTA/i });
+        const movementDetail = catEvent?.name ?? 'EXTENSION DE RENTA';
         await this.movementService.create({
           type: TypeCatTypeMovement.LOCAL,
           direction: TypeMovementDirection.IN,
-          detail: 'Actualización de contrato (extensión)',
+          detail: movementDetail,
           amount: ext.extensionAmount,
           date: new Date() as any,
           paymentMethod: updated.toJSON().extension.paymentMethod.name,
