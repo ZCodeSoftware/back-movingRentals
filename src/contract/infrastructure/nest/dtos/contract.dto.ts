@@ -106,6 +106,11 @@ export class UpdateContractDTO {
   @IsOptional()
   @IsString()
   reasonForChange?: string;
+
+  @ApiPropertyOptional({ description: 'ID del tipo de evento (CatContractEvent._id)' })
+  @IsOptional()
+  @IsString()
+  eventType?: string;
 }
 
 export class ReportEventDTO {
