@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsObject,
@@ -11,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-
+import { TypeCatPaymentMethodAdmin } from '../../../../core/domain/enums/type-cat-payment-method-admin';
 
 // --- DTO para el sub-documento de la extensión ---
 export class ContractExtensionDTO {
@@ -105,10 +106,15 @@ export class UpdateContractDTO {
   @IsOptional()
   @IsString()
   reasonForChange?: string;
+
+  @ApiPropertyOptional({ description: 'ID del tipo de evento (CatContractEvent._id)' })
+  @IsOptional()
+  @IsString()
+  eventType?: string;
 }
 
 export class ReportEventDTO {
-  @ApiProperty({ description: 'El tipo de evento, definido por el usuario.', example: 'Pérdida de Casco' })
+  @ApiProperty({ description: 'ID del tipo de evento (CatContractEvent._id)' })
   @IsString()
   @IsNotEmpty()
   eventType: string;
@@ -117,6 +123,31 @@ export class ReportEventDTO {
   @IsString()
   @IsNotEmpty()
   details: string;
+
+  @ApiProperty({ description: 'Importe del movimiento (ingreso).' })
+  @IsNumber()
+  @IsNotEmpty()
+  amount: number;
+
+  @ApiProperty({ enum: TypeCatPaymentMethodAdmin, description: 'Método de pago' })
+  @IsEnum(TypeCatPaymentMethodAdmin)
+  @IsNotEmpty()
+  paymentMethod: TypeCatPaymentMethodAdmin;
+
+  @ApiPropertyOptional({ description: 'ID del vehículo asociado (opcional)' })
+  @IsOptional()
+  @IsString()
+  vehicle?: string;
+
+  @ApiPropertyOptional({ description: 'ID del beneficiario (User o VehicleOwner)' })
+  @IsOptional()
+  @IsString()
+  beneficiary?: string;
+
+  @ApiPropertyOptional({ description: 'Fecha del movimiento (ISO8601)' })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 
   @ApiPropertyOptional({ description: 'Datos estructurados adicionales sobre el evento.' })
   @IsOptional()

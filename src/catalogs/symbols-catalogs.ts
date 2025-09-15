@@ -15,6 +15,8 @@ const SymbolsCatalogs = {
   ICatModelService: Symbol.for('ICatModelService'),
   ICatStatusRepository: Symbol.for('ICatStatusRepository'),
   ICatStatusService: Symbol.for('ICatStatusService'),
+  ICatContractEventRepository: Symbol.for('ICatContractEventRepository'),
+  ICatContractEventService: Symbol.for('ICatContractEventService'),
 };
 
 export default SymbolsCatalogs;

@@ -1,5 +1,12 @@
 import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
+import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
+import { CatContractEvent } from '../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import { ContractHistory } from '../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
+import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
+import SymbolsMovement from '../../../movement/symbols-movement';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
 import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
 import { ContractModel } from '../../domain/models/contract.model';
@@ -16,6 +23,10 @@ export class ContractService implements IContractService {
     private readonly contractRepository: IContractRepository,
     @Inject(SymbolsVehicle.IVehicleRepository)
     private readonly vehicleRepository: IVehicleRepository,
+    @Inject(SymbolsMovement.IMovementService)
+    private readonly movementService: IMovementService,
+    @InjectModel(CatContractEvent.name)
+    private readonly catContractEventModel: Model<CatContractEvent>,
   ) { }
 
   async create(contract: ICreateContract, userId: string): Promise<ContractModel> {
@@ -48,7 +59,24 @@ export class ContractService implements IContractService {
     }
 
     try {
-      return await this.contractRepository.update(id, updateData, userId);
+      const updated = await this.contractRepository.update(id, updateData, userId);
+
+      // Generar movimiento al actualizar el contrato (por ejemplo, extensión)
+      const ext = updateData.extension as any;
+      if (ext && typeof ext.extensionAmount === 'number' && ext.extensionAmount > 0 && ext.paymentMethod) {
+        const catEvent = await this.catContractEventModel.findById(updateData.eventType);
+        const movementDetail = catEvent?.name ?? 'EXTENSION DE RENTA';
+        await this.movementService.create({
+          type: TypeCatTypeMovement.LOCAL,
+          direction: TypeMovementDirection.IN,
+          detail: movementDetail,
+          amount: ext.extensionAmount,
+          date: new Date() as any,
+          paymentMethod: updated.toJSON().extension.paymentMethod.name,
+        }, userId);
+      }
+
+      return updated;
     } catch (error) {
       // Capturar errores del repositorio y, si es necesario, transformarlos en errores HTTP.
       console.error(`Fallo en la capa de servicio al actualizar el contrato ${id}`, error);
@@ -57,8 +85,7 @@ export class ContractService implements IContractService {
   }
 
   async reportEvent(contractId: string, userId: string, eventData: ReportEventDTO): Promise<ContractHistory> {
-    // El servicio simplemente pasa los datos al repositorio
-    return this.contractRepository.createHistoryEvent(
+    return await this.contractRepository.createHistoryEvent(
       contractId,
       userId,
       eventData.eventType,

@@ -14,6 +14,7 @@ import {
   ContractHistory,
 } from '../../../../core/infrastructure/mongo/schemas/public/contract-history.schema';
 import { Contract } from '../../../../core/infrastructure/mongo/schemas/public/contract.schema';
+import { CatContractEvent } from '../../../../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import {
   Reservation,
   Vehicle,
@@ -53,7 +54,8 @@ export class ContractRepository implements IContractRepository {
     @InjectModel(ContractHistory.name)
     private readonly contractHistoryModel: Model<ContractHistory>,
     @InjectModel(Vehicle.name) private readonly vehicleModel: Model<Vehicle>,
-  ) {}
+    @InjectModel(CatContractEvent.name) private readonly catContractEventModel: Model<CatContractEvent>,
+  ) { }
 
   async create(
     contract: ContractModel,
@@ -169,6 +171,7 @@ export class ContractRepository implements IContractRepository {
       .find({ contract: contractId })
       .sort({ createdAt: 'asc' })
       .populate('performedBy', 'name lastName email')
+      .populate('eventType')
       .exec();
   }
 
@@ -387,7 +390,7 @@ export class ContractRepository implements IContractRepository {
       if (
         contractUpdateData.reservingUser &&
         originalContract.reservingUser.toString() !==
-          contractUpdateData.reservingUser
+        contractUpdateData.reservingUser
       ) {
         changesToLog.push({
           field: 'reservingUser',
@@ -420,11 +423,6 @@ export class ContractRepository implements IContractRepository {
       }
 
       if (newCart) {
-        if (!reasonForChange) {
-          throw new Error(
-            "Debe proporcionar un motivo ('reasonForChange') al modificar el carrito.",
-          );
-        }
         // Pasamos la sesión, y esta función ahora OPERA dentro de ella, pero no la finaliza.
         await this.applyBookingChangesFromExtension(
           id,
@@ -506,7 +504,7 @@ export class ContractRepository implements IContractRepository {
       if (
         oldVehicleItem &&
         newVehicleItem.dates.end.toString() !==
-          oldVehicleItem.dates.end.toString()
+        oldVehicleItem.dates.end.toString()
       ) {
         const originalEndDate = new Date(oldVehicleItem.dates.end);
         const newEndDate = new Date(newVehicleItem.dates.end);
@@ -549,12 +547,22 @@ export class ContractRepository implements IContractRepository {
     details: string,
     metadata?: Record<string, any>,
   ): Promise<ContractHistory> {
+    // Permitir que eventType sea un ObjectId string del catálogo
+    const eventTypeId = (mongoose.Types.ObjectId.isValid(eventType)) ? new mongoose.Types.ObjectId(eventType) : undefined;
+    let detailToUse = details;
+    if (eventTypeId) {
+      const catEvent = await this.catContractEventModel.findById(eventTypeId).lean();
+      if (catEvent && (catEvent as any).name) {
+        detailToUse = (catEvent as any).name;
+      }
+    }
+
     const historyEntry = new this.contractHistoryModel({
       contract: contractId,
       performedBy: userId,
       action: ContractAction.NOTE_ADDED,
-      eventType: eventType,
-      details: details,
+      eventType: eventTypeId,
+      details: detailToUse,
       eventMetadata: metadata,
       changes: [],
     });
