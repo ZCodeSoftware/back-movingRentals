@@ -14,6 +14,10 @@ import { ICatRoleRepository } from '../../../domain/repositories/cat-role.interf
 import { IUserRepository } from '../../../domain/repositories/user.interface.repository';
 import { UserSchema } from '../schemas/user.schema';
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class UserRepository implements IUserRepository {
   constructor(
     @InjectModel('User') private readonly userModel: Model<UserSchema>,
@@ -88,14 +92,24 @@ export class UserRepository implements IUserRepository {
             : filters.role;
       }
 
-      if (filters.email) {
-        query.email = { $regex: filters.email, $options: 'i' };
+      if (filters.search) {
+        const regex = new RegExp(escapeRegex(filters.search), 'i');
+        query.$or = [
+          { email: regex },
+          { name: regex },
+          { lastName: regex },
+        ];
+      } else {
+        if (filters.email) {
+          query.email = { $regex: escapeRegex(filters.email), $options: 'i' };
+        }
+        if (filters.name) {
+          query.name = { $regex: escapeRegex(filters.name), $options: 'i' };
+        }
+        if (filters.lastName) {
+          query.lastName = { $regex: escapeRegex(filters.lastName), $options: 'i' };
+        }
       }
-
-      if (filters.name) {
-        query.name = { $regex: filters.name, $options: 'i' };
-      }
-
 
       const page =
         parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
