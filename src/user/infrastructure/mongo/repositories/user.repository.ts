@@ -20,7 +20,7 @@ export class UserRepository implements IUserRepository {
     @InjectModel('Cart') private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) {}
+  ) { }
 
   async create(user: UserModel, role: string): Promise<UserModel> {
     try {
@@ -91,6 +91,11 @@ export class UserRepository implements IUserRepository {
       if (filters.email) {
         query.email = { $regex: filters.email, $options: 'i' };
       }
+
+      if (filters.name) {
+        query.name = { $regex: filters.name, $options: 'i' };
+      }
+
 
       const page =
         parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
