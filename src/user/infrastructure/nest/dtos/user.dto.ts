@@ -70,6 +70,43 @@ export class AutoCreateUserDTO {
   @ApiProperty()
   @IsNotEmpty({ message: 'The user email is required' })
   email: string;
+
+  @IsString()
+  @ApiPropertyOptional()
+  @Matches(ONLY_LETTERS_REGEX, {
+    message: 'The user name can only contain letters (including accents and ñ)',
+  })
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @ApiPropertyOptional()
+  @Matches(ONLY_LETTERS_REGEX, {
+    message:
+      'The user last name can only contain letters (including accents and ñ)',
+  })
+  @IsOptional()
+  lastName?: string;
+
+  @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  cellphone?: string;
+
+  @IsOptional()
+  @ApiPropertyOptional()
+  @Type(() => CreateAddressDTO)
+  address?: CreateAddressDTO;
+
+  @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  countryId?: string;
+
+  @IsOptional()
+  @ApiPropertyOptional()
+  @IsString()
+  role?: string
 }
 export class UpdateUserDTO {
   @IsString()
