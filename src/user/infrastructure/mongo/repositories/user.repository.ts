@@ -132,7 +132,13 @@ export class UserRepository implements IUserRepository {
       const totalItems = await this.userModel.countDocuments(query);
       const users = await this.userModel
         .find(query)
-        .populate('role address.country')
+        .populate('role')
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        })
         .skip(skip)
         .limit(limit);
 
