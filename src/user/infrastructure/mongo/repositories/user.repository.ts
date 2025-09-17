@@ -98,6 +98,15 @@ export class UserRepository implements IUserRepository {
           { email: regex },
           { name: regex },
           { lastName: regex },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$name', ' ', '$lastName'] },
+                regex: escapeRegex(filters.search),
+                options: 'i',
+              },
+            },
+          },
         ];
       } else {
         if (filters.email) {
