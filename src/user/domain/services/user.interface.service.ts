@@ -18,5 +18,6 @@ export interface IUserService {
   findByEmail(email: string): Promise<UserModel>;
   findById(id: string): Promise<UserModel>;
   update(id: string, user: IUserUpdate): Promise<UserModel>;
+  delete(id: string): Promise<void>;
   forgotPassword(email: string, requestHost: string): Promise<any>
 }

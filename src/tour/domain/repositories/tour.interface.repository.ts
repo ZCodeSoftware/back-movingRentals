@@ -6,4 +6,5 @@ export interface ITourRepository {
     findById(id: string): Promise<TourModel>;
     findAll(filters: TourFiltersDTO): Promise<TourModel[]>
     update(id: string, tour: TourModel): Promise<TourModel>
+    softDelete(id: string): Promise<void>;
 }

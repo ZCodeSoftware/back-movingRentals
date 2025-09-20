@@ -28,6 +28,8 @@ import { TransferModule } from './transfer/transfer.module';
 import { UserModule } from './user/user.module';
 import { VehicleModule } from './vehicle/vehicle.module';
 import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { AuthStatusInterceptor } from './auth/infrastructure/nest/interceptors/auth-status.interceptor';
 
 @Module({
   imports: [
@@ -58,7 +60,13 @@ import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
     ContractModule
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuthStatusInterceptor,
+    },
+  ],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

@@ -30,6 +30,9 @@ export class Tour {
     @Prop({ default: true })
     isActive: boolean;
 
+    @Prop({ default: false })
+    isDeleted: boolean;
+
     @Prop({ required: false })
     images: string[];
 
@@ -38,3 +41,16 @@ export class Tour {
 }
 
 export const TourSchema = SchemaFactory.createForClass(Tour);
+
+// Exclude logically deleted documents by default
+TourSchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+TourSchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});

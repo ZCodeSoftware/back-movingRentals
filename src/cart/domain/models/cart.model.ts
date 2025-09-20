@@ -17,6 +17,8 @@ export class CartModel extends BaseModel {
   private _vehicles: { vehicle: VehicleModel, total: number, dates: DatesDTO, passengers: Passenger }[];
   private _tours: { tour: TourModel, date: Date, quantity: number, passengers: Passenger }[];
   private _tickets: { ticket: TicketModel, date: Date, quantity: number, passengers: Passenger }[];
+  private _delivery?: boolean;
+  private _deliveryAddress?: string;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -31,12 +33,16 @@ export class CartModel extends BaseModel {
       })) : [],
       vehicles: this._vehicles ? this._vehicles.map((v) => ({ vehicle: v.vehicle.toJSON(), total: v.total, dates: v.dates, passengers: v.passengers })) : [],
       tours: this._tours ? this._tours.map((t) => ({ tour: t.tour.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [],
-      tickets: this._tickets ? this._tickets.map((t) => ({ ticket: t.ticket.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : []
+      tickets: this._tickets ? this._tickets.map((t) => ({ ticket: t.ticket.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [],
+      delivery: this._delivery ?? false,
+      deliveryAddress: this._deliveryAddress ?? null,
     };
   }
 
   static create(cart: any): CartModel {
     const newCart = new CartModel(new Identifier(cart._id));
+    if (typeof cart.delivery === 'boolean') newCart._delivery = cart.delivery;
+    if (typeof cart.deliveryAddress === 'string') newCart._deliveryAddress = cart.deliveryAddress;
 
     return newCart;
   }
@@ -48,6 +54,18 @@ export class CartModel extends BaseModel {
     newCart._vehicles = cart.vehicles ? cart.vehicles.map((v) => ({ vehicle: VehicleModel.hydrate(v.vehicle), total: v.total, dates: v.dates, passengers: v.passengers })) : [];
     newCart._tours = cart.tours ? cart.tours.map((t) => ({ tour: TourModel.hydrate(t.tour), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [];
     newCart._tickets = cart.tickets ? cart.tickets.map((t) => ({ ticket: TicketModel.hydrate(t.ticket), date: t.date, passengers: t.passengers, quantity: t.quantity })) : [];
+    newCart._delivery = typeof cart.delivery === 'boolean' ? cart.delivery : undefined;
+    newCart._deliveryAddress = typeof cart.deliveryAddress === 'string' ? cart.deliveryAddress : undefined;
     return newCart;
+  }
+
+  // Domain behavior
+  setDelivery(delivery: boolean, address?: string) {
+    this._delivery = delivery;
+    this._deliveryAddress = address;
+  }
+
+  setDeliveryAddress(address?: string) {
+    this._deliveryAddress = address;
   }
 }

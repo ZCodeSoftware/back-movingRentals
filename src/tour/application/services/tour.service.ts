@@ -49,4 +49,8 @@ export class TourService implements ITourService {
 
         return this.tourRepository.update(id, tourModel);
     }
+
+    async delete(id: string): Promise<void> {
+        return this.tourRepository.softDelete(id);
+    }
 }

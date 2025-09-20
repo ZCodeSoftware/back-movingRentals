@@ -250,4 +250,23 @@ export class UserRepository implements IUserRepository {
       throw new BaseErrorException(error.message, error.statusCode);
     }
   }
+
+  async softDelete(id: string): Promise<void> {
+    try {
+      const updated = await this.userModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true },
+      );
+
+      if (!updated) {
+        throw new BaseErrorException(
+          `The user with ID ${id} does not exist`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
 }
