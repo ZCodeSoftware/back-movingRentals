@@ -16,4 +16,5 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<UserModel>;
   findById(id: string): Promise<UserModel>;
   update(id: string, user: UserModel): Promise<UserModel>;
+  softDelete(id: string): Promise<void>;
 }

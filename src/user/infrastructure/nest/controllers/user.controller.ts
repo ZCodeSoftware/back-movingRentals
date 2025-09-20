@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   Req,
+  Delete,
 } from '@nestjs/common/decorators/http';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
@@ -125,5 +126,13 @@ export class UserController {
     @Headers('origin') requestHost: string,
   ): Promise<any> {
     return await this.userService.forgotPassword(email, requestHost);
+  }
+
+  @Delete(':id')
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiResponse({ status: 204, description: 'User soft-deleted' })
+  async delete(@Param('id') id: string): Promise<void> {
+    await this.userService.delete(id);
   }
 }

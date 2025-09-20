@@ -41,6 +41,9 @@ export class User {
   @Prop({ default: false })
   newsletter: boolean;
 
+  @Prop({ default: false })
+  isDeleted: boolean;
+
   @Prop({
     type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
     required: false,
@@ -60,3 +63,16 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Exclude logically deleted documents by default
+UserSchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+UserSchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});

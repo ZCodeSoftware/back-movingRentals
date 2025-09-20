@@ -6,4 +6,5 @@ export interface ITransferRepository {
     findById(id: string): Promise<TransferModel>;
     findAll(filters: TourFiltersDTO): Promise<TransferModel[]>
     update(id: string, transfer: TransferModel): Promise<TransferModel>
+    softDelete(id: string): Promise<void>;
 }

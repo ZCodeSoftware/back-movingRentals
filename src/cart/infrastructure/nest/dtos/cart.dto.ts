@@ -63,4 +63,10 @@ export class UpdateCartDTO {
         quantity: number;
         passengers: TravelersDTO;
     }[];
+
+    @ApiProperty({ required: false, description: 'If true, the vehicle must be delivered to a specific address' })
+    delivery?: boolean;
+
+    @ApiProperty({ required: false, description: 'Delivery address. Required if delivery is true' })
+    deliveryAddress?: string;
 }

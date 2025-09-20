@@ -16,8 +16,8 @@ export class TokenService implements ITokenService {
 
   async generateToken(userEmail: string): Promise<string> {
     const user = await this.userRepository.findByEmail(userEmail);
-    const { _id, email } = user.toJSON();
-    const payload = { _id, email };
+    const { _id, email, isActive } = user.toJSON();
+    const payload = { _id, email, isActive };
     const options = {
       secret: config().auth.jwt.secret,
       expiresIn: config().auth.jwt.expiresIn,
@@ -28,8 +28,8 @@ export class TokenService implements ITokenService {
 
   async recoveryToken(userEmail: string): Promise<string> {
     const user = await this.userRepository.findByEmail(userEmail);
-    const { _id, email } = user.toJSON();
-    const payload = { _id, email };
+    const { _id, email, isActive } = user.toJSON();
+    const payload = { _id, email, isActive };
     const options = {
       secret: config().auth.jwt.secret,
       expiresIn: '10m',

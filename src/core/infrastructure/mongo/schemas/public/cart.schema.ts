@@ -81,6 +81,12 @@ export class Cart {
         quantity: number
         passengers: Passenger
     }[];
+
+    @Prop({ type: Boolean, required: false, default: false })
+    delivery?: boolean;
+
+    @Prop({ type: String, required: false })
+    deliveryAddress?: string;
 }
 
 export const CartSchema = SchemaFactory.createForClass(Cart);

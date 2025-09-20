@@ -56,4 +56,9 @@ export class TransferRepository implements ITransferRepository {
 
         return TransferModel.hydrate(updatedTransfer)
     }
+
+    async softDelete(id: string): Promise<void> {
+        const updated = await this.transferDB.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+        if (!updated) throw new BaseErrorException('Transfer not found', HttpStatus.NOT_FOUND);
+    }
 }

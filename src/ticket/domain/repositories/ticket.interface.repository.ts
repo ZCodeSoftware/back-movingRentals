@@ -6,4 +6,5 @@ export interface ITicketRepository {
     findById(id: string): Promise<TicketModel>;
     findAll(filters: TicketFiltersDTO): Promise<TicketModel[]>
     update(id: string, ticket: TicketModel): Promise<TicketModel>
+    softDelete(id: string): Promise<void>;
 }

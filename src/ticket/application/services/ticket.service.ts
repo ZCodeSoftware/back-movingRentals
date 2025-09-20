@@ -48,4 +48,8 @@ export class TicketService implements ITicketService {
 
         return this.ticketRepository.update(id, ticketModel);
     }
+
+    async delete(id: string): Promise<void> {
+        return this.ticketRepository.softDelete(id);
+    }
 }

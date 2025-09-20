@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import SymbolsCatalogs from '../../../symbols-catalogs';
 import { ICatContractEventService } from '../../../domain/services/cat-contract-event.interface.service';
+import SymbolsCatalogs from '../../../symbols-catalogs';
 
 @Injectable()
 export class ContractEventSeed implements OnModuleInit {
@@ -8,7 +8,7 @@ export class ContractEventSeed implements OnModuleInit {
   constructor(
     @Inject(SymbolsCatalogs.ICatContractEventService)
     private readonly service: ICatContractEventService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     const names = [
@@ -51,6 +51,9 @@ export class ContractEventSeed implements OnModuleInit {
       'LATE PICK UP',
       'RENTA',
       'TRANSFER TULUM-AEROPUERTO',
+      'REPORTE',
+      'IMPRESIONES A COLOR',
+      'GASTO PARA TOURS'
     ];
 
     for (const name of names) {

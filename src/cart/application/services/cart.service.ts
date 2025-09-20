@@ -38,7 +38,7 @@ export class CartService implements ICartService {
     ) { }
 
     async update(id: string, data: UpdateCartDTO): Promise<CartModel> {
-        const { branch, transfer, selectedItems, selectedTours, selectedTickets, ...rest } = data;
+        const { branch, transfer, selectedItems, selectedTours, selectedTickets, delivery, deliveryAddress, ...rest } = data;
 
         const branchModel = branch && branch !== "" && await this.branchesRepository.findById(branch);
 
@@ -79,12 +79,19 @@ export class CartService implements ICartService {
             return { transfer: transferModel, date: t.date, passengers: t.passengers, quantity: t.quantity };
         }))
 
+        // Validate delivery vs address constraint
+        if (delivery === true && (!deliveryAddress || deliveryAddress.trim() === '')) {
+            throw new BaseErrorException('Delivery address is required when delivery is true', 400);
+        }
+
         const cart = await this.cartRepository.update(id, {
             branch: branchModel ? branchModel : null,
             tours: tours ?? [],
             vehicles: vehicles ?? [],
             transfer: transfers ?? [],
             tickets: tickets ?? [],
+            delivery: delivery ?? false,
+            deliveryAddress: deliveryAddress ?? null,
             ...rest
         });
 

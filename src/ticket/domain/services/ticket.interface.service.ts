@@ -6,4 +6,5 @@ export interface ITicketService {
     findById(id: string): Promise<TicketModel>;
     findAll(filters: IFilters): Promise<TicketModel[]>
     update(id: string, ticket: ICreateTicket): Promise<TicketModel>
+    delete(id: string): Promise<void>;
 }

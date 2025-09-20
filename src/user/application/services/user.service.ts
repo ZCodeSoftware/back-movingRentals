@@ -226,6 +226,14 @@ export class UserService implements IUserService {
     }
   }
 
+  async delete(id: string): Promise<void> {
+    try {
+      await this.userRepository.softDelete(id);
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
   async forgotPassword(email: string, requestHost: string): Promise<any> {
     try {
       const validFrontendUrl = config().app.front.front_base_urls.find(

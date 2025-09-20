@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete } from "@nestjs/common";
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ITourService } from "../../../domain/services/tour.interface.service";
 import SymbolsTour from "../../../symbols-tour";
@@ -45,5 +45,12 @@ export class TourController {
     @ApiBody({ type: UpdateTourDTO, description: 'Data to update a Tour' })
     async update(@Param('id') id: string, @Body() body: UpdateTourDTO) {
         return this.tourService.update(id, body);
+    }
+
+    @Delete(':id')
+    @HttpCode(204)
+    @ApiResponse({ status: 204, description: 'Tour soft-deleted' })
+    async delete(@Param('id') id: string): Promise<void> {
+        await this.tourService.delete(id);
     }
 }

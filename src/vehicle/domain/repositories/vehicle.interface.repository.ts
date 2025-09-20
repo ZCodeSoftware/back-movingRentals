@@ -9,4 +9,5 @@ export interface IVehicleRepository {
     update(id: string, vehicle: VehicleModel): Promise<VehicleModel>;
     updatePriceByModel(model: string, prices: UpdatePriceByModelDTO): Promise<void>;
     updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void>;
+    softDelete(id: string): Promise<void>;
 }

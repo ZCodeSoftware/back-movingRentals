@@ -52,4 +52,8 @@ export class TransferService implements ITransferService {
 
         return this.transferRepository.update(id, transferModel);
     }
+
+    async delete(id: string): Promise<void> {
+        return this.transferRepository.softDelete(id);
+    }
 }
