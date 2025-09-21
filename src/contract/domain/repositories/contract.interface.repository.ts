@@ -18,6 +18,7 @@ export interface IContractFilters {
   status?: string;
   reservingUser?: string;
   createdByUser?: string;
+  service?: string;
   page?: number;
   limit?: number;
 }

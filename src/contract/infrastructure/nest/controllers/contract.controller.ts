@@ -112,6 +112,13 @@ export class ContractController {
     description: 'Filter by created by user ID',
   })
   @ApiQuery({
+    name: 'service',
+    required: false,
+    type: 'string',
+    description:
+      'Filter by service name inside booking cart (vehicle, tour, ticket, transfer)',
+  })
+  @ApiQuery({
     name: 'page',
     required: false,
     type: 'number',
