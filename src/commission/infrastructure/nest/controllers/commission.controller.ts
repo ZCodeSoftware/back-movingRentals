@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Inject, Param, Put, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Inject, Put, Query, UseGuards, Param } from '@nestjs/common';
 import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
@@ -15,15 +15,23 @@ export class CommissionController {
     private readonly service: ICommissionService,
   ) {}
 
-  @Get('owner/:ownerId')
+  @Get()
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Return commissions by owner' })
   @ApiResponse({ status: 404, description: 'Commissions not found' })
   @Roles(TypeRoles.ADMIN, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
   @UseGuards(AuthGuards, RoleGuard)
+  @ApiQuery({ name: 'ownerId', required: false, type: 'string' })
   @ApiQuery({ name: 'status', required: false, type: 'string' })
-  async listByOwner(@Param('ownerId') ownerId: string, @Query('status') status?: 'PENDING' | 'PAID' | 'CANCELLED') {
-    return this.service.listByOwner(ownerId, { status });
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async listByOwner(
+    @Query('ownerId') ownerId?: string,
+    @Query('status') status?: 'PENDING' | 'PAID' | 'CANCELLED',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.listByOwner(ownerId || '', { status, page, limit });
   }
 
   @Put(':id/pay')

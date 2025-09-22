@@ -16,7 +16,17 @@ export class CommissionService implements ICommissionService {
     return this.repository.create(model);
   }
 
-  async listByOwner(ownerId: string, filters: any = {}): Promise<CommissionModel[]> {
+  async listByOwner(ownerId: string, filters: any = {}): Promise<{
+    data: CommissionModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
     return this.repository.findAllByOwner(ownerId, filters);
   }
 
