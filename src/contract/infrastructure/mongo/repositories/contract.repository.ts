@@ -315,6 +315,23 @@ export class ContractRepository implements IContractRepository {
         filters.createdByUser,
       );
     }
+    if (filters.service) {
+      // The booking.cart is stored as a JSON string; build specific regexes for service names inside vehicle/tour/ticket/transfer entries
+      const escaped = escapeRegex(filters.service);
+      const vehiclesRegex = new RegExp(`\"vehicles\"\\s*:\\s*\\[.*?\"vehicle\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`, 'i');
+      const toursRegex = new RegExp(`\"tours\"\\s*:\\s*\\[.*?\"tour\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`, 'i');
+      const ticketsRegex = new RegExp(`\"tickets\"\\s*:\\s*\\[.*?\"ticket\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`, 'i');
+      const transferRegex = new RegExp(`\"transfer\"\\s*:\\s*\\[.*?\"transfer\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`, 'i');
+
+      const orConditions = [
+        { 'bookingData.cart': { $regex: vehiclesRegex } },
+        { 'bookingData.cart': { $regex: toursRegex } },
+        { 'bookingData.cart': { $regex: ticketsRegex } },
+        { 'bookingData.cart': { $regex: transferRegex } },
+      ];
+
+      pipeline.push({ $match: { $or: orConditions } });
+    }
     if (Object.keys(matchConditions).length > 0) {
       pipeline.push({ $match: matchConditions });
     }
