@@ -19,12 +19,45 @@ export class CommissionRepository implements ICommissionRepository {
     return CommissionModel.hydrate(saved);
   }
 
-  async findAllByOwner(ownerId: string, filters: any = {}): Promise<CommissionModel[]> {
-    const query: any = { vehicleOwner: new Types.ObjectId(String(ownerId)) };
+  async findAllByOwner(ownerId: string, filters: any = {}): Promise<{
+    data: CommissionModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    const query: any = {};
+    if (ownerId) query.vehicleOwner = new Types.ObjectId(String(ownerId));
     if (filters.status) query.status = filters.status;
 
-    const list = await this.commissionDB.find(query).populate('user vehicleOwner vehicle booking');
-    return list.map((doc) => CommissionModel.hydrate(doc));
+    const page = parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+    const limit = parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
+    const skip = (page - 1) * limit;
+
+    const totalItems = await this.commissionDB.countDocuments(query);
+    const list = await this.commissionDB
+      .find(query)
+      .populate('user vehicleOwner vehicle booking')
+      .skip(skip)
+      .limit(limit);
+
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+
+    return {
+      data: list.map((doc) => CommissionModel.hydrate(doc)),
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async findByBooking(bookingId: string): Promise<CommissionModel[]> {
