@@ -53,6 +53,39 @@ export class MovementRepository implements IMovementRepository {
         return MovementModel.hydrate(populatedMovement);
     }
 
+    async update(id: string, movement: Partial<CreateMovementDTO>): Promise<MovementModel> {
+        let beneficiaryModel: 'User' | 'VehicleOwner' | undefined;
+        if (movement.beneficiary) {
+            const user = await this.userDB.findById(movement.beneficiary);
+            if (!user) {
+                const vehicleOwner = await this.vehicleOwnerDB.findById(movement.beneficiary);
+                if (!vehicleOwner) {
+                    throw new BaseErrorException('Beneficiary not found', HttpStatus.NOT_FOUND)
+                } else {
+                    beneficiaryModel = 'VehicleOwner';
+                }
+            } else {
+                beneficiaryModel = 'User';
+            }
+        }
+
+        const updateData: any = { ...movement };
+        if (beneficiaryModel) {
+            updateData.beneficiaryModel = beneficiaryModel;
+        }
+
+        const updated = await this.movementDB.findByIdAndUpdate(id, updateData, { new: true })
+            .populate({
+                path: 'createdBy',
+                populate: { path: 'role' }
+            })
+            .populate('beneficiary');
+
+        if (!updated) throw new BaseErrorException('Movement not found', HttpStatus.NOT_FOUND);
+
+        return MovementModel.hydrate(updated);
+    }
+
     async findById(id: string): Promise<MovementModel> {
         const movement = await this.movementDB.findById(id).populate({
             path: 'createdBy',
