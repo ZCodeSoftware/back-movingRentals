@@ -61,7 +61,9 @@ export class CommissionRepository implements ICommissionRepository {
   }
 
   async findByBooking(bookingId: string): Promise<CommissionModel[]> {
-    const list = await this.commissionDB.find({ booking: new Types.ObjectId(String(bookingId)) });
+    const list = await this.commissionDB
+      .find({ booking: new Types.ObjectId(String(bookingId)) })
+      .populate('user vehicleOwner vehicle booking');
     return list.map((doc) => CommissionModel.hydrate(doc));
   }
 

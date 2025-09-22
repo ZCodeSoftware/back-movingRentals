@@ -15,6 +15,17 @@ export interface IUserService {
       hasPreviousPage: boolean;
     };
   }>;
+  findAllNonUsers(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }>;
   findByEmail(email: string): Promise<UserModel>;
   findById(id: string): Promise<UserModel>;
   update(id: string, user: IUserUpdate): Promise<UserModel>;
