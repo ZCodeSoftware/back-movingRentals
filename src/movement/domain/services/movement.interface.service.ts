@@ -3,6 +3,7 @@ import { ICreateMovement } from "../types/movement.type";
 
 export interface IMovementService {
     create(movement: ICreateMovement, userId: string): Promise<MovementModel>;
+    update(id: string, movement: Partial<ICreateMovement>): Promise<MovementModel>;
     findById(id: string): Promise<MovementModel>;
     findAll(filters: any, userId: string): Promise<{
         data: MovementModel[];

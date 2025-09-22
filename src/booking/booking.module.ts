@@ -29,10 +29,12 @@ import {
   vehicleSchema,
 } from './infrastructure/nest/constants/custom-schema';
 import { BookingController } from './infrastructure/nest/controllers/booking.controller';
+import { commissionRepository } from '../commission/infrastructure/nest/constants/custom-provider';
+import { commissionSchema } from '../commission/infrastructure/nest/constants/custom-schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema, catStatusSchema, cartSchema, branchesSchema, tourSchema, transferSchema, ticketSchema]),
+    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema, catStatusSchema, cartSchema, branchesSchema, tourSchema, transferSchema, ticketSchema, commissionSchema]),
     EventEmitterModule.forRoot(),
   ],
   controllers: [BookingController],
@@ -49,7 +51,8 @@ import { BookingController } from './infrastructure/nest/controllers/booking.con
     tourRepository,
     vehicleRepository,
     transferRepository,
-    ticketRepository
+    ticketRepository,
+    commissionRepository
   ],
   exports: [],
 })

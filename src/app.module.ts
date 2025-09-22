@@ -28,6 +28,7 @@ import { TransferModule } from './transfer/transfer.module';
 import { UserModule } from './user/user.module';
 import { VehicleModule } from './vehicle/vehicle.module';
 import { VehicleOwnerModule } from './vehicleowner/vehicle-owner.module';
+import { CommissionModule } from './commission/commission.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthStatusInterceptor } from './auth/infrastructure/nest/interceptors/auth-status.interceptor';
 
@@ -57,7 +58,8 @@ import { AuthStatusInterceptor } from './auth/infrastructure/nest/interceptors/a
     BusinessConfigModule,
     MetricsModule,
     MovementModule,
-    ContractModule
+    ContractModule,
+    CommissionModule
   ],
   controllers: [AppController],
   providers: [
