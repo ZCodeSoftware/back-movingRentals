@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Put } from '@nestjs/common';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
@@ -20,6 +21,7 @@ import { IUserRequest } from '../../../../core/infrastructure/nest/dtos/custom-r
 import { IMovementService } from '../../../domain/services/movement.interface.service';
 import SymbolsMovement from '../../../symbols-movement';
 import { CreateMovementDTO } from '../dtos/movement.dto';
+import { UpdateMovementDTO } from '../dtos/movement-update.dto';
 
 @ApiTags('movement')
 @Controller('movement')
@@ -122,5 +124,15 @@ export class MovementController {
   @UseGuards(AuthGuards, RoleGuard)
   async findById(@Param('id') id: string) {
     return this.movementService.findById(id);
+  }
+
+  @Put(':id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Movement updated' })
+  @ApiResponse({ status: 404, description: 'Movement not found' })
+  @Roles(TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  async update(@Param('id') id: string, @Body() body: UpdateMovementDTO) {
+    return this.movementService.update(id, body);
   }
 }

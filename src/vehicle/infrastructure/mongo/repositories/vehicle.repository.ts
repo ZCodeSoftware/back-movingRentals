@@ -158,4 +158,10 @@ export class VehicleRepository implements IVehicleRepository {
             }
         );
     }
+
+    async softDelete(id: string): Promise<void> {
+        const updated = await this.vehicleDB.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+        if (!updated)
+            throw new BaseErrorException('Vehicle not found', HttpStatus.NOT_FOUND);
+    }
 }

@@ -4,9 +4,14 @@ import { ICartRepository } from '../../../cart/domain/repositories/cart.interfac
 import { IUserRepository } from '../../../cart/domain/repositories/user.interface.repository';
 import SymbolsCart from '../../../cart/symbols-cart';
 import SymbolsCatalogs from '../../../catalogs/symbols-catalogs';
+import { CommissionModel } from '../../../commission/domain/models/commission.model';
+import { ICommissionRepository } from '../../../commission/domain/repositories/commission.interface.repository';
+import SymbolsCommission from '../../../commission/symbols-commission';
 import { TypeStatus } from '../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
 import SymbolsUser from '../../../user/symbols-user';
+import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
+import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
 import { BookingModel } from '../../domain/models/booking.model';
 import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
 import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payment-method.interface.repository';
@@ -33,6 +38,12 @@ export class BookingService implements IBookingService {
 
     @Inject(SymbolsCart.ICartRepository)
     private readonly cartRepository: ICartRepository,
+
+    @Inject(SymbolsCommission.ICommissionRepository)
+    private readonly commissionRepository: ICommissionRepository,
+
+    @Inject(SymbolsVehicle.IVehicleRepository)
+    private readonly vehicleRepository: IVehicleRepository,
 
     private readonly eventEmitter: EventEmitter2,
   ) { }
@@ -219,6 +230,56 @@ export class BookingService implements IBookingService {
       lang,
     });
 
+    // 9. Crear comisiones si la reserva viene aprobada
+    const statusName = status.toJSON().name;
+    if (statusName === TypeStatus.APPROVED) {
+      try {
+        const bookingJson = bookingSave.toJSON();
+        const bookingId = bookingJson._id?.toString?.() ?? '';
+        const bookingNumber = bookingJson.bookingNumber;
+
+        if (cartData?.vehicles && Array.isArray(cartData.vehicles)) {
+          const existing = await this.commissionRepository.findByBooking(bookingId);
+          if (!existing || existing.length === 0) {
+            for (const v of cartData.vehicles) {
+              const vehicle = v.vehicle;
+              const vehicleId = vehicle?._id?.toString();
+              let ownerId = (vehicle as any)?.owner?._id;
+              const total = v.total ?? 0;
+
+              // Fallback: fetch vehicle to get owner if not present in cart JSON
+              if (!ownerId && vehicleId) {
+                try {
+                  const fullVehicle = await this.vehicleRepository.findById(vehicleId);
+                  ownerId = (((fullVehicle as any)?.toJSON?.() as any)?.owner as any)?._id ?? ownerId;
+                } catch { }
+              }
+
+              if (ownerId && vehicleId && typeof total === 'number') {
+                const percentage = (vehicle as any)?.owner?.commissionPercentage ?? 0;
+                const amount = Math.round((total * (percentage / 100)) * 100) / 100;
+
+                await this.commissionRepository.create(
+                  CommissionModel.create({
+                    booking: bookingId as any,
+                    bookingNumber: bookingNumber as any,
+                    user: userId as any,
+                    vehicleOwner: ownerId as any,
+                    vehicle: vehicleId as any,
+                    detail: 'Renta',
+                    status: 'PENDING',
+                    amount: amount as any,
+                  } as any)
+                );
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore commission errors
+      }
+    }
+
     return bookingSave;
   }
 
@@ -317,6 +378,55 @@ export class BookingService implements IBookingService {
         userEmail: email,
         lang,
       });
+
+      try {
+        const parsedCart = JSON.parse(updatedBooking.toJSON().cart || '{}');
+        const user = await this.bookingRepository.findUserByBookingId(id);
+        const userId = user?.toJSON()._id?.toString?.() ?? undefined;
+        const bookingJson = updatedBooking.toJSON();
+        const bookingId = bookingJson._id?.toString?.() ?? id;
+        const bookingNumber = bookingJson.bookingNumber;
+
+        if (parsedCart?.vehicles && Array.isArray(parsedCart.vehicles)) {
+          const existing = await this.commissionRepository.findByBooking(bookingId);
+          if (!existing || existing.length === 0) {
+            for (const v of parsedCart.vehicles) {
+              const vehicle = v.vehicle;
+              const vehicleId = vehicle?._id;
+              let ownerId = vehicle?.owner?._id;
+              const total = v.total ?? 0;
+
+              // Fallback: fetch vehicle to get owner if not present in cart JSON
+              if (!ownerId && vehicleId) {
+                try {
+                  const fullVehicle = await this.vehicleRepository.findById(vehicleId);
+                  ownerId = (((fullVehicle as any)?.toJSON?.() as any)?.owner as any)?._id ?? ownerId;
+                } catch { }
+              }
+
+              if (ownerId && vehicleId && typeof total === 'number') {
+                const percentage = vehicle?.owner?.commissionPercentage ?? 0;
+                const amount = Math.round((total * (percentage / 100)) * 100) / 100;
+
+                await this.commissionRepository.create(
+                  CommissionModel.create({
+                    booking: bookingId as any,
+                    bookingNumber: bookingNumber as any,
+                    user: userId as any,
+                    vehicleOwner: ownerId as any,
+                    vehicle: vehicleId as any,
+                    detail: 'Renta',
+                    status: 'PENDING',
+                    amount: amount as any,
+                  } as any)
+                );
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore commission errors
+      }
     }
 
     return updatedBooking;

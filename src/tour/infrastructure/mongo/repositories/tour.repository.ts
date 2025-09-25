@@ -57,4 +57,9 @@ export class TourRepository implements ITourRepository {
         return TourModel.hydrate(updatedTour);
     }
 
+    async softDelete(id: string): Promise<void> {
+        const updated = await this.tourDB.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+        if (!updated) throw new BaseErrorException('Tour not found', HttpStatus.NOT_FOUND);
+    }
+
 }

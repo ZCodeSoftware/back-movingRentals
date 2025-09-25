@@ -87,4 +87,8 @@ export class VehicleService implements IVehicleService {
     async updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void> {
         return this.vehicleRepository.updateReservation(vehicleId, originalEndDate, newEndDate);
     }
+
+    async delete(id: string): Promise<void> {
+        return this.vehicleRepository.softDelete(id);
+    }
 }

@@ -49,6 +49,9 @@ export class Vehicle {
     @Prop({ default: true })
     isActive: boolean;
 
+    @Prop({ default: false })
+    isDeleted: boolean;
+
     @Prop({ type: [Reservation], required: false })
     reservations: Reservation[];
 
@@ -63,3 +66,16 @@ export class Vehicle {
 }
 
 export const VehicleSchema = SchemaFactory.createForClass(Vehicle);
+
+// Exclude logically deleted documents by default
+VehicleSchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+VehicleSchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});

@@ -73,12 +73,12 @@ export class UserService implements IUserService {
   }
 
   async autoCreate(
-    user: IAutoCreate,
+    user: IAutoCreate & { name?: string; lastName?: string; cellphone?: string; address?: { countryId?: string }; countryId?: string },
     frontendHost: string,
     lang: string = 'es',
   ): Promise<UserModel> {
     try {
-      const { role, ...rest } = user;
+      const { role, address, countryId, ...rest } = user as any;
       const foundEmail = await this.userRepository.findByEmail(rest.email);
       if (foundEmail)
         throw new BaseErrorException(
@@ -93,9 +93,22 @@ export class UserService implements IUserService {
         isActive: true,
       });
 
-      const addresModel = AddressModel.create({});
-
-      const addressSave = await this.addressRepository.create(addresModel);
+      // Address creation if country is provided (either nested or root-level countryId)
+      const incomingCountryId = address?.countryId || countryId;
+      let addressSave = null;
+      if (incomingCountryId) {
+        const addresModel = AddressModel.create({});
+        const findCountry = await this.catCountryRepository.findById(incomingCountryId);
+        if (!findCountry) {
+          throw new BaseErrorException('Country not found', HttpStatus.BAD_REQUEST);
+        }
+        addresModel.addCountry(findCountry);
+        addressSave = await this.addressRepository.create(addresModel);
+      } else {
+        // create empty address to maintain required relationship
+        const addresModel = AddressModel.create({});
+        addressSave = await this.addressRepository.create(addresModel);
+      }
 
       userModel.addAddress(addressSave);
 
@@ -133,6 +146,26 @@ export class UserService implements IUserService {
   }> {
     try {
       const users = await this.userRepository.findAll(filters);
+
+      return users;
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async findAllNonUsers(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    try {
+      const users = await this.userRepository.findAllNonUsers(filters);
 
       return users;
     } catch (error) {
@@ -208,6 +241,14 @@ export class UserService implements IUserService {
       const update = await this.userRepository.update(id, userModel);
 
       return update;
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    try {
+      await this.userRepository.softDelete(id);
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode);
     }

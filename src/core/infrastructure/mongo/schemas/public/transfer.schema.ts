@@ -15,6 +15,9 @@ export class Transfer {
     @Prop({ default: true })
     isActive: boolean;
 
+    @Prop({ default: false })
+    isDeleted: boolean;
+
     @Prop({ type: Number, required: true })
     capacity: number;
 
@@ -29,3 +32,16 @@ export class Transfer {
 }
 
 export const TransferSchema = SchemaFactory.createForClass(Transfer);
+
+// Exclude logically deleted documents by default
+TransferSchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+TransferSchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});

@@ -21,6 +21,9 @@ export class Ticket {
     @Prop({ default: true })
     isActive: boolean;
 
+    @Prop({ default: false })
+    isDeleted: boolean;
+
     @Prop()
     movingPrice: number;
 
@@ -32,3 +35,16 @@ export class Ticket {
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);
+
+// Exclude logically deleted documents by default
+TicketSchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+TicketSchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});

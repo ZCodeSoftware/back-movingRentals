@@ -9,4 +9,5 @@ export interface IVehicleService {
     update(id: string, vehicle: IUpdateVehicle): Promise<VehicleModel>;
     updateByModel(model: string, prices: IUpdatePriceByModel): Promise<void>;
     updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void>;
+    delete(id: string): Promise<void>;
 }

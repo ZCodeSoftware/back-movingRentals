@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete } from "@nestjs/common";
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ITicketService } from "../../../domain/services/ticket.interface.service";
 import SymbolsTicket from "../../../symbols-ticket";
@@ -45,5 +45,12 @@ export class TicketController {
     @ApiResponse({ status: 404, description: 'Ticket not found' })
     async update(@Param('id') id: string, @Body() body: UpdateTicketDTO) {
         return this.ticketService.update(id, body);
+    }
+
+    @Delete(':id')
+    @HttpCode(204)
+    @ApiResponse({ status: 204, description: 'Ticket soft-deleted' })
+    async delete(@Param('id') id: string): Promise<void> {
+        await this.ticketService.delete(id);
     }
 }

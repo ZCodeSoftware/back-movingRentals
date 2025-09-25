@@ -56,4 +56,9 @@ export class TicketRepository implements ITicketRepository {
 
         return TicketModel.hydrate(updatedTicket);
     }
+
+    async softDelete(id: string): Promise<void> {
+        const updated = await this.ticketDB.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+        if (!updated) throw new BaseErrorException('Ticket not found', HttpStatus.NOT_FOUND);
+    }
 }

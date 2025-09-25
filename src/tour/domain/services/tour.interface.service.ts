@@ -6,4 +6,5 @@ export interface ITourService {
     findById(id: string): Promise<TourModel>;
     findAll(filters: IFilters): Promise<TourModel[]>
     update(id: string, tour: IUpdateTour)
+    delete(id: string): Promise<void>;
 }

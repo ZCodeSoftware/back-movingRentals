@@ -16,6 +16,10 @@ export class MovementService implements IMovementService {
         return this.movementRepository.create({ ...movement, createdBy: userId });
     }
 
+    async update(id: string, movement: Partial<ICreateMovement>): Promise<MovementModel> {
+        return this.movementRepository.update(id, movement);
+    }
+
     async findById(id: string): Promise<MovementModel> {
         return this.movementRepository.findById(id);
     }

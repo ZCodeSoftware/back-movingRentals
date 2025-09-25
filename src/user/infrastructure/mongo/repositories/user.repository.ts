@@ -14,13 +14,17 @@ import { ICatRoleRepository } from '../../../domain/repositories/cat-role.interf
 import { IUserRepository } from '../../../domain/repositories/user.interface.repository';
 import { UserSchema } from '../schemas/user.schema';
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export class UserRepository implements IUserRepository {
   constructor(
     @InjectModel('User') private readonly userModel: Model<UserSchema>,
     @InjectModel('Cart') private readonly cartDB: Model<CartSchema>,
     @Inject(SymbolsCatalogs.ICatRoleRepository)
     private readonly catRoleRepository: ICatRoleRepository,
-  ) {}
+  ) { }
 
   async create(user: UserModel, role: string): Promise<UserModel> {
     try {
@@ -88,8 +92,32 @@ export class UserRepository implements IUserRepository {
             : filters.role;
       }
 
-      if (filters.email) {
-        query.email = { $regex: filters.email, $options: 'i' };
+      if (filters.search) {
+        const regex = new RegExp(escapeRegex(filters.search), 'i');
+        query.$or = [
+          { email: regex },
+          { name: regex },
+          { lastName: regex },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$name', ' ', '$lastName'] },
+                regex: escapeRegex(filters.search),
+                options: 'i',
+              },
+            },
+          },
+        ];
+      } else {
+        if (filters.email) {
+          query.email = { $regex: escapeRegex(filters.email), $options: 'i' };
+        }
+        if (filters.name) {
+          query.name = { $regex: escapeRegex(filters.name), $options: 'i' };
+        }
+        if (filters.lastName) {
+          query.lastName = { $regex: escapeRegex(filters.lastName), $options: 'i' };
+        }
       }
 
       const page =
@@ -105,6 +133,12 @@ export class UserRepository implements IUserRepository {
       const users = await this.userModel
         .find(query)
         .populate('role')
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        })
         .skip(skip)
         .limit(limit);
 
@@ -212,6 +246,109 @@ export class UserRepository implements IUserRepository {
       }
 
       return UserModel.hydrate(updated);
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async findAllNonUsers(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    try {
+      // Obtener el rol USER para excluirlo
+      const userRole = await this.catRoleRepository.findByName(TypeRoles.USER);
+      
+      const query: any = {
+        role: { $ne: userRole.toJSON()._id }
+      };
+
+      if (filters.search) {
+        const regex = new RegExp(escapeRegex(filters.search), 'i');
+        query.$or = [
+          { email: regex },
+          { name: regex },
+          { lastName: regex },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$name', ' ', '$lastName'] },
+                regex: escapeRegex(filters.search),
+                options: 'i',
+              },
+            },
+          },
+        ];
+      } else {
+        if (filters.email) {
+          query.email = { $regex: escapeRegex(filters.email), $options: 'i' };
+        }
+        if (filters.name) {
+          query.name = { $regex: escapeRegex(filters.name), $options: 'i' };
+        }
+        if (filters.lastName) {
+          query.lastName = { $regex: escapeRegex(filters.lastName), $options: 'i' };
+        }
+      }
+
+      const page =
+        parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+      const limit =
+        parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
+      const skip = (page - 1) * limit;
+
+      const totalItems = await this.userModel.countDocuments(query);
+      const users = await this.userModel
+        .find(query)
+        .populate('role')
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        })
+        .skip(skip)
+        .limit(limit);
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return {
+        data: users.map((user) => UserModel.hydrate(user)),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
+  async softDelete(id: string): Promise<void> {
+    try {
+      const updated = await this.userModel.findByIdAndUpdate(
+        id,
+        { isDeleted: true },
+        { new: true },
+      );
+
+      if (!updated) {
+        throw new BaseErrorException(
+          `The user with ID ${id} does not exist`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
     } catch (error) {
       throw new BaseErrorException(error.message, error.statusCode);
     }

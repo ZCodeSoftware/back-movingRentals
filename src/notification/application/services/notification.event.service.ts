@@ -54,7 +54,7 @@ export class NotificationEventService implements INotificationEventService {
 
     try {
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Intentando enviar correo al USUARIO...`,
+        `[Reserva #${bookingIdForLogs}] Intentando enviar correo al USUARIO....`,
       );
       await this.userEmailAdapter.sendUserBookingCreated(
         booking,
@@ -137,11 +137,12 @@ export class NotificationEventService implements INotificationEventService {
     userEmail: string,
     lang: string = 'es',
   ): Promise<any> {
-    const bookingIdForLogs = booking.toJSON().bookingNumber || booking.toJSON()._id || 'UNKNOWN';
+    const bookingIdForLogs =
+      booking.toJSON().bookingNumber || booking.toJSON()._id || 'UNKNOWN';
     this.logger.log(
       `[Reserva #${bookingIdForLogs}] Proceso de notificación de cancelación iniciado.`,
     );
-    
+
     try {
       this.logger.log(
         `[Reserva #${bookingIdForLogs}] Intentando enviar correo de cancelación al USUARIO...`,
