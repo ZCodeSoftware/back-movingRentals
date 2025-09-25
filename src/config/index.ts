@@ -33,6 +33,9 @@ export default registerAs('config', () => {
           pass: process.env.NODEMAILER_PASSWORD,
         },
       },
+      brevo: {
+        apiKey: process.env.BREVO_API_KEY,
+      },
       resend: {
         apyKey: process.env.RESEND_API_KEY,
       },

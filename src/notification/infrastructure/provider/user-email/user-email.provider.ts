@@ -1,5 +1,4 @@
 import { InternalServerErrorException, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
@@ -13,193 +12,136 @@ import { generateUserBookingConfirmationEn } from './user-booking-content-en.tem
 import { generateUserBookingConfirmation } from './user-booking-content.template';
 
 export class UserEmailProvider implements IUserEmailAdapter {
-  private readonly transporter: nodemailer.Transporter;
   private readonly logger = new Logger(UserEmailProvider.name);
   private readonly maxRetries = 3;
-  private readonly baseRetryDelay = 2000; // 2 segundos
+  private readonly baseRetryDelay = 1000; // 1 segundo
+  private readonly timeout = 30000; // 30 segundos
+  private readonly brevoApiKey: string;
+  private readonly brevoApiUrl = 'https://api.brevo.com/v3/smtp/email';
 
   constructor() {
-    try {
-      this.logEmailConfiguration();
-      this.transporter = this.createTransporter();
-      this.verifyTransporter();
-    } catch (error) {
-      this.logger.error('Error al inicializar UserEmailProvider:', error);
-      throw error;
-    }
+    this.brevoApiKey = this.initializeBrevo();
   }
 
-  private logEmailConfiguration(): void {
-    this.logger.log('=== CONFIGURACIÓN EMAIL PROVIDER ===');
+  private initializeBrevo(): string {
+    this.logger.log('=== CONFIGURACIÓN BREVO ===');
 
-    const emailConfig = config().providerEmail?.nodemailer;
-    const businessConfig = config().business;
+    const apiKey =
+      config().providerEmail?.brevo?.apiKey || process.env.BREVO_API_KEY;
 
-    if (!emailConfig) {
-      this.logger.error('⚠️ CONFIGURACIÓN NODEMAILER NO ENCONTRADA');
-      return;
+    if (!apiKey) {
+      this.logger.error('❌ BREVO_API_KEY no configurada');
+      this.logger.error('Para configurar Brevo:');
+      this.logger.error('1. Ve a https://app.brevo.com');
+      this.logger.error('2. Crea una cuenta gratuita');
+      this.logger.error('3. Ve a SMTP & API -> API Keys');
+      this.logger.error('4. Crea una nueva API Key');
+      this.logger.error('5. Agrega BREVO_API_KEY=xkeysib-xxx a tu .env');
+      throw new Error('Brevo API Key requerida');
     }
 
-    this.logger.log(
-      `Gmail User: ${emailConfig.auth?.user || 'NO CONFIGURADO'}`,
-    );
-    this.logger.log(
-      `Gmail Pass: ${emailConfig.auth?.pass ? '***configurado***' : 'NO CONFIGURADO'}`,
-    );
-    this.logger.log(
-      `Business Email: ${businessConfig?.contact_email || 'NO CONFIGURADO'}`,
-    );
-
-    // Verificar si es App Password vs password normal
-    if (emailConfig.auth?.pass && emailConfig.auth.pass.length === 16) {
-      this.logger.log('✅ Parece ser App Password de Gmail (16 caracteres)');
-    } else if (emailConfig.auth?.pass) {
+    if (!apiKey.startsWith('xkeysib-')) {
       this.logger.warn(
-        '⚠️ La password no parece ser App Password de Gmail. Debería tener 16 caracteres.',
+        '⚠️ La API Key no parece ser de Brevo (debería empezar con "xkeysib-")',
       );
     }
 
-    this.logger.log('=== FIN CONFIGURACIÓN EMAIL ===');
+    this.logger.log(`✅ Brevo inicializado correctamente`);
+    this.logger.log(`API Key: ${apiKey.substring(0, 12)}...`);
+    this.logger.log(`Timeout configurado: ${this.timeout}ms`);
+    this.logger.log(`Plan Gratuito: 300 emails/día, 9,000/mes`);
+    this.logger.log('=== FIN CONFIGURACIÓN BREVO ===');
+
+    return apiKey;
   }
 
-  private createTransporter(): nodemailer.Transporter {
-    const emailConfig = config().providerEmail?.nodemailer;
-
-    if (!emailConfig?.auth?.user || !emailConfig?.auth?.pass) {
-      throw new Error(
-        'Configuración de email incompleta. Faltan user/pass en config.providerEmail.nodemailer.auth',
-      );
-    }
-
-    const transporterConfig = {
-      service: 'gmail',
-      auth: {
-        user: emailConfig.auth.user,
-        pass: emailConfig.auth.pass,
-      },
-      // Configuraciones de timeout y retry
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 10,
-      rateDelta: 1000,
-      rateLimit: 5,
-      // Timeouts
-      connectionTimeout: 60000, // 60 segundos para conectar
-      greetingTimeout: 30000, // 30 segundos para greeting
-      socketTimeout: 60000, // 60 segundos para operaciones socket
-      // Configuración TLS
-      secure: false, // true for 465, false for other ports
-      requireTLS: true,
-      tls: {
-        rejectUnauthorized: false, // Solo para testing, en prod debería ser true
-      },
-      // Debug
-      debug: process.env.NODE_ENV !== 'production',
-      logger: process.env.NODE_ENV !== 'production',
-    };
-
-    this.logger.log(
-      `Creando transporter con configuración: ${JSON.stringify({
-        service: transporterConfig.service,
-        user: transporterConfig.auth.user,
-        hasPassword: !!transporterConfig.auth.pass,
-        connectionTimeout: transporterConfig.connectionTimeout,
-        socketTimeout: transporterConfig.socketTimeout,
-      })}`,
-    );
-
-    return nodemailer.createTransport(transporterConfig);
-  }
-
-  private async verifyTransporter(): Promise<void> {
-    try {
-      this.logger.log('Verificando conexión SMTP...');
-      const isReady = await this.transporter.verify();
-      if (isReady) {
-        this.logger.log('✅ Conexión SMTP verificada exitosamente');
-      }
-    } catch (error) {
-      this.logger.error('❌ Error al verificar conexión SMTP:', error);
-      this.logger.error('Código de error:', error.code);
-      this.logger.error('Comando que falló:', error.command);
-
-      if (error.code === 'EAUTH') {
-        this.logger.error('🔑 ERROR DE AUTENTICACIÓN - Verifica:');
-        this.logger.error(
-          '1. Que tengas habilitada la verificación en 2 pasos en Gmail',
-        );
-        this.logger.error(
-          '2. Que uses App Password en lugar de tu contraseña normal',
-        );
-        this.logger.error(
-          '3. Que el App Password tenga exactamente 16 caracteres',
-        );
-      }
-
-      if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-        this.logger.error('🌐 ERROR DE CONEXIÓN - Verifica:');
-        this.logger.error('1. Tu conexión a internet');
-        this.logger.error('2. Que no haya firewall bloqueando puerto 587/465');
-        this.logger.error('3. Configuración de proxy si aplica');
-      }
-
-      // No lanzamos error aquí para que la app pueda arrancar
-      // pero los logs serán útiles para diagnóstico
-    }
-  }
-
-  private async sendMailWithRetry(
-    mailOptions: any,
-    context: string = 'email',
+  private async sendEmailWithBrevo(
+    emailData: any,
+    context: string,
   ): Promise<any> {
     let lastError: Error;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         this.logger.log(
-          `[${context}] Intento ${attempt}/${this.maxRetries} - Enviando email...`,
+          `[${context}] 📧 Intento ${attempt}/${this.maxRetries} - Enviando con Brevo...`,
+        );
+        this.logger.log(
+          `[${context}] From: ${emailData.sender.email}, To: ${emailData.to[0].email}, Subject: ${emailData.subject}`,
         );
 
-        // Crear timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(
-              new Error(`Timeout después de 90 segundos en intento ${attempt}`),
-            );
-          }, 90000); // 90 segundos
+        const startTime = Date.now();
+
+        const response = await fetch(this.brevoApiUrl, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'api-key': this.brevoApiKey,
+          },
+          body: JSON.stringify(emailData),
+          signal: AbortSignal.timeout(this.timeout),
         });
 
-        // Race entre el envío y el timeout
-        const result = await Promise.race([
-          this.transporter.sendMail(mailOptions),
-          timeoutPromise,
-        ]);
+        const endTime = Date.now();
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            `Brevo API Error: ${response.status} - ${JSON.stringify(responseData)}`,
+          );
+        }
 
         this.logger.log(
-          `[${context}] ✅ Email enviado exitosamente en intento ${attempt}`,
+          `[${context}] ✅ Email enviado exitosamente en ${endTime - startTime}ms`,
         );
-        this.logger.log(`[${context}] Message ID: ${result.messageId}`);
-        this.logger.log(`[${context}] Response: ${result.response}`);
+        this.logger.log(
+          `[${context}] Message ID: ${responseData.messageId || 'N/A'}`,
+        );
+        this.logger.log(
+          `[${context}] Response: ${JSON.stringify(responseData)}`,
+        );
 
-        return result;
+        return responseData;
       } catch (error) {
         lastError = error;
+
         this.logger.error(
           `[${context}] ❌ Error en intento ${attempt}/${this.maxRetries}:`,
         );
         this.logger.error(`[${context}] Error type: ${error.constructor.name}`);
         this.logger.error(`[${context}] Error message: ${error.message}`);
-        this.logger.error(`[${context}] Error code: ${error.code || 'N/A'}`);
 
-        if (error.code === 'EAUTH') {
+        // Log detalles específicos de Brevo
+        if (error.name === 'AbortError') {
           this.logger.error(
-            `[${context}] 🔑 Error de autenticación - no reintentar`,
+            `[${context}] ⏰ Timeout después de ${this.timeout}ms`,
           );
-          break; // No reintentes errores de autenticación
+        }
+
+        if (error.message.includes('401')) {
+          this.logger.error(
+            `[${context}] 🔑 Error de autenticación - verificar API Key`,
+          );
+          break; // No reintentar errores de auth
+        }
+
+        if (error.message.includes('400')) {
+          this.logger.error(
+            `[${context}] 📝 Error de datos - verificar formato email`,
+          );
+          break; // No reintentar errores de formato
+        }
+
+        if (error.message.includes('429')) {
+          this.logger.error(
+            `[${context}] 🚦 Rate limit alcanzado - verificar límites diarios`,
+          );
+          // Sí reintentar rate limits con más delay
         }
 
         if (attempt < this.maxRetries) {
-          const delay = this.baseRetryDelay * Math.pow(2, attempt - 1); // Exponential backoff
+          const delay = this.baseRetryDelay * Math.pow(2, attempt - 1);
           this.logger.log(
             `[${context}] ⏳ Esperando ${delay}ms antes del siguiente intento...`,
           );
@@ -212,46 +154,88 @@ export class UserEmailProvider implements IUserEmailAdapter {
       `[${context}] ❌ Todos los intentos fallaron. Último error:`,
       lastError,
     );
-    throw new InternalServerErrorException(
-      `Connection timeout - ${lastError.message}`,
-    );
+    throw new InternalServerErrorException(`Brevo error: ${lastError.message}`);
+  }
+
+  private createBrevoEmailData(
+    from: { email: string; name: string },
+    to: string,
+    subject: string,
+    htmlContent: string,
+    textContent?: string,
+  ): any {
+    return {
+      sender: from,
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: htmlContent,
+      textContent: textContent || this.htmlToText(htmlContent),
+      tags: ['moovadventures'], // Para tracking
+    };
+  }
+
+  private htmlToText(html: string): string {
+    // Conversión simple de HTML a texto
+    return html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .trim();
   }
 
   async reservationUserEmail(email: string, name: string): Promise<any> {
-    this.logger.log(`Iniciando reservationUserEmail para: ${email}`);
+    const context = `reservation-${email}`;
+    this.logger.log(`[${context}] Iniciando reservationUserEmail`);
 
     try {
-      const message = {
-        from: `"MoovAdventures" <${config().business.contact_email}>`,
-        to: email,
-        subject: 'Reservation',
-        text: `Hello ${name}, your reservation has been confirmed.`,
-      };
+      const htmlContent = `<p>Hello <strong>${name}</strong>,</p><p>Your reservation has been confirmed.</p>`;
 
-      return await this.sendMailWithRetry(message, `reservation-${email}`);
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        email,
+        'Reservation Confirmation',
+        htmlContent,
+      );
+
+      return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
-      this.logger.error(`Error en reservationUserEmail para ${email}:`, error);
+      this.logger.error(`[${context}] Error en reservationUserEmail:`, error);
       throw new InternalServerErrorException(error.message);
     }
   }
 
   async sendContactUserEmail(data: ContactUserDto): Promise<any> {
-    this.logger.log(`Iniciando sendContactUserEmail desde: ${data.email}`);
+    const context = `contact-${data.email}`;
+    this.logger.log(`[${context}] Iniciando sendContactUserEmail`);
 
     try {
       const { email, name, subject, text, phone } = data;
 
-      const message = {
-        from: `"Moving" <${config().providerEmail.nodemailer.auth.user}>`,
-        replyTo: email,
-        to: config().business.contact_email,
-        subject: subject,
-        text: `Soy ${name},\n\n Numero de teléforno: ${phone}\n\n${text}`,
-      };
+      const htmlContent = `
+        <p><strong>Contacto desde:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Teléfono:</strong> ${phone}</p>
+        <p><strong>Mensaje:</strong></p>
+        <p>${text.replace(/\n/g, '<br>')}</p>
+      `;
 
-      return await this.sendMailWithRetry(message, `contact-${email}`);
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'Moving' },
+        config().business.contact_email,
+        subject,
+        htmlContent,
+      );
+
+      // Agregar reply-to
+      emailData.replyTo = { email: email, name: name };
+
+      return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
-      this.logger.error(`Error en sendContactUserEmail:`, error);
+      this.logger.error(`[${context}] Error en sendContactUserEmail:`, error);
       throw new InternalServerErrorException(error.message);
     }
   }
@@ -280,23 +264,22 @@ export class UserEmailProvider implements IUserEmailAdapter {
           ? generateUserBookingConfirmation(booking)
           : generateUserBookingConfirmationEn(booking);
 
-      this.logger.log(`[${context}] Subject generado: ${emailContent.subject}`);
+      this.logger.log(`[${context}] Subject: ${emailContent.subject}`);
       this.logger.log(
         `[${context}] HTML length: ${emailContent.html?.length || 0} caracteres`,
       );
 
-      const message = {
-        from: `"MoovAdventures" <${config().business.contact_email}>`,
-        to: userEmail,
-        subject: emailContent.subject,
-        html: emailContent.html,
-      };
-
-      this.logger.log(
-        `[${context}] Configuración mensaje: From=${message.from}, To=${message.to}, Subject=${message.subject}`,
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        userEmail,
+        emailContent.subject,
+        emailContent.html,
       );
 
-      return await this.sendMailWithRetry(message, context);
+      // Agregar tags para tracking
+      emailData.tags = ['booking-confirmation', lang, `booking-${bookingId}`];
+
+      return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
       this.logger.error(`[${context}] Error en sendUserBookingCreated:`, error);
       throw new InternalServerErrorException(error.message);
@@ -308,22 +291,24 @@ export class UserEmailProvider implements IUserEmailAdapter {
     token: string,
     frontendHost: string,
   ): Promise<any> {
-    this.logger.log(`Iniciando sendUserForgotPassword para: ${email}`);
+    const context = `forgot-password-${email}`;
+    this.logger.log(`[${context}] Iniciando sendUserForgotPassword`);
 
     try {
-      const message = {
-        from: `"MoovAdventures" <${config().business.contact_email}>`,
-        to: email,
-        subject: 'Recuperar contraseña',
-        html: forgotPasswordTemplate(token, frontendHost),
-      };
+      const htmlContent = forgotPasswordTemplate(token, frontendHost);
 
-      return await this.sendMailWithRetry(message, `forgot-password-${email}`);
-    } catch (error) {
-      this.logger.error(
-        `Error en sendUserForgotPassword para ${email}:`,
-        error,
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        email,
+        'Recuperar contraseña',
+        htmlContent,
       );
+
+      emailData.tags = ['password-recovery'];
+
+      return await this.sendEmailWithBrevo(emailData, context);
+    } catch (error) {
+      this.logger.error(`[${context}] Error en sendUserForgotPassword:`, error);
       throw new InternalServerErrorException(error.message);
     }
   }
@@ -334,23 +319,26 @@ export class UserEmailProvider implements IUserEmailAdapter {
     frontendHost: string,
     lang?: string,
   ): Promise<any> {
-    this.logger.log(
-      `Iniciando sendUserAutoCreate para: ${email}, lang: ${lang}`,
-    );
+    const context = `auto-create-${email}`;
+    this.logger.log(`[${context}] Iniciando sendUserAutoCreate, lang: ${lang}`);
 
     try {
       const template =
         lang === 'es' ? userAutoCreateTemplateEs : userAutoCreateTemplateEn;
-      const message = {
-        from: `"MoovAdventures" <${config().business.contact_email}>`,
-        to: email,
-        subject: 'Cuenta creada',
-        html: template(email, password, frontendHost),
-      };
+      const htmlContent = template(email, password, frontendHost);
 
-      return await this.sendMailWithRetry(message, `auto-create-${email}`);
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        email,
+        lang === 'es' ? 'Cuenta creada' : 'Account created',
+        htmlContent,
+      );
+
+      emailData.tags = ['account-creation', lang || 'es'];
+
+      return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
-      this.logger.error(`Error en sendUserAutoCreate para ${email}:`, error);
+      this.logger.error(`[${context}] Error en sendUserAutoCreate:`, error);
       throw new InternalServerErrorException(error.message);
     }
   }
@@ -375,14 +363,16 @@ export class UserEmailProvider implements IUserEmailAdapter {
           ? generateUserBookingCancellation(booking)
           : generateUserBookingCancellationEn(booking);
 
-      const message = {
-        from: `"MoovAdventures" <${config().business.contact_email}>`,
-        to: userEmail,
-        subject: emailContent.subject,
-        html: emailContent.html,
-      };
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        userEmail,
+        emailContent.subject,
+        emailContent.html,
+      );
 
-      return await this.sendMailWithRetry(message, context);
+      emailData.tags = ['booking-cancellation', lang, `booking-${bookingId}`];
+
+      return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
       this.logger.error(
         `[${context}] Error en sendUserBookingCancelled:`,
