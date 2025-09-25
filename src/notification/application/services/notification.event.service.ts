@@ -41,9 +41,6 @@ export class NotificationEventService implements INotificationEventService {
       'MAILGUN_API_KEY',
       'MAILGUN_DOMAIN',
       'RESEND_API_KEY',
-      'NODEMAILER_HOST',
-      'NODEMAILER_PORT',
-      'NODEMAILER_USER',
       'EMAIL_SERVICE',
       'EMAIL_PROVIDER',
     ];
