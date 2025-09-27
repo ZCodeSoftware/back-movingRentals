@@ -1,5 +1,9 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
+import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
+import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { ITicketService } from "../../../domain/services/ticket.interface.service";
 import SymbolsTicket from "../../../symbols-ticket";
 import { CreateTicketDTO, TicketFiltersDTO, UpdateTicketDTO } from "../dtos/ticket.dto";
@@ -40,6 +44,8 @@ export class TicketController {
     }
 
     @Put(':id')
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Update Ticket by id' })
     @ApiResponse({ status: 404, description: 'Ticket not found' })
@@ -48,6 +54,8 @@ export class TicketController {
     }
 
     @Delete(':id')
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @HttpCode(204)
     @ApiResponse({ status: 204, description: 'Ticket soft-deleted' })
     async delete(@Param('id') id: string): Promise<void> {

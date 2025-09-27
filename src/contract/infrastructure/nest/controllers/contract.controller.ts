@@ -106,6 +106,12 @@ export class ContractController {
     description: 'Filter by reserving user email',
   })
   @ApiQuery({
+    name: 'search',
+    required: false,
+    type: 'string',
+    description: 'Search in reserving user name, last name, email, or full name (name + last name)',
+  })
+  @ApiQuery({
     name: 'createdByUser',
     required: false,
     type: 'string',

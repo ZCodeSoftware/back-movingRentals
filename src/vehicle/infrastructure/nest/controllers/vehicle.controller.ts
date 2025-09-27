@@ -17,7 +17,7 @@ export class VehicleController {
     ) { }
 
     @Post()
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     @HttpCode(201)
     @ApiResponse({ status: 201, description: 'Vehicle created' })
@@ -53,7 +53,7 @@ export class VehicleController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return Vehicle updated by model id' })
     @ApiResponse({ status: 404, description: 'Vehicle not found' })
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     async updateByModel(@Param('model') id: string, @Body() prices: UpdatePriceByModelDTO) {
         return this.vehicleService.updateByModel(id, prices);
@@ -63,7 +63,7 @@ export class VehicleController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return Vehicle updated by id' })
     @ApiResponse({ status: 404, description: 'Vehicle not found' })
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     async update(@Param('id') id: string, @Body() body: UpdateVehicleDTO) {
         return this.vehicleService.update(id, body);
