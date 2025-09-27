@@ -17,6 +17,7 @@ export interface IContractFilters {
   bookingNumber?: number;
   status?: string;
   reservingUser?: string;
+  search?: string;
   createdByUser?: string;
   service?: string;
   page?: number;
