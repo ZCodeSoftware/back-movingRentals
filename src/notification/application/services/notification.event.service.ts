@@ -5,6 +5,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { BookingModel } from '../../../booking/domain/models/booking.model';
+import { IBookingService } from '../../../booking/domain/services/booking.interface.service';
+import SymbolsBooking from '../../../booking/symbols-booking';
 import { IAdminEmailAdapter } from '../../../notification/domain/adapter/admin-email.interface.adapter';
 import SymbolsNotification from '../../../notification/symbols-notification';
 import { IUserEmailAdapter } from '../../domain/adapter/user-email.interface.adapter';
@@ -20,6 +22,9 @@ export class NotificationEventService implements INotificationEventService {
 
     @Inject(SymbolsNotification.IAdminEmailAdapter)
     private readonly adminEmailAdapter: IAdminEmailAdapter,
+
+    @Inject(SymbolsBooking.IBookingService)
+    private readonly bookingService: IBookingService,
   ) {
     // Log inicial de configuración
     this.logEnvironmentConfig();
@@ -143,8 +148,20 @@ export class NotificationEventService implements INotificationEventService {
         `[Reserva #${bookingIdForLogs}] Timestamp inicio envío usuario: ${new Date().toISOString()}`,
       );
 
+      // Obtener información del usuario para el email
+      let userData = null;
+      try {
+        // Intentar obtener datos del usuario desde el booking o buscar por email
+        const user = await this.findUserByBookingId(booking.toJSON()._id);
+        if (user) {
+          userData = user.toJSON();
+        }
+      } catch (error) {
+        this.logger.warn(`[Reserva #${bookingIdForLogs}] No se pudo obtener información del usuario: ${error.message}`);
+      }
+
       const userResult = await Promise.race([
-        this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang),
+        this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang, userData),
         this.createTimeoutPromise(120000, 'Usuario email timeout'), // 2 minutos
       ]);
 
@@ -375,6 +392,15 @@ export class NotificationEventService implements INotificationEventService {
         reject(new Error(`Timeout after ${ms}ms: ${message}`));
       }, ms);
     });
+  }
+
+  private async findUserByBookingId(bookingId: string): Promise<any> {
+    try {
+      return await this.bookingService.findUserByBookingId(bookingId);
+    } catch (error) {
+      this.logger.warn(`No se pudo encontrar usuario para booking ${bookingId}: ${error.message}`);
+      return null;
+    }
   }
 
   private async checkNetworkConnectivity(): Promise<void> {

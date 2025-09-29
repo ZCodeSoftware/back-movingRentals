@@ -244,6 +244,7 @@ export class UserEmailProvider implements IUserEmailAdapter {
     booking: BookingModel,
     userEmail: string,
     lang: string = 'es',
+    userData?: any,
   ): Promise<any> {
     const bookingId =
       (booking as any).bookingNumber || (booking as any).id || 'unknown';
@@ -261,8 +262,8 @@ export class UserEmailProvider implements IUserEmailAdapter {
       );
       emailContent =
         lang === 'es'
-          ? generateUserBookingConfirmation(booking)
-          : generateUserBookingConfirmationEn(booking);
+          ? generateUserBookingConfirmation(booking, userEmail, userData)
+          : generateUserBookingConfirmationEn(booking, userEmail, userData);
 
       this.logger.log(`[${context}] Subject: ${emailContent.subject}`);
       this.logger.log(

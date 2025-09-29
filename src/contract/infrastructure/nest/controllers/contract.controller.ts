@@ -45,7 +45,7 @@ export class ContractController {
   @ApiResponse({ status: 400, description: `Contract shouldn't be created` })
   @ApiBody({
     type: CreateContractDTO,
-    description: 'Data to create a Contract',
+    description: 'Data to create a Contract. Use sendEmail=false to skip email notification to client.',
   })
   @Roles(
     TypeRoles.ADMIN,
@@ -68,6 +68,8 @@ export class ContractController {
             : undefined,
         }
         : undefined,
+      // Si sendEmail no se especifica, por defecto es true para mantener compatibilidad
+      sendEmail: body.sendEmail !== undefined ? body.sendEmail : true,
     };
 
     return this.contractService.create(contractData, _id);

@@ -74,9 +74,68 @@ function formatDate(dateString?: string): string {
   }
 }
 
+function formatDateTime(dateString?: string): string {
+  if (!dateString) return 'Fecha y hora no especificadas';
+  try {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch (e) {
+    return dateString;
+  }
+}
+
+function formatDateTimeRange(startDate?: string, endDate?: string): string {
+  if (!startDate || !endDate) return 'Fechas no especificadas';
+  try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    const dateStr = start.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    
+    const startTime = start.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    
+    const endTime = end.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    
+    // Si es el mismo día, mostrar: "30 de agosto de 2025, de 10:00 a.m. a 6:00 p.m."
+    if (start.toDateString() === end.toDateString()) {
+      return `${dateStr}, de ${startTime} a ${endTime}`;
+    } else {
+      // Si son días diferentes, mostrar fechas completas
+      const endDateStr = end.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      return `Desde ${dateStr} a las ${startTime} hasta ${endDateStr} a las ${endTime}`;
+    }
+  } catch (e) {
+    return `${startDate} - ${endDate}`;
+  }
+}
+
 
 export function generateUserBookingConfirmation(
-  booking: BookingModel
+  booking: BookingModel,
+  userEmail?: string,
+  userData?: any
 ): { subject: string; html: string } {
   const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
   const cartString = bookingData.cart;
@@ -85,6 +144,11 @@ export function generateUserBookingConfirmation(
   const bookingNumber = bookingData.bookingNumber || 'N/A';
   const totalReserva = bookingData.total || 0;
   const totalPagado = bookingData.totalPaid || 0;
+
+  // Obtener información del usuario
+  const customerName = userData?.name || bookingData.user?.name || 'Cliente';
+  const customerLastName = userData?.lastName || bookingData.user?.lastName || '';
+  const customerFullName = `${customerName} ${customerLastName}`.trim();
 
   const errorSubject = `Problema con tu reserva #${bookingNumber} en MoovAdventures`;
   const errorHtml = `
@@ -143,7 +207,7 @@ export function generateUserBookingConfirmation(
 
   const saldoPendiente = totalReserva - totalPagado;
 
-  const googleMapsUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d14977.150869355888!2d-87.47104422988583!3d20.20536169601328!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8f4fd7acf515282b%3A0xd05f4ca3b3ed71b6!2sM%C3%B6%C3%B6vAdventures%20-%20Rentals%20%26%20More%20%2F%20Atv%20rental%2C%20Atv%20tours%2C%20Scooter%20rental%20and%20Bikes*21!5e0!3m2!1ses!2sar!4v1744926430993!5m2!1ses!2sar`;
+  const googleMapsUrl = `https://www.google.com/maps/search/MoovAdventures+Tulum/@20.2053617,-87.4710442,15z`;
   const whatsappNumber = "+529841417024";
   const whatsappLink = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
 
@@ -225,6 +289,7 @@ export function generateUserBookingConfirmation(
         <div class="section">
           <h2>📝 Detalles generales de tu reserva:</h2>
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
+          <p><strong>Cliente:</strong> ${customerFullName}</p>
           ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
         </div>
         
@@ -233,14 +298,54 @@ export function generateUserBookingConfirmation(
           <h3>🛵 Vehículo${vehicles.length > 1 ? 's' : ''} reservado${vehicles.length > 1 ? 's' : ''}:</h3>
           ${vehicles
         .map(
-          (v) => `
+          (v) => {
+            const startDate = v.startDate ? new Date(v.startDate) : null;
+            const endDate = v.endDate ? new Date(v.endDate) : null;
+            const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+            const pricePerDay = days > 0 ? (v.total / days) : 0;
+            
+            return `
                 <div class="item-details vehicle-item">
-                  <p><strong>Nombre:</strong> ${v.name}</p>
-                  <p><strong>Categoría:</strong> ${v.category}</p>
-                  ${v.startDate && v.endDate ? `<p><strong>Periodo:</strong> ${formatDate(v.startDate)} - ${formatDate(v.endDate)}</p>` : ''}
-                  <p><strong>Subtotal:</strong> $${v.total.toFixed(2)} MXN</p>
+                  <h4 style="margin: 0 0 10px 0; color: #2c3e50;">📋 DETALLES DE RENTA</h4>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                      <p><strong>Tipo de Vehículo:</strong> ${v.name}</p>
+                      <p><strong>Categoría:</strong> ${v.category}</p>
+                      <p><strong>Unidades:</strong> 1</p>
+                    </div>
+                    <div>
+                      <p><strong>Días:</strong> ${days} día${days !== 1 ? 's' : ''}</p>
+                      <p><strong>Precio por día:</strong> ${pricePerDay.toFixed(2)} MXN</p>
+                      <p><strong>Total:</strong> ${v.total.toFixed(2)} MXN</p>
+                    </div>
+                  </div>
+                  
+                  ${v.startDate && v.endDate ? `
+                  <div style="background-color: #e8f4fd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #2c3e50;">📅 FECHAS Y HORARIOS</h5>
+                    <p style="margin: 5px 0;"><strong>Fecha y hora de inicio:</strong> ${formatDateTime(v.startDate)}</p>
+                    <p style="margin: 5px 0;"><strong>Fecha y hora de fin:</strong> ${formatDateTime(v.endDate)}</p>
+                    <p style="margin: 5px 0;"><strong>Periodo:</strong> ${formatDateTimeRange(v.startDate, v.endDate)}</p>
+                  </div>
+                  ` : ''}
+                  
+                  <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #856404;">⚠️ INFORMACIÓN IMPORTANTE</h5>
+                    <p style="margin: 5px 0; font-size: 14px;">• Se requiere depósito de garantía</p>
+                    <p style="margin: 5px 0; font-size: 14px;">• Presentar documento de identidad válido</p>
+                    <p style="margin: 5px 0; font-size: 14px;">• Casco incluido en la renta</p>
+                    <p style="margin: 5px 0; font-size: 14px;">• Candados disponibles</p>
+                  </div>
+                  
+                  <div style="background-color: #d1ecf1; padding: 10px; border-radius: 4px;">
+                    <h5 style="margin: 0 0 8px 0; color: #0c5460;">🏪 ENTREGA Y DEVOLUCIÓN</h5>
+                    <p style="margin: 5px 0; font-size: 14px;"><strong>Lugar de entrega:</strong> Sucursal MoovAdventures</p>
+                    <p style="margin: 5px 0; font-size: 14px;"><strong>Lugar de devolución:</strong> Misma sucursal</p>
+                    <p style="margin: 5px 0; font-size: 14px;"><strong>Horario:</strong> 9:00 AM - 7:00 PM</p>
+                  </div>
                 </div>
-              `
+              `;
+          }
         )
         .join('')}
         </div>` : ''}
@@ -299,11 +404,52 @@ export function generateUserBookingConfirmation(
         .join('')}
         </div>` : ''}
 
+        ${vehicles.length > 0 ? `
+        <div class="section">
+          <h3>🛠️ Servicios Adicionales Disponibles:</h3>
+          <div class="item-details" style="background-color: #f0f8ff; border-left-color: #4169e1;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+              <div>
+                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🏍️ ACCESORIOS</h5>
+                <p style="margin: 3px 0; font-size: 14px;">• Tanque lleno: $150</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Scooter: $150</p>
+                <p style="margin: 3px 0; font-size: 14px;">• ATV: $300</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Dirt Bike: $300</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Car: $100</p>
+              </div>
+              <div>
+                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🔒 SEGURIDAD</h5>
+                <p style="margin: 3px 0; font-size: 14px;">• Promoto: $150</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Cerrados: $300</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Padlock: $175</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Scooter: $150</p>
+                <p style="margin: 3px 0; font-size: 14px;">• ATV: $250</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Car: $3000</p>
+              </div>
+              <div>
+                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🚴 OTROS</h5>
+                <p style="margin: 3px 0; font-size: 14px;">• Llave perdida: Consultar</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Daños/Basket: Consultar</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Cancelación: Consultar</p>
+                <p style="margin: 3px 0; font-size: 14px;">• Bike: $250</p>
+              </div>
+            </div>
+            <div style="margin-top: 10px; padding: 8px; background-color: #e6f3ff; border-radius: 4px;">
+              <p style="margin: 0; font-size: 13px; color: #0066cc;"><strong>Nota:</strong> Los servicios adicionales se pueden solicitar en el momento de la entrega. Los precios están sujetos a cambios.</p>
+            </div>
+          </div>
+        </div>` : ''}
+
         <div class="section payment-summary">
           <h2>💳 Resumen de pago:</h2>
-          <p><strong>Total de la reserva:</strong> $${totalReserva.toFixed(2)} MXN</p>
-          <p><strong>Total pagado:</strong> $${totalPagado.toFixed(2)} MXN</p>
-          <p><strong>Saldo pendiente:</strong> $${saldoPendiente.toFixed(2)} MXN</p>
+          <p><strong>Total de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
+          <p><strong>Total pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
+          <p><strong>Saldo pendiente:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
+          ${saldoPendiente > 0 ? `
+          <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
+            <p style="margin: 0; font-size: 14px; color: #856404;"><strong>💰 Método de pago del saldo:</strong> Efectivo, tarjeta de crédito/débito en sucursal</p>
+          </div>
+          ` : ''}
         </div>
 
         ${branchName !== 'Sucursal no especificada' ? `

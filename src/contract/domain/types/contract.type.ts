@@ -14,6 +14,7 @@ export interface ICreateContract {
   extension?: IContractExtension;
   concierge?: string;
   source?: string;
+  sendEmail?: boolean;
 }
 
 export interface IUpdateContract {

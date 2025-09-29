@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNotEmpty,
@@ -77,6 +78,11 @@ export class CreateContractDTO {
   @IsOptional()
   @IsString()
   source?: string;
+
+  @ApiPropertyOptional({ description: 'Whether to send email notification to the client', default: true })
+  @IsOptional()
+  @IsBoolean()
+  sendEmail?: boolean;
 }
 
 // --- DTO para la actualización de un contrato (el que modificamos) ---
