@@ -63,13 +63,18 @@ export class ContractService implements IContractService {
     const contractModel = ContractModel.create(processedContract);
     const createdContract = await this.contractRepository.create(contractModel, userId);
 
-    // Emitir evento para envío de email solo si sendEmail es true (por defecto es true)
+    // Log extendido de debugging para sendEmail
+    console.log('[ContractService] Valor recibido de sendEmail:', contract.sendEmail, 'Tipo:', typeof contract.sendEmail);
     if (contract.sendEmail !== false) {
+      console.log('[ContractService] DISPARANDO EVENTO DE CORREO (sendEmail !== false)');
+      console.log('[ContractService] Contrato creado, ID:', createdContract?.toJSON()._id, 'Request user:', userId);
       this.eventEmitter.emit('send-contract.created', {
         contract: createdContract,
         userEmail: createdContract.toJSON().reservingUser?.email,
         lang: 'es', // Por defecto español, se puede mejorar para detectar idioma del usuario
       });
+    } else {
+      console.log('[ContractService] NO se dispara mail por sendEmail === false para contrato ID:', createdContract?.toJSON()._id, 'Request user:', userId);
     }
 
     return createdContract;

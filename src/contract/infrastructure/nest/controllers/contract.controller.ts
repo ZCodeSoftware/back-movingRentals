@@ -69,7 +69,12 @@ export class ContractController {
         }
         : undefined,
       // Si sendEmail no se especifica, por defecto es true para mantener compatibilidad
-      sendEmail: body.sendEmail !== undefined ? body.sendEmail : true,
+      sendEmail:
+        typeof body.sendEmail === 'string'
+          ? body.sendEmail === 'true'
+          : body.sendEmail !== undefined
+            ? body.sendEmail
+            : true,
     };
 
     return this.contractService.create(contractData, _id);

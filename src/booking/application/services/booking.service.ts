@@ -312,6 +312,19 @@ export class BookingService implements IBookingService {
 
     if (catPaymentMethod) bookingModel.addPaymentMethod(catPaymentMethod);
 
+    // Nueva lógica: asignar status si viene en el payload
+    const statusId = (booking as any).status;
+    if (statusId) {
+      const status = await this.catStatusRepository.getStatusById(statusId);
+      if (status) bookingModel.addStatus(status);
+    }
+    // Nueva lógica: actualizar total y totalPaid si vienen en el payload
+    if ((booking as any).total !== undefined) {
+      (bookingModel as any)._total = (booking as any).total;
+    }
+    if ((booking as any).totalPaid !== undefined) {
+      (bookingModel as any)._totalPaid = (booking as any).totalPaid;
+    }
     return this.bookingRepository.update(id, bookingModel);
   }
 

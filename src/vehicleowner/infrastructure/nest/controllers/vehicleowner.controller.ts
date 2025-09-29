@@ -18,7 +18,7 @@ export class VehicleOwnerController {
 
     @Post()
     @HttpCode(201)
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     @ApiResponse({ status: 201, description: 'VehicleOwner created' })
     @ApiResponse({ status: 400, description: `VehicleOwner shouldn't be created` })
@@ -70,7 +70,7 @@ export class VehicleOwnerController {
     @ApiResponse({ status: 200, description: 'VehicleOwner updated' })
     @ApiResponse({ status: 400, description: `VehicleOwner shouldn't be updated` })
     @ApiBody({ type: UpdateVehicleOwnerDTO, description: 'Data to update a VehicleOwner' })
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     async update(@Param('id') id: string, @Body() body: UpdateVehicleOwnerDTO) {
         return this.vehicleownerService.update(id, body);

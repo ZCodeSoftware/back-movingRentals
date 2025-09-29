@@ -73,7 +73,7 @@ export class UserModel extends BaseModel {
       : null;
     newUser._isActive = user.isActive;
     newUser._newsletter = user.newsletter;
-    newUser._cart = user.cart._id;
+    newUser._cart = user.cart && user.cart._id ? user.cart._id : undefined;
     newUser._address = user.address ? AddressModel.hydrate(user.address) : null;
 
     return newUser;
