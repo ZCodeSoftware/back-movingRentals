@@ -54,6 +54,8 @@ import { commissionSchema } from '../commission/infrastructure/nest/constants/cu
     ticketRepository,
     commissionRepository
   ],
-  exports: [],
+  exports: [
+    bookingService
+  ],
 })
 export class BookingModule { }

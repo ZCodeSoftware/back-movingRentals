@@ -89,8 +89,10 @@ export class NotificationEventController {
       // Obtener el booking asociado al contrato para enviar el email de confirmación
       const contractData = contract.toJSON();
       if (contractData.booking) {
+        // Instanciar BookingModel usando el método de fábrica adecuado para cumplir el tipado
+        const bookingInstance = BookingModel.hydrate(contractData.booking);
         await this.notificationEventService.sendBookingCreated(
-          contractData.booking,
+          bookingInstance,
           userEmail,
           lang,
         );

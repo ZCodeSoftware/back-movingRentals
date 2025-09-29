@@ -152,7 +152,8 @@ export class NotificationEventService implements INotificationEventService {
       let userData = null;
       try {
         // Intentar obtener datos del usuario desde el booking o buscar por email
-        const user = await this.findUserByBookingId(booking.toJSON()._id);
+        const bookingIdStr = String(booking.toJSON()._id);
+        const user = await this.findUserByBookingId(bookingIdStr);
         if (user) {
           userData = user.toJSON();
         }
