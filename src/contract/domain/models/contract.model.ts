@@ -3,6 +3,7 @@ import { CatStatusModel } from '../../../booking/domain/models/cat-status.model'
 import { BaseModel } from '../../../core/domain/models/base.model';
 import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { UserModel } from '../../../user/domain/models/user.model';
+import { VehicleOwnerModel } from '../../../vehicleowner/domain/models/vehicleowner.model';
 
 export interface ContractExtension {
   newEndDateTime?: Date;
@@ -18,6 +19,8 @@ export class ContractModel extends BaseModel {
   private _createdByUser: UserModel;
   private _extension?: ContractExtension;
   private _status: CatStatusModel;
+  private _concierge?: VehicleOwnerModel;
+  private _source: string;
   private _timeline?: any[];
 
   public toJSON() {
@@ -29,6 +32,8 @@ export class ContractModel extends BaseModel {
       createdByUser: this._createdByUser ? this._createdByUser.toJSON() : null,
       extension: this._extension,
       status: this._status ? this._status.toJSON() : null,
+      concierge: this._concierge ? this._concierge.toJSON() : null,
+      source: this._source,
       timeline: this._timeline,
     };
   }
@@ -53,6 +58,14 @@ export class ContractModel extends BaseModel {
     return this._status;
   }
 
+  get concierge(): VehicleOwnerModel {
+    return this._concierge;
+  }
+
+  get source(): string {
+    return this._source;
+  }
+
   get timeline(): any[] {
     return this._timeline;
   }
@@ -73,6 +86,8 @@ export class ContractModel extends BaseModel {
     newContract._createdByUser = contract.createdByUser;
     newContract._extension = contract.extension;
     newContract._status = contract.status;
+    newContract._concierge = contract.concierge;
+    newContract._source = contract.source || 'Web';
 
     return newContract;
   }
@@ -85,6 +100,8 @@ export class ContractModel extends BaseModel {
     newContract._createdByUser = contract.createdByUser ? UserModel.hydrate(contract.createdByUser) : null;
     newContract._extension = contract.extension;
     newContract._status = contract.status ? CatStatusModel.hydrate(contract.status) : null;
+    newContract._concierge = contract.concierge ? VehicleOwnerModel.hydrate(contract.concierge) : null;
+    newContract._source = contract.source || 'Web';
     newContract._timeline = contract.timeline || [];
     newContract._createdAt = contract.createdAt;
     newContract._updatedAt = contract.updatedAt;

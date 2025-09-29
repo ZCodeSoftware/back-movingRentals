@@ -4,6 +4,7 @@ import { CatPaymentMethod } from '../catalogs/cat-payment-method.schema';
 import { CatStatus } from '../catalogs/cat-status.schema';
 import { Booking } from './booking.schema';
 import { User } from './user.schema';
+import { VehicleOwner } from './vehicle-owner.schema';
 
 export type ContractDocument = HydratedDocument<Contract>;
 
@@ -43,6 +44,12 @@ export class Contract {
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'CatStatus' })
   status: CatStatus;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'VehicleOwner', required: false })
+  concierge?: VehicleOwner;
+
+  @Prop({ type: String, enum: ['Web', 'Dashboard'], default: 'Web' })
+  source: string;
 }
 
 export const ContractSchema = SchemaFactory.createForClass(Contract);

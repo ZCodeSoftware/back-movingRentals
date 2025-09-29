@@ -12,6 +12,8 @@ export interface ICreateContract {
   reservingUser: string;
   status?: string;
   extension?: IContractExtension;
+  concierge?: string;
+  source?: string;
 }
 
 export interface IUpdateContract {
@@ -19,6 +21,8 @@ export interface IUpdateContract {
   reservingUser?: string;
   status?: string;
   extension?: IContractExtension;
+  concierge?: string;
+  source?: string;
   eventType?: string
   newCart?: any;
   reasonForChange?: string;

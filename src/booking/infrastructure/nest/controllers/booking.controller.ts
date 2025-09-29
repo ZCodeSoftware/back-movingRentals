@@ -140,9 +140,15 @@ export class BookingController {
     @Body() body: Partial<CreateBookingDTO>,
     @Query('lang') lang: string = 'es',
   ) {
+    // Set source as Dashboard for manual bookings
+    const bookingData = {
+      ...body,
+      source: 'Dashboard'
+    };
+    
     return this.bookingService.addManualBookingInUserFromCart(
       email,
-      body,
+      bookingData,
       lang,
     );
   }
