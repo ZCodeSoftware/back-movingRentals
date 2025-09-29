@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { VehicleOwnerModel } from "../../domain/models/vehicleowner.model";
 import { IVehicleOwnerRepository } from "../../domain/repositories/vehicleowner.interface.repository";
 import { IVehicleOwnerService } from "../../domain/services/vehicleowner.interface.service";
-import { ICreateVehicleOwner, IUpdateVehicleOwner } from "../../domain/types/vehicleowner.type";
+import { ICreateVehicleOwner, IUpdateVehicleOwner, IVehicleOwnerFilters } from "../../domain/types/vehicleowner.type";
 import SymbolsVehicleOwner from "../../symbols-vehicleowner";
 
 @Injectable()
@@ -21,8 +21,25 @@ export class VehicleOwnerService implements IVehicleOwnerService {
         return this.vehicleownerRepository.findById(id);
     }
 
-    async findAll(): Promise<VehicleOwnerModel[]> {
-        return this.vehicleownerRepository.findAll();
+    async findAll(filters?: IVehicleOwnerFilters): Promise<{ data: VehicleOwnerModel[], total: number, page: number, limit: number }> {
+        const result = await this.vehicleownerRepository.findAll(filters);
+        const page = filters?.page || 1;
+        const limit = filters?.limit || 10;
+        
+        return {
+            data: result.data,
+            total: result.total,
+            page,
+            limit
+        };
+    }
+
+    async findAllConcierges(): Promise<VehicleOwnerModel[]> {
+        return this.vehicleownerRepository.findAllConcierges();
+    }
+
+    async findAllOwners(): Promise<VehicleOwnerModel[]> {
+        return this.vehicleownerRepository.findAllOwners();
     }
 
     async update(id: string, vehicleowner: IUpdateVehicleOwner): Promise<VehicleOwnerModel> {

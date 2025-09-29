@@ -1,5 +1,9 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
+import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
+import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { ITourService } from "../../../domain/services/tour.interface.service";
 import SymbolsTour from "../../../symbols-tour";
 import { CreateTourDTO, TourFiltersDTO, UpdateTourDTO } from "../dtos/tour.dto";
@@ -39,6 +43,8 @@ export class TourController {
     }
 
     @Put(':id')
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return Tour updated by id' })
     @ApiResponse({ status: 404, description: 'Tour not found' })
@@ -48,6 +54,8 @@ export class TourController {
     }
 
     @Delete(':id')
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @HttpCode(204)
     @ApiResponse({ status: 204, description: 'Tour soft-deleted' })
     async delete(@Param('id') id: string): Promise<void> {

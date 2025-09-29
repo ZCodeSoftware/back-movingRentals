@@ -4,6 +4,8 @@ import { Identifier } from '../../../core/domain/value-objects/identifier';
 export class VehicleOwnerModel extends BaseModel {
   private _name: string;
   private _commissionPercentage: number;
+  private _phone: string;
+  private _isConcierge: boolean;
   private _vehicles?: any[];
 
   get vehicles(): any[] {
@@ -16,6 +18,8 @@ export class VehicleOwnerModel extends BaseModel {
       ...aggregate,
       name: this._name,
       commissionPercentage: this._commissionPercentage,
+      phone: this._phone,
+      isConcierge: this._isConcierge,
       vehicles: this._vehicles
     };
   }
@@ -24,6 +28,8 @@ export class VehicleOwnerModel extends BaseModel {
     const newVehicleOwner = new VehicleOwnerModel(new Identifier(vehicleowner._id));
     newVehicleOwner._name = vehicleowner.name;
     newVehicleOwner._commissionPercentage = vehicleowner.commissionPercentage;
+    newVehicleOwner._phone = vehicleowner.phone;
+    newVehicleOwner._isConcierge = vehicleowner.isConcierge || false;
 
     return newVehicleOwner;
   }
@@ -32,6 +38,8 @@ export class VehicleOwnerModel extends BaseModel {
     const newVehicleOwner = new VehicleOwnerModel(new Identifier(vehicleowner._id));
     newVehicleOwner._name = vehicleowner.name;
     newVehicleOwner._commissionPercentage = vehicleowner.commissionPercentage;
+    newVehicleOwner._phone = vehicleowner.phone;
+    newVehicleOwner._isConcierge = vehicleowner.isConcierge || false;
     newVehicleOwner._vehicles = vehicleowner.vehicles || [];
 
     return newVehicleOwner;

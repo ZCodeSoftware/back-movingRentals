@@ -4,6 +4,7 @@ import mongoose, { Model } from "mongoose";
 import { BaseErrorException } from "../../../../core/domain/exceptions/base.error.exception";
 import { VehicleOwnerModel } from "../../../domain/models/vehicleowner.model";
 import { IVehicleOwnerRepository } from "../../../domain/repositories/vehicleowner.interface.repository";
+import { IVehicleOwnerFilters } from "../../../domain/types/vehicleowner.type";
 import { VehicleOwnerSchema } from "../schemas/vehicleowner.schema";
 
 @Injectable()
@@ -27,39 +28,103 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         return VehicleOwnerModel.hydrate(vehicleowner);
     }
 
-    async findAll(): Promise<VehicleOwnerModel[]> {
+    async findAll(filters?: IVehicleOwnerFilters): Promise<{ data: VehicleOwnerModel[], total: number }> {
+        // Build match conditions
+        const matchConditions: any = {};
+        
+        if (filters?.name) {
+            matchConditions.name = { $regex: filters.name, $options: 'i' };
+        }
+        
+        if (filters?.isConcierge !== undefined) {
+            matchConditions.isConcierge = filters.isConcierge;
+        }
 
-        // 1. CONSTRUIR EL PIPELINE DE AGREGACIÓN
-        const pipeline: mongoose.PipelineStage[] = [
-            // --- (Opcional) Etapa de Filtro ($match) ---
-            // Si necesitas filtrar dueños (por ejemplo, solo los activos), lo harías aquí.
-            // Ejemplo: { $match: { isActive: true } }
+        // Build aggregation pipeline
+        const pipeline: mongoose.PipelineStage[] = [];
 
-            // --- Etapa de "Join" ($lookup) ---
-            // Esta es la operación clave que une los dueños con sus vehículos.
-            {
-                $lookup: {
-                    from: 'vehicle',           // La colección de vehículos (nombre en la DB)
-                    localField: '_id',          // Campo de la colección actual (vehicle_owner)
-                    foreignField: 'owner',      // Campo en 'vehicles' que referencia al ID del dueño
-                    as: 'vehicles'              // Nombre del nuevo array que se añadirá a cada dueño
-                }
-            },
-            {
-                $sort: { name: 1 }
+        // Add match stage if there are filters
+        if (Object.keys(matchConditions).length > 0) {
+            pipeline.push({ $match: matchConditions });
+        }
+
+        // Add lookup for vehicles
+        pipeline.push({
+            $lookup: {
+                from: 'vehicle',
+                localField: '_id',
+                foreignField: 'owner',
+                as: 'vehicles'
             }
-        ];
+        });
 
-        // 2. EJECUTAR LA CONSULTA DE AGREGACIÓN
-        const ownersWithVehicles = await this.vehicleownerDB.aggregate(pipeline).exec();
+        // Add sort
+        pipeline.push({ $sort: { name: 1 } });
 
-        // 3. HIDRATAR LOS RESULTADOS USANDO TU MODELO DE DOMINIO
-        // Asegúrate de que tu VehicleOwnerModel.hydrate puede manejar el nuevo array 'vehicles'.
+        // Create pipeline for counting total documents
+        const countPipeline = [...pipeline, { $count: "total" }];
+
+        // Add pagination
+        const page = filters?.page || 1;
+        const limit = filters?.limit || 10;
+        const skip = (page - 1) * limit;
+
+        pipeline.push({ $skip: skip });
+        pipeline.push({ $limit: limit });
+
+        // Execute both queries
+        const [ownersWithVehicles, countResult] = await Promise.all([
+            this.vehicleownerDB.aggregate(pipeline).exec(),
+            this.vehicleownerDB.aggregate(countPipeline).exec()
+        ]);
+
+        const total = countResult.length > 0 ? countResult[0].total : 0;
+
+        // Hydrate results
         const ownerModels = ownersWithVehicles.map(owner =>
             VehicleOwnerModel.hydrate(owner)
         );
 
-        return ownerModels;
+        return {
+            data: ownerModels,
+            total
+        };
+    }
+
+    async findAllConcierges(): Promise<VehicleOwnerModel[]> {
+        const pipeline: mongoose.PipelineStage[] = [
+            { $match: { isConcierge: true } },
+            {
+                $lookup: {
+                    from: 'vehicle',
+                    localField: '_id',
+                    foreignField: 'owner',
+                    as: 'vehicles'
+                }
+            },
+            { $sort: { name: 1 } }
+        ];
+
+        const concierges = await this.vehicleownerDB.aggregate(pipeline).exec();
+        return concierges.map(concierge => VehicleOwnerModel.hydrate(concierge));
+    }
+
+    async findAllOwners(): Promise<VehicleOwnerModel[]> {
+        const pipeline: mongoose.PipelineStage[] = [
+            { $match: { isConcierge: false } },
+            {
+                $lookup: {
+                    from: 'vehicle',
+                    localField: '_id',
+                    foreignField: 'owner',
+                    as: 'vehicles'
+                }
+            },
+            { $sort: { name: 1 } }
+        ];
+
+        const owners = await this.vehicleownerDB.aggregate(pipeline).exec();
+        return owners.map(owner => VehicleOwnerModel.hydrate(owner));
     }
 
     async update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {

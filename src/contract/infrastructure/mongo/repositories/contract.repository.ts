@@ -310,6 +310,23 @@ export class ContractRepository implements IContractRepository {
       const regex = new RegExp(escapeRegex(filters.reservingUser), 'i');
       matchConditions['reservingUserData.email'] = regex;
     }
+    if (filters.search) {
+      const regex = new RegExp(escapeRegex(filters.search), 'i');
+      matchConditions.$or = [
+        { 'reservingUserData.email': regex },
+        { 'reservingUserData.name': regex },
+        { 'reservingUserData.lastName': regex },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ['$reservingUserData.name', ' ', '$reservingUserData.lastName'] },
+              regex: escapeRegex(filters.search),
+              options: 'i',
+            },
+          },
+        },
+      ];
+    }
     if (filters.createdByUser) {
       matchConditions.createdByUser = new mongoose.Types.ObjectId(
         filters.createdByUser,

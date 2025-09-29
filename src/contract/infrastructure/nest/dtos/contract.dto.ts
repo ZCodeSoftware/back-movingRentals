@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNotEmpty,
@@ -67,6 +68,21 @@ export class CreateContractDTO {
   @ValidateNested()
   @Type(() => ContractExtensionDTO)
   extension?: ContractExtensionDTO;
+
+  @ApiPropertyOptional({ description: 'Concierge (VehicleOwner) ID' })
+  @IsOptional()
+  @IsString()
+  concierge?: string;
+
+  @ApiPropertyOptional({ description: 'Source of the contract', enum: ['Web', 'Dashboard'], default: 'Web' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @ApiPropertyOptional({ description: 'Whether to send email notification to the client', default: true })
+  @IsOptional()
+  @IsBoolean()
+  sendEmail?: boolean;
 }
 
 // --- DTO para la actualización de un contrato (el que modificamos) ---
@@ -91,6 +107,16 @@ export class UpdateContractDTO {
   @ValidateNested()
   @Type(() => ContractExtensionDTO)
   extension?: ContractExtensionDTO;
+
+  @ApiPropertyOptional({ description: 'Concierge (VehicleOwner) ID' })
+  @IsOptional()
+  @IsString()
+  concierge?: string;
+
+  @ApiPropertyOptional({ description: 'Source of the contract', enum: ['Web', 'Dashboard'] })
+  @IsOptional()
+  @IsString()
+  source?: string;
 
   @ApiPropertyOptional({
     description: 'El objeto completo del nuevo estado del carrito. Se acepta cualquier estructura de objeto.',
