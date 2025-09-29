@@ -45,4 +45,14 @@ export class CreateBookingDTO {
   @ApiPropertyOptional()
   @IsBoolean()
   isValidated?: boolean = false;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Source of the booking', enum: ['Web', 'Dashboard'], default: 'Web' })
+  @IsString()
+  source?: string;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Concierge (VehicleOwner) ID for Dashboard bookings' })
+  @IsString()
+  concierge?: string;
 }
