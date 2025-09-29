@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Model } from 'mongoose';
 import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
 import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
@@ -39,6 +40,7 @@ export class ContractService implements IContractService {
     private readonly movementService: IMovementService,
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(
@@ -59,8 +61,18 @@ export class ContractService implements IContractService {
     };
 
     const contractModel = ContractModel.create(processedContract);
+    const createdContract = await this.contractRepository.create(contractModel, userId);
 
-    return await this.contractRepository.create(contractModel, userId);
+    // Emitir evento para envío de email solo si sendEmail es true (por defecto es true)
+    if (contract.sendEmail !== false) {
+      this.eventEmitter.emit('send-contract.created', {
+        contract: createdContract,
+        userEmail: createdContract.toJSON().reservingUser?.email,
+        lang: 'es', // Por defecto español, se puede mejorar para detectar idioma del usuario
+      });
+    }
+
+    return createdContract;
   }
 
   async findById(id: string): Promise<ContractModel> {

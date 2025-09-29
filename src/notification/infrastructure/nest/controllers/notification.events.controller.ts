@@ -2,6 +2,7 @@ import { Controller, Inject } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { ApiTags } from '@nestjs/swagger';
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
+import { ContractModel } from '../../../../contract/domain/models/contract.model';
 import SymbolsNotification from '../../../../notification/symbols-notification';
 import { INotificationEventService } from '../../../domain/services/notificacion.event.interface.service';
 
@@ -74,6 +75,28 @@ export class NotificationEventController {
       );
     } catch (error) {
       console.error('Error sending booking cancellation emails:', error);
+    }
+  }
+
+  @OnEvent('send-contract.created')
+  async contractCreate(payload: {
+    contract: ContractModel;
+    userEmail: string;
+    lang: string;
+  }) {
+    const { contract, userEmail, lang } = payload;
+    try {
+      // Obtener el booking asociado al contrato para enviar el email de confirmación
+      const contractData = contract.toJSON();
+      if (contractData.booking) {
+        await this.notificationEventService.sendBookingCreated(
+          contractData.booking,
+          userEmail,
+          lang,
+        );
+      }
+    } catch (error) {
+      console.error('Error sending contract creation emails:', error);
     }
   }
 }
