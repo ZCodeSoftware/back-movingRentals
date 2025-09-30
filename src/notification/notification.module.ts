@@ -8,8 +8,10 @@ import {
 import { NotificationController } from './infrastructure/nest/controllers/notification.controller';
 import { NotificationEventController } from './infrastructure/nest/controllers/notification.events.controller';
 
+import { BookingModule } from '../booking/booking.module';
+
 @Module({
-  imports: [],
+  imports: [BookingModule],
   controllers: [NotificationController, NotificationEventController],
   providers: [
     notificationService,

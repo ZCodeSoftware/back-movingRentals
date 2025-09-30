@@ -45,7 +45,7 @@ export class ContractController {
   @ApiResponse({ status: 400, description: `Contract shouldn't be created` })
   @ApiBody({
     type: CreateContractDTO,
-    description: 'Data to create a Contract',
+    description: 'Data to create a Contract. Use sendEmail=false to skip email notification to client.',
   })
   @Roles(
     TypeRoles.ADMIN,
@@ -68,6 +68,13 @@ export class ContractController {
             : undefined,
         }
         : undefined,
+      // Si sendEmail no se especifica, por defecto es true para mantener compatibilidad
+      sendEmail:
+        typeof body.sendEmail === 'string'
+          ? body.sendEmail === 'true'
+          : body.sendEmail !== undefined
+            ? body.sendEmail
+            : true,
     };
 
     return this.contractService.create(contractData, _id);
@@ -104,6 +111,12 @@ export class ContractController {
     required: false,
     type: 'string',
     description: 'Filter by reserving user email',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: 'string',
+    description: 'Search in reserving user name, last name, email, or full name (name + last name)',
   })
   @ApiQuery({
     name: 'createdByUser',

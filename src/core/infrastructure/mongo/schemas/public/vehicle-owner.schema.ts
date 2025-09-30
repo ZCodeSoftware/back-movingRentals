@@ -13,6 +13,12 @@ export class VehicleOwner {
 
     @Prop({ min: 0, max: 100 })
     commissionPercentage: number;
+
+    @Prop()
+    phone: string;
+
+    @Prop({ default: false })
+    isConcierge: boolean;
 }
 
 export const VehicleOwnerSchema = SchemaFactory.createForClass(VehicleOwner);

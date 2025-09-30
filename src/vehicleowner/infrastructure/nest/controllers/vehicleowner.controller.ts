@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
 import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
@@ -6,7 +6,7 @@ import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guar
 import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { IVehicleOwnerService } from "../../../domain/services/vehicleowner.interface.service";
 import SymbolsVehicleOwner from "../../../symbols-vehicleowner";
-import { CreateVehicleOwnerDTO, UpdateVehicleOwnerDTO } from "../dtos/vehicleowner.dto";
+import { CreateVehicleOwnerDTO, UpdateVehicleOwnerDTO, VehicleOwnerQueryDTO } from "../dtos/vehicleowner.dto";
 
 @ApiTags('vehicle-owner')
 @Controller('vehicle-owner')
@@ -18,7 +18,7 @@ export class VehicleOwnerController {
 
     @Post()
     @HttpCode(201)
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     @ApiResponse({ status: 201, description: 'VehicleOwner created' })
     @ApiResponse({ status: 400, description: `VehicleOwner shouldn't be created` })
@@ -31,10 +31,30 @@ export class VehicleOwnerController {
     @HttpCode(200)
     @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
-    @ApiResponse({ status: 200, description: 'Return all VehicleOwners' })
+    @ApiResponse({ status: 200, description: 'Return all VehicleOwners with pagination and filtering' })
     @ApiResponse({ status: 404, description: 'VehicleOwner not found' })
-    async findAll() {
-        return this.vehicleownerService.findAll();
+    async findAll(@Query() query: VehicleOwnerQueryDTO) {
+        return this.vehicleownerService.findAll(query);
+    }
+
+    @Get('concierge')
+    @HttpCode(200)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
+    @ApiResponse({ status: 200, description: 'Return all concierge VehicleOwners' })
+    @ApiResponse({ status: 404, description: 'Concierge VehicleOwners not found' })
+    async findConcierges() {
+        return this.vehicleownerService.findAllConcierges();
+    }
+
+    @Get('owners')
+    @HttpCode(200)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
+    @ApiResponse({ status: 200, description: 'Return all non-concierge VehicleOwners (regular owners)' })
+    @ApiResponse({ status: 404, description: 'VehicleOwners not found' })
+    async findOwners() {
+        return this.vehicleownerService.findAllOwners();
     }
 
     @Get(':id')
@@ -50,7 +70,7 @@ export class VehicleOwnerController {
     @ApiResponse({ status: 200, description: 'VehicleOwner updated' })
     @ApiResponse({ status: 400, description: `VehicleOwner shouldn't be updated` })
     @ApiBody({ type: UpdateVehicleOwnerDTO, description: 'Data to update a VehicleOwner' })
-    @Roles(TypeRoles.ADMIN)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
     async update(@Param('id') id: string, @Body() body: UpdateVehicleOwnerDTO) {
         return this.vehicleownerService.update(id, body);

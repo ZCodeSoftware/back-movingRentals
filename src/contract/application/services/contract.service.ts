@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Model } from 'mongoose';
 import { TypeCatTypeMovement } from '../../../core/domain/enums/type-cat-type-movement';
 import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
@@ -39,6 +40,7 @@ export class ContractService implements IContractService {
     private readonly movementService: IMovementService,
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(
@@ -59,8 +61,23 @@ export class ContractService implements IContractService {
     };
 
     const contractModel = ContractModel.create(processedContract);
+    const createdContract = await this.contractRepository.create(contractModel, userId);
 
-    return await this.contractRepository.create(contractModel, userId);
+    // Log extendido de debugging para sendEmail
+    console.log('[ContractService] Valor recibido de sendEmail:', contract.sendEmail, 'Tipo:', typeof contract.sendEmail);
+    if (contract.sendEmail !== false) {
+      console.log('[ContractService] DISPARANDO EVENTO DE CORREO (sendEmail !== false)');
+      console.log('[ContractService] Contrato creado, ID:', createdContract?.toJSON()._id, 'Request user:', userId);
+      this.eventEmitter.emit('send-contract.created', {
+        contract: createdContract,
+        userEmail: createdContract.toJSON().reservingUser?.email,
+        lang: 'es', // Por defecto español, se puede mejorar para detectar idioma del usuario
+      });
+    } else {
+      console.log('[ContractService] NO se dispara mail por sendEmail === false para contrato ID:', createdContract?.toJSON()._id, 'Request user:', userId);
+    }
+
+    return createdContract;
   }
 
   async findById(id: string): Promise<ContractModel> {

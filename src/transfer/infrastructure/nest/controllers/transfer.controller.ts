@@ -1,5 +1,9 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Delete, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiQuery, ApiResponse, ApiTags, ApiOperation, ApiParam } from "@nestjs/swagger";
+import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
+import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
+import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
+import { TypeRoles } from "../../../../core/domain/enums/type-roles.enum";
 import { TourFiltersDTO } from "../../../../tour/infrastructure/nest/dtos/tour.dto";
 import { ITransferService } from "../../../domain/services/transfer.interface.service";
 import SymbolsTransfer from "../../../symbols-transfer";
@@ -48,6 +52,8 @@ export class TransferController {
     }
 
     @Put(':id')
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @ApiOperation({ summary: 'Update transfer', description: 'Updates the specified transfer with the provided data.' })
     @ApiParam({ name: 'id', type: String, description: 'Transfer ID' })
     @HttpCode(200)
@@ -61,6 +67,8 @@ export class TransferController {
     }
 
     @Delete(':id')
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
     @ApiOperation({ summary: 'Soft-delete transfer', description: 'Marks the transfer as deleted (isDeleted=true) without removing it from the database.' })
     @ApiParam({ name: 'id', type: String, description: 'Transfer ID' })
     @HttpCode(204)

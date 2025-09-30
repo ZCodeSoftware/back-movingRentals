@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common/decorators/modules';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongooseModule } from '@nestjs/mongoose';
 import { cartSchema, catContractEventSchema } from '../catalogs/infrastructure/constants/custom-schema';
 import { MovementModule } from '../movement/movement.module';
@@ -27,8 +28,8 @@ import { ContractController } from './infrastructure/nest/controllers/contract.c
       cartVersionSchema,
       cartSchema,
       catContractEventSchema
-    ])
-    ,
+    ]),
+    EventEmitterModule.forRoot(),
     MovementModule
   ],
   controllers: [ContractController],

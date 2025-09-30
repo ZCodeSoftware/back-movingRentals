@@ -12,7 +12,7 @@ export class LoginBodyDTO {
   @ApiProperty()
   @Matches(PASSWORD_REGEX, {
     message:
-      'The password must have at least one uppercase letter, one lowercase letter, one number, and one special character',
+      'The password must have at least one number and be at least 8 characters long',
   })
   @IsNotEmpty({ message: 'The user password is required' })
   password: string;
