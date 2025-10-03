@@ -113,10 +113,12 @@ export class ContractRepository implements IContractRepository {
     userId: string,
     details: string,
     existingSession: mongoose.ClientSession,
+    fullUpdateData?: any, // Nuevo parámetro para snapshot de toda la data
   ): Promise<void> {
     // Esta función ahora ASUME que siempre recibe una sesión y opera dentro de ella
     // sin iniciar, confirmar o abortar la transacción.
 
+    
     const contract = await this.contractModel
       .findById(contractId)
       .session(existingSession);
@@ -137,24 +139,114 @@ export class ContractRepository implements IContractRepository {
       .session(existingSession);
     const newVersionNumber = lastVersion ? lastVersion.version + 1 : 1;
 
+    // Obtener el carrito anterior como snapshot
+    let oldCartSnapshot = undefined;
+    if (booking.cart) {
+      try {
+        oldCartSnapshot = JSON.parse(booking.cart);
+      } catch (err) {
+        console.warn('[ContractRepository][applyBookingChangesFromExtension] No se pudo parsear el carrito anterior:', err);
+      }
+    }
+
     const newCartVersion = new this.cartVersionModel({
       booking: booking._id,
       version: newVersionNumber,
       data: newCartObject,
     });
 
+    // --- DIFF DETECTION BEGIN ---
+    let autoDetails = [];
+    function safeId(val) {
+      if (!val) return undefined;
+      return typeof val === 'string' ? val : val._id || val.id || JSON.stringify(val);
+    }
+    function arrayDiff(oldArr, newArr, byField) {
+      const oldMap = new Map((oldArr||[]).map(v => [byField(v), v]));
+      const newMap = new Map((newArr||[]).map(v => [byField(v), v]));
+      const added = [];
+      const removed = [];
+      const updated = [];
+      for(const [id, v] of oldMap) if (!newMap.has(id)) removed.push(v);
+      for(const [id, v] of newMap) if (!oldMap.has(id)) added.push(v);
+      for(const [id, v] of newMap) if (oldMap.has(id)) updated.push([oldMap.get(id), v]);
+      return {added, removed, updated};
+    }
+    // VEHICLES
+    const oldVehs = oldCartSnapshot?.vehicles || [];
+    const newVehs = newCartObject?.vehicles || [];
+    const difVehs = arrayDiff(oldVehs, newVehs, v => safeId(v.vehicle));
+
+    // Colectar todos los vehicle IDs usados en cualquier diff
+    const vehicleIdsSet = new Set();
+    difVehs.removed.forEach(v => vehicleIdsSet.add(safeId(v.vehicle)));
+    difVehs.added.forEach(v => vehicleIdsSet.add(safeId(v.vehicle)));
+    difVehs.updated.forEach(([ov, nv]) => { vehicleIdsSet.add(safeId(ov.vehicle)); vehicleIdsSet.add(safeId(nv.vehicle)); });
+    // Hacer el populate/nombres
+    let vehicleNameMap = {};
+    if(vehicleIdsSet.size > 0) {
+      const vehiclesFound = await this.vehicleModel.find({ _id: { $in: Array.from(vehicleIdsSet) } }, 'name _id').lean();
+      vehiclesFound.forEach(v => { vehicleNameMap[v._id.toString()] = v.name || v._id.toString(); });
+    }
+    function vehLabel(id) {
+      return vehicleNameMap[id] || id;
+    }
+    if(difVehs.removed.length) autoDetails.push(`Quitado(s) vehículo(s) ${difVehs.removed.map(v => vehLabel(safeId(v.vehicle))).join(', ')}`);
+    if(difVehs.added.length) autoDetails.push(`Agregado(s) veh��culo(s) ${difVehs.added.map(v => vehLabel(safeId(v.vehicle))).join(', ')}`);
+    difVehs.updated.forEach(([ov, nv]) => {
+      const cambios = [];
+      if(ov.dates?.start !== nv.dates?.start) cambios.push(`fecha inicio: ${ov.dates?.start} → ${nv.dates?.start}`);
+      if(ov.dates?.end !== nv.dates?.end) cambios.push(`fecha fin: ${ov.dates?.end} → ${nv.dates?.end}`);
+      if((ov.total||0)!==(nv.total||0)) cambios.push(`importe: ${ov.total} → ${nv.total}`);
+      // Más campos si es necesario
+      if(ov.passengers?.adults!==nv.passengers?.adults) cambios.push(`adultos: ${ov.passengers?.adults} → ${nv.passengers?.adults}`);
+      if(ov.passengers?.child!==nv.passengers?.child) cambios.push(`menores: ${ov.passengers?.child} → ${nv.passengers?.child}`);
+      if(cambios.length) autoDetails.push(`Vehículo ${vehLabel(safeId(nv.vehicle))} modificado: ${cambios.join(', ')}`);
+    });
+    // TOURS
+    const difTours = arrayDiff(
+      oldCartSnapshot?.tours, newCartObject?.tours, v=>safeId(v.tour||v.id||v)
+    );
+    if(difTours.removed.length) autoDetails.push(`Quitado(s) tour(s): ${difTours.removed.map(v=>safeId(v.tour||v.id||v)).join(', ')}`);
+    if(difTours.added.length) autoDetails.push(`Agregado(s) tour(s): ${difTours.added.map(v=>safeId(v.tour||v.id||v)).join(', ')}`);
+    // TICKETS
+    const difTickets = arrayDiff(
+      oldCartSnapshot?.tickets, newCartObject?.tickets, v=>safeId(v.ticket||v.id||v)
+    );
+    if(difTickets.removed.length) autoDetails.push(`Quitado(s) ticket(s): ${difTickets.removed.map(v=>safeId(v.ticket||v.id||v)).join(', ')}`);
+    if(difTickets.added.length) autoDetails.push(`Agregado(s) ticket(s): ${difTickets.added.map(v=>safeId(v.ticket||v.id||v)).join(', ')}`);
+    // TRANSFER
+    const difTransfer = arrayDiff(
+      oldCartSnapshot?.transfer, newCartObject?.transfer, v=>safeId(v.transfer||v.id||v)
+    );
+    if(difTransfer.removed.length) autoDetails.push(`Quitado(s) transfer(s): ${difTransfer.removed.map(v=>safeId(v.transfer||v.id||v)).join(', ')}`);
+    if(difTransfer.added.length) autoDetails.push(`Agregado(s) transfer(s): ${difTransfer.added.map(v=>safeId(v.transfer||v.id||v)).join(', ')}`);
+    // Combine detalles auto + details manual/user + reasonForChange (del fullUpdateData)
+    let combinedDetails = '';
+    if(autoDetails.length) combinedDetails += autoDetails.join('. ') + '.';
+    // Si el usuario mandó reasonForChange por fullUpdateData, agregarlo al final
+    const userDetailsFromUpdate = typeof fullUpdateData?.reasonForChange === 'string' ? fullUpdateData.reasonForChange : '';
+    // User details puede estar como details, si no, sumar reasonForChange
+    if(details) combinedDetails += ' ' + details;
+    else if(userDetailsFromUpdate) combinedDetails += ' ' + userDetailsFromUpdate;
+    combinedDetails = combinedDetails.trim();
+    // --- DIFF DETECTION END ---
+
+    const changesPayload = {
+      field: 'activeCartVersion',
+      oldValue: booking.activeCartVersion,
+      newValue: newCartVersion._id,
+      cartSnapshot: newCartObject,
+      oldCartSnapshot, // SNapshot del carrito anterior
+      eventSnapshot: fullUpdateData ? { ...fullUpdateData } : undefined
+    };
+
     const historyEntry = new this.contractHistoryModel({
       contract: contract._id,
       performedBy: userId,
       action: ContractAction.BOOKING_MODIFIED,
-      changes: [
-        {
-          field: 'activeCartVersion',
-          oldValue: booking.activeCartVersion,
-          newValue: newCartVersion._id,
-        },
-      ],
-      details,
+      changes: [changesPayload],
+      details: combinedDetails,
     });
     await historyEntry.save({ session: existingSession });
 
@@ -408,6 +500,9 @@ export class ContractRepository implements IContractRepository {
         throw new NotFoundException('Contract not found');
       }
 
+      // LOG FULL UPDATE DATA
+      console.log('[ContractRepository][update] contractData recibido:', JSON.stringify(contractData, null, 2));
+
       const { newCart, reasonForChange, ...contractUpdateData } = contractData;
       const changesToLog = [];
 
@@ -433,6 +528,23 @@ export class ContractRepository implements IContractRepository {
         });
       }
       if (contractUpdateData.extension) {
+        // Desglosar y guardar explicitamente extensionAmount y commissionPercentage
+        const { extensionAmount, commissionPercentage, ...restExt } = contractUpdateData.extension;
+        if (extensionAmount !== undefined) {
+          changesToLog.push({
+            field: 'extensionAmount',
+            oldValue: (originalContract.extension && originalContract.extension.extensionAmount) ?? null,
+            newValue: extensionAmount,
+          });
+        }
+        if (commissionPercentage !== undefined) {
+          changesToLog.push({
+            field: 'commissionPercentage',
+            oldValue: (originalContract.extension && originalContract.extension.commissionPercentage) ?? null,
+            newValue: commissionPercentage,
+          });
+        }
+        // El change global
         const originalExtensionStr = JSON.stringify(
           originalContract.extension || {},
         );
@@ -446,7 +558,9 @@ export class ContractRepository implements IContractRepository {
         }
       }
 
+      // LOG CAMBIOS QUE SE VAN A GUARDAR EN EL MOVIMIENTO
       if (changesToLog.length > 0) {
+        console.log('[ContractRepository][update] changes a guardar en historial:', JSON.stringify(changesToLog, null, 2));
         await new this.contractHistoryModel({
           contract: id,
           performedBy: userId,
@@ -457,13 +571,15 @@ export class ContractRepository implements IContractRepository {
       }
 
       if (newCart) {
-        // Pasamos la sesión, y esta función ahora OPERA dentro de ella, pero no la finaliza.
+        // LOG NEW CART Y SNAPSHOT
+        console.log('[ContractRepository][update] newCart recibido:', JSON.stringify(newCart, null, 2));
         await this.applyBookingChangesFromExtension(
           id,
           newCart,
           userId,
           reasonForChange,
           session,
+          contractData // Nuevo: Se pasa el update completo como snapshot para el historial
         );
 
         const booking = await this.bookingModel
@@ -486,10 +602,8 @@ export class ContractRepository implements IContractRepository {
         );
       }
 
-      // Commit es ahora el último paso dentro del bloque 'try'.
       await session.commitTransaction();
     } catch (error) {
-      // Cualquier error en el bloque 'try' provocará un abort.
       await session.abortTransaction();
       console.error(
         `Error en la transacción de actualización del contrato ${id}, cambios revertidos:`,

@@ -14,7 +14,7 @@ export enum ContractAction {
     NOTE_ADDED = 'NOTE_ADDED',
 }
 
-@Schema({ _id: false })
+@Schema({ _id: false, strict: false })
 export class ChangeDetail {
     @Prop({ type: String, required: true })
     field: string;
@@ -24,6 +24,13 @@ export class ChangeDetail {
 
     @Prop({ type: mongoose.Schema.Types.Mixed })
     newValue: any;
+
+    // Nuevos campos para exponer snapshots/metadata en el timeline:
+    @Prop({ type: mongoose.Schema.Types.Mixed })
+    cartSnapshot?: any;
+
+    @Prop({ type: mongoose.Schema.Types.Mixed })
+    eventSnapshot?: any;
 }
 const ChangeDetailSchema = SchemaFactory.createForClass(ChangeDetail);
 
