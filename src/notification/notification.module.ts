@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import {
   adminEmailAdapter,
   notificationEventService,
@@ -11,7 +11,7 @@ import { NotificationEventController } from './infrastructure/nest/controllers/n
 import { BookingModule } from '../booking/booking.module';
 
 @Module({
-  imports: [BookingModule],
+  imports: [forwardRef(() => BookingModule)],
   controllers: [NotificationController, NotificationEventController],
   providers: [
     notificationService,

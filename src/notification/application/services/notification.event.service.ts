@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  forwardRef,
 } from '@nestjs/common';
 import { BookingModel } from '../../../booking/domain/models/booking.model';
 import { IBookingService } from '../../../booking/domain/services/booking.interface.service';
@@ -152,8 +153,9 @@ export class NotificationEventService implements INotificationEventService {
       let userData = null;
       try {
         // Intentar obtener datos del usuario desde el booking o buscar por email
-        const bookingIdStr = String(booking.toJSON()._id);
-        const user = await this.findUserByBookingId(bookingIdStr);
+        const bookingData = booking.toJSON();
+        const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
+        const user = await this.findUserByBookingId(bookingId);
         if (user) {
           userData = user.toJSON();
         }
