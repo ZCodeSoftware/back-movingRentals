@@ -105,7 +105,32 @@ export class ContractService implements IContractService {
   async findAll(
     filters: IContractFilters,
   ): Promise<IPaginatedContractResponse> {
-    return await this.contractRepository.findAll(filters);
+    const result = await this.contractRepository.findAll(filters);
+    if (Array.isArray(result.data)) {
+      const dataWithTotals = await Promise.all(
+        result.data.map(async (contract: any) => {
+          let contractObj:any = contract;
+          // Si viene como instancia de modelo con .toJSON(), conviértelo
+          if (contract && typeof contract.toJSON === 'function') {
+            contractObj = contract.toJSON();
+          } else if (contract && typeof contract === 'object') {
+            contractObj = { ...contract };
+          }
+          try {
+            if (contractObj.booking && contractObj._id) {
+              const totals = await this.getBookingTotals(contractObj._id);
+              return {
+                ...contractObj,
+                bookingTotals: totals,
+              };
+            }
+          } catch (e) {}
+          return contractObj;
+        })
+      );
+      return { ...result, data: dataWithTotals };
+    }
+    return result;
   }
 
   async update(
