@@ -28,12 +28,13 @@ export interface IContractRepository {
   create(contract: ContractModel, userId: string): Promise<ContractModel>;
   findById(id: string): Promise<ContractModel>;
   findAll(filters: IContractFilters): Promise<IPaginatedContractResponse>;
-  update(id: string, contractData: any, userId: string): Promise<ContractModel>
+  update(id: string, contractData: any, userId: string): Promise<ContractModel>;
   createHistoryEvent(
     contractId: string,
     userId: string,
     eventType: string,
     details: string,
     metadata?: Record<string, any>
-  ): Promise<ContractHistory>
+  ): Promise<ContractHistory>;
+  getTimelineForContract(contractId: string): Promise<ContractHistory[]>;
 }

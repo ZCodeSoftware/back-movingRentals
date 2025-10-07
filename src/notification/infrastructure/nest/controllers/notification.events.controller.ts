@@ -89,10 +89,17 @@ export class NotificationEventController {
       // Obtener el booking asociado al contrato para enviar el email de confirmación
       const contractData = contract.toJSON();
       if (contractData.booking) {
-        // Instanciar BookingModel usando el método de fábrica adecuado para cumplir el tipado
-        const bookingInstance = BookingModel.hydrate(contractData.booking);
+        // Check if booking is already a BookingModel instance or needs to be converted
+        let bookingModel: BookingModel;
+        if (contractData.booking instanceof BookingModel) {
+          bookingModel = contractData.booking;
+        } else {
+          // If it's a plain object, create a BookingModel from it
+          bookingModel = BookingModel.hydrate(contractData.booking);
+        }
+        
         await this.notificationEventService.sendBookingCreated(
-          bookingInstance,
+          bookingModel,
           userEmail,
           lang,
         );

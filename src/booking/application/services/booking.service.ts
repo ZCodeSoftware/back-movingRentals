@@ -11,6 +11,7 @@ import { TypeStatus } from '../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
 import SymbolsUser from '../../../user/symbols-user';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
+import { ReservationModel } from '../../../vehicle/domain/models/reservation.model';
 import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
 import { BookingModel } from '../../domain/models/booking.model';
 import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
@@ -469,6 +470,27 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Cancelled status not found', HttpStatus.NOT_FOUND);
     }
 
+    // Liberar vehículos antes de cancelar la reserva
+    try {
+      const bookingData = booking.toJSON();
+      const parsedCart = JSON.parse(bookingData.cart || '{}');
+
+      if (parsedCart?.vehicles?.length > 0) {
+        for (const vehicleBooking of parsedCart.vehicles) {
+          if (vehicleBooking.dates?.start && vehicleBooking.dates?.end && vehicleBooking.vehicle?._id) {
+            await this.releaseVehicleReservation(
+              vehicleBooking.vehicle._id,
+              new Date(vehicleBooking.dates.start),
+              new Date(vehicleBooking.dates.end)
+            );
+          }
+        }
+      }
+    } catch (error) {
+      // Log error but don't fail the cancellation process
+      console.error('Error releasing vehicle reservations:', error);
+    }
+
     // Actualizar el estado de la reserva a CANCELADO
     booking.addStatus(cancelledStatus);
 
@@ -490,5 +512,53 @@ export class BookingService implements IBookingService {
     });
 
     return updatedBooking;
+  }
+
+  private async releaseVehicleReservation(
+    vehicleId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<void> {
+    try {
+      const vehicle = await this.vehicleRepository.findById(vehicleId);
+      if (!vehicle) {
+        console.warn(`Vehicle ${vehicleId} not found when trying to release reservation`);
+        return;
+      }
+
+      const vehicleData = vehicle.toJSON();
+      if (!vehicleData.reservations || vehicleData.reservations.length === 0) {
+        return;
+      }
+
+      // Filter out the reservation that matches the booking dates
+      const updatedReservations = vehicleData.reservations.filter(reservation => {
+        const reservationStart = new Date(reservation.start).getTime();
+        const reservationEnd = new Date(reservation.end).getTime();
+        const bookingStart = startDate.getTime();
+        const bookingEnd = endDate.getTime();
+
+        // Allow some tolerance for date differences (1 minute)
+        const startDiff = Math.abs(reservationStart - bookingStart);
+        const endDiff = Math.abs(reservationEnd - bookingEnd);
+
+        // Return true to keep the reservation, false to remove it
+        return !(startDiff <= 60000 && endDiff <= 60000);
+      });
+
+      // Update the vehicle with the filtered reservations
+      const updatedVehicle = vehicle;
+      updatedVehicle.setReservations(
+        updatedReservations.map(res => ReservationModel.create({
+          start: res.start,
+          end: res.end
+        }))
+      );
+
+      await this.vehicleRepository.update(vehicleId, updatedVehicle);
+    } catch (error) {
+      console.error(`Error releasing reservation for vehicle ${vehicleId}:`, error);
+      throw error;
+    }
   }
 }
