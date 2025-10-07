@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -164,7 +165,45 @@ export class ContractController {
 
   @Get(':id')
   @HttpCode(200)
-  @ApiResponse({ status: 200, description: 'Return Contract by id' })
+  @ApiResponse({
+    status: 200,
+    description: 'Return Contract by id with booking totals calculated from contract history',
+    schema: {
+      type: 'object',
+      properties: {
+        _id: { type: 'string' },
+        booking: { type: 'object', description: 'Booking information' },
+        reservingUser: { type: 'object', description: 'User who made the reservation' },
+        createdByUser: { type: 'object', description: 'User who created the contract' },
+        status: { type: 'object', description: 'Contract status' },
+        extension: { type: 'object', description: 'Extension information if any' },
+        timeline: { type: 'array', description: 'Contract history timeline' },
+        bookingTotals: {
+          type: 'object',
+          description: 'Calculated totals based on contract history',
+          properties: {
+            originalTotal: { type: 'number', example: 1500.00, description: 'Total original de la reserva' },
+            netTotal: { type: 'number', example: 1650.00, description: 'Total neto con ajustes del histórico' },
+            adjustments: {
+              type: 'array',
+              description: 'Ajustes monetarios del histórico del contrato',
+              items: {
+                type: 'object',
+                properties: {
+                  eventType: { type: 'string', description: 'ID del tipo de evento' },
+                  eventName: { type: 'string', description: 'Nombre del evento' },
+                  amount: { type: 'number', description: 'Monto del ajuste' },
+                  direction: { type: 'string', enum: ['IN', 'OUT'], description: 'Dirección del movimiento' },
+                  date: { type: 'string', format: 'date-time', description: 'Fecha del evento' },
+                  details: { type: 'string', description: 'Detalles del evento' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
   @ApiResponse({ status: 404, description: 'Contract not found' })
   @Roles(
     TypeRoles.ADMIN,
@@ -174,7 +213,51 @@ export class ContractController {
   )
   @UseGuards(AuthGuards, RoleGuard)
   async findById(@Param('id') id: string) {
-    return this.contractService.findById(id);
+    const result = await this.contractService.findByIdWithTotals(id);
+    if (!result) {
+      throw new NotFoundException('Contract not found');
+    }
+    return result;
+  }
+
+  @Get(':id/totals')
+  @HttpCode(200)
+  @ApiResponse({
+    status: 200,
+    description: 'Return booking totals based on contract history',
+    schema: {
+      type: 'object',
+      properties: {
+        originalTotal: { type: 'number', example: 1500.00, description: 'Total original de la reserva' },
+        netTotal: { type: 'number', example: 1650.00, description: 'Total neto con ajustes del histórico' },
+        adjustments: {
+          type: 'array',
+          description: 'Ajustes monetarios del histórico del contrato',
+          items: {
+            type: 'object',
+            properties: {
+              eventType: { type: 'string', description: 'ID del tipo de evento' },
+              eventName: { type: 'string', description: 'Nombre del evento' },
+              amount: { type: 'number', description: 'Monto del ajuste' },
+              direction: { type: 'string', enum: ['IN', 'OUT'], description: 'Dirección del movimiento' },
+              date: { type: 'string', format: 'date-time', description: 'Fecha del evento' },
+              details: { type: 'string', description: 'Detalles del evento' }
+            }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Contract not found' })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async getBookingTotals(@Param('id') id: string) {
+    return this.contractService.getBookingTotals(id);
   }
 
   @Post(':id/report-event')

@@ -5,11 +5,6 @@ export function generateAdminBookingCancellation(
   userData?: any,
 ): string {
   const bookingData = booking.toJSON();
-  console.log(
-    '✉️ [ADMIN CANCEL] bookingData:',
-    JSON.stringify(bookingData, null, 2),
-  );
-  console.log('✉️ [ADMIN CANCEL] userData:', JSON.stringify(userData, null, 2));
   const bookingNumber = bookingData.bookingNumber || 'N/A';
   const total = bookingData.total || 0;
   const createdAt = bookingData.createdAt
