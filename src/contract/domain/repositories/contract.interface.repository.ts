@@ -37,4 +37,15 @@ export interface IContractRepository {
     metadata?: Record<string, any>
   ): Promise<ContractHistory>;
   getTimelineForContract(contractId: string): Promise<ContractHistory[]>;
+
+  // Métodos para soft delete de movimientos
+  softDeleteHistoryEntry(
+    historyId: string,
+    userId: string,
+    reason?: string
+  ): Promise<ContractHistory>;
+
+  restoreHistoryEntry(historyId: string): Promise<ContractHistory>;
+
+  getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]>;
 }

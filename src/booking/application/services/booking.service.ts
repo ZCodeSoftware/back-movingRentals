@@ -474,6 +474,7 @@ export class BookingService implements IBookingService {
     try {
       const bookingData = booking.toJSON();
       const parsedCart = JSON.parse(bookingData.cart || '{}');
+      const bookingId = bookingData._id?.toString();
 
       if (parsedCart?.vehicles?.length > 0) {
         for (const vehicleBooking of parsedCart.vehicles) {
@@ -481,7 +482,8 @@ export class BookingService implements IBookingService {
             await this.releaseVehicleReservation(
               vehicleBooking.vehicle._id,
               new Date(vehicleBooking.dates.start),
-              new Date(vehicleBooking.dates.end)
+              new Date(vehicleBooking.dates.end),
+              bookingId // Pasar el bookingId para identificación precisa
             );
           }
         }
@@ -517,7 +519,8 @@ export class BookingService implements IBookingService {
   private async releaseVehicleReservation(
     vehicleId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    bookingId?: string
   ): Promise<void> {
     try {
       const vehicle = await this.vehicleRepository.findById(vehicleId);
@@ -531,19 +534,25 @@ export class BookingService implements IBookingService {
         return;
       }
 
-      // Filter out the reservation that matches the booking dates
+      // Filter out the reservation that matches the booking
       const updatedReservations = vehicleData.reservations.filter(reservation => {
+        // Si tenemos bookingId, usarlo como identificador principal
+        if (bookingId && reservation.bookingId) {
+          return reservation.bookingId !== bookingId;
+        }
+
+        // Fallback: usar fechas con tolerancia
         const reservationStart = new Date(reservation.start).getTime();
         const reservationEnd = new Date(reservation.end).getTime();
         const bookingStart = startDate.getTime();
         const bookingEnd = endDate.getTime();
 
-        // Allow some tolerance for date differences (1 minute)
+        // Allow some tolerance for date differences (5 minutes for better safety)
         const startDiff = Math.abs(reservationStart - bookingStart);
         const endDiff = Math.abs(reservationEnd - bookingEnd);
 
         // Return true to keep the reservation, false to remove it
-        return !(startDiff <= 60000 && endDiff <= 60000);
+        return !(startDiff <= 300000 && endDiff <= 300000); // 5 minutes tolerance
       });
 
       // Update the vehicle with the filtered reservations
@@ -551,11 +560,15 @@ export class BookingService implements IBookingService {
       updatedVehicle.setReservations(
         updatedReservations.map(res => ReservationModel.create({
           start: res.start,
-          end: res.end
+          end: res.end,
+          bookingId: res.bookingId,
+          reservationId: res.reservationId
         }))
       );
 
       await this.vehicleRepository.update(vehicleId, updatedVehicle);
+      
+      console.log(`Reserva liberada para vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ` (fechas: ${startDate} - ${endDate})`}`);
     } catch (error) {
       console.error(`Error releasing reservation for vehicle ${vehicleId}:`, error);
       throw error;

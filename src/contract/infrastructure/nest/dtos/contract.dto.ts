@@ -180,3 +180,10 @@ export class ReportEventDTO {
   @IsObject()
   metadata?: Record<string, any>;
 }
+
+export class DeleteHistoryEntryDTO {
+  @ApiPropertyOptional({ description: 'Razón de la eliminación del movimiento' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}

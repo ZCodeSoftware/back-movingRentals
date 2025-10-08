@@ -16,4 +16,9 @@ export interface IMovementService {
             hasPreviousPage: boolean;
         };
     }>;
+
+    // Métodos para gestión de movimientos
+    deleteMovement(movementId: string, userId: string, reason?: string): Promise<MovementModel>;
+    restoreMovement(movementId: string): Promise<MovementModel>;
+    getDeletedMovements(filters: any): Promise<MovementModel[]>;
 }

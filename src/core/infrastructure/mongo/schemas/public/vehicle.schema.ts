@@ -12,6 +12,12 @@ export class Reservation {
 
     @Prop({ required: true })
     end: Date;
+
+    @Prop({ required: false })
+    bookingId?: string; // ID del booking asociado para identificar la reserva
+
+    @Prop({ required: false })
+    reservationId?: string; // ID único de la reserva para casos especiales
 }
 
 @Schema({ collection: 'vehicle', timestamps: true })
