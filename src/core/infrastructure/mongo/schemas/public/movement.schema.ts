@@ -51,6 +51,36 @@ export class Movement {
         enum: ['User', 'VehicleOwner']
     })
     beneficiaryModel?: string; // Aquí guardamos el nombre del modelo: 'User' o 'VehicleOwner'
+
+    // Relación con el histórico de contratos
+    @Prop({ required: false, type: mongoose.Schema.Types.ObjectId, ref: 'ContractHistory' })
+    contractHistoryEntry?: mongoose.Types.ObjectId;
+
+    // Campos para soft delete
+    @Prop({ type: Boolean, default: false, index: true })
+    isDeleted: boolean;
+
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false })
+    deletedBy?: User;
+
+    @Prop({ type: Date, required: false })
+    deletedAt?: Date;
+
+    @Prop({ type: String, required: false })
+    deletionReason?: string;
 }
 
 export const MovementSchema = SchemaFactory.createForClass(Movement);
+
+// Middleware para excluir movimientos eliminados por defecto
+MovementSchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+MovementSchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});

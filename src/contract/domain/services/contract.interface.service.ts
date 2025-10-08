@@ -23,4 +23,9 @@ export interface IContractService {
       details: string;
     }>;
   }>;
+
+  // Métodos para gestión de movimientos
+  deleteHistoryEntry(historyId: string, userId: string, reason?: string): Promise<ContractHistory>;
+  restoreHistoryEntry(historyId: string): Promise<ContractHistory>;
+  getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]>;
 }

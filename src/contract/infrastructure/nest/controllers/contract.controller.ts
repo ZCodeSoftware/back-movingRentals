@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -28,6 +29,7 @@ import { IContractService } from '../../../domain/services/contract.interface.se
 import SymbolsContract from '../../../symbols-contract';
 import {
   CreateContractDTO,
+  DeleteHistoryEntryDTO,
   ReportEventDTO,
   UpdateContractDTO,
 } from '../dtos/contract.dto';
@@ -317,5 +319,145 @@ export class ContractController {
     };
 
     return this.contractService.update(id, contractData, req.user._id);
+  }
+
+  @Delete('history/:historyId')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Elimina un movimiento del histórico del contrato (soft delete)',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Movimiento eliminado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Movimiento eliminado exitosamente' },
+        data: {
+          type: 'object',
+          description: 'Datos del movimiento eliminado'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Movimiento no encontrado' })
+  @ApiResponse({ status: 400, description: 'El movimiento ya está eliminado' })
+  @ApiResponse({ status: 403, description: 'No se puede eliminar este tipo de movimiento' })
+  @ApiBody({
+    type: DeleteHistoryEntryDTO,
+    description: 'Datos para la eliminación del movimiento',
+    required: false,
+  })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async deleteHistoryEntry(
+    @Param('historyId') historyId: string,
+    @Body() body: DeleteHistoryEntryDTO,
+    @Req() req: IUserRequest,
+  ) {
+    const deletedEntry = await this.contractService.deleteHistoryEntry(
+      historyId,
+      req.user._id,
+      body.reason,
+    );
+
+    return {
+      success: true,
+      message: 'Movimiento eliminado exitosamente',
+      data: deletedEntry,
+    };
+  }
+
+  @Post('history/:historyId/restore')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Restaura un movimiento eliminado del histórico del contrato',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Movimiento restaurado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Movimiento restaurado exitosamente' },
+        data: {
+          type: 'object',
+          description: 'Datos del movimiento restaurado'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Movimiento no encontrado' })
+  @ApiResponse({ status: 400, description: 'El movimiento no está eliminado' })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async restoreHistoryEntry(@Param('historyId') historyId: string) {
+    const restoredEntry = await this.contractService.restoreHistoryEntry(historyId);
+
+    return {
+      success: true,
+      message: 'Movimiento restaurado exitosamente',
+      data: restoredEntry,
+    };
+  }
+
+  @Get(':id/deleted-history')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Obtiene los movimientos eliminados de un contrato',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de movimientos eliminados',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Movimientos eliminados obtenidos exitosamente' },
+        data: {
+          type: 'array',
+          description: 'Lista de movimientos eliminados',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string' },
+              action: { type: 'string' },
+              details: { type: 'string' },
+              performedBy: { type: 'object' },
+              deletedBy: { type: 'object' },
+              deletedAt: { type: 'string', format: 'date-time' },
+              deletionReason: { type: 'string' },
+              createdAt: { type: 'string', format: 'date-time' }
+            }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Contrato no encontrado' })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async getDeletedHistoryEntries(@Param('id') contractId: string) {
+    const deletedEntries = await this.contractService.getDeletedHistoryEntries(contractId);
+
+    return {
+      success: true,
+      message: 'Movimientos eliminados obtenidos exitosamente',
+      data: deletedEntries,
+    };
   }
 }

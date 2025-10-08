@@ -49,6 +49,7 @@ export class BookingRepository implements IBookingRepository {
             const newReservation = {
               start: new Date(vehicleBooking.dates.start),
               end: new Date(vehicleBooking.dates.end),
+              bookingId: newBooking._id.toString(), // Agregar el ID del booking para identificar la reserva
             };
 
             if (!vehicle.reservations) {

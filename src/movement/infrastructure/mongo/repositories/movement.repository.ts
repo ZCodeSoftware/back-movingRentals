@@ -176,4 +176,79 @@ export class MovementRepository implements IMovementRepository {
             },
         };
     }
+
+    async softDeleteMovement(
+        movementId: string,
+        userId: string,
+        reason?: string
+    ): Promise<MovementModel> {
+        const movement = await this.movementDB.findById(movementId);
+        
+        if (!movement) {
+            throw new BaseErrorException('Movimiento no encontrado', HttpStatus.NOT_FOUND);
+        }
+
+        if (movement.isDeleted) {
+            throw new BaseErrorException('El movimiento ya está eliminado', HttpStatus.BAD_REQUEST);
+        }
+
+        movement.isDeleted = true;
+        movement.deletedBy = userId as any;
+        movement.deletedAt = new Date();
+        movement.deletionReason = reason;
+
+        const savedMovement = await movement.save();
+        return MovementModel.hydrate(savedMovement);
+    }
+
+    async restoreMovement(movementId: string): Promise<MovementModel> {
+        // Buscar incluyendo los eliminados
+        const movement = await this.movementDB.findOne({ 
+            _id: movementId,
+            isDeleted: true 
+        });
+        
+        if (!movement) {
+            throw new BaseErrorException('Movimiento eliminado no encontrado', HttpStatus.NOT_FOUND);
+        }
+
+        movement.isDeleted = false;
+        movement.deletedBy = undefined;
+        movement.deletedAt = undefined;
+        movement.deletionReason = undefined;
+
+        const savedMovement = await movement.save();
+        return MovementModel.hydrate(savedMovement);
+    }
+
+    async getDeletedMovements(filters: any): Promise<MovementModel[]> {
+        const query: any = { isDeleted: true };
+
+        // Aplicar filtros si se proporcionan
+        if (filters.vehicle) {
+            query.vehicle = filters.vehicle;
+        }
+        if (filters.beneficiary) {
+            query.beneficiary = filters.beneficiary;
+        }
+        if (filters.type) {
+            query.type = filters.type;
+        }
+
+        const movements = await this.movementDB
+            .find(query)
+            .sort({ deletedAt: -1 })
+            .populate({
+                path: 'createdBy',
+                select: 'name lastName email'
+            })
+            .populate({
+                path: 'deletedBy',
+                select: 'name lastName email'
+            })
+            .populate('beneficiary')
+            .populate('vehicle');
+
+        return movements.map(movement => MovementModel.hydrate(movement));
+    }
 }

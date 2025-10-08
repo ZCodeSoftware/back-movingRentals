@@ -25,6 +25,7 @@ import {
 } from '../../domain/types/contract.type';
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
+import { ContractMovementLinkService } from './contract-movement-link.service';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -37,6 +38,7 @@ export class ContractService implements IContractService {
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly contractMovementLinkService: ContractMovementLinkService,
   ) { }
 
   async create(
@@ -171,7 +173,13 @@ export class ContractService implements IContractService {
     userId: string,
     eventData: ReportEventDTO,
   ): Promise<ContractHistory> {
-    // Crear metadatos que incluyan la información monetaria
+    // Si el evento tiene información monetaria, crear movimiento enlazado
+    if (eventData.amount && eventData.paymentMethod) {
+      console.log('[ContractService] Creando evento con movimiento enlazado');
+      return await this.reportEventWithMovement(contractId, userId, eventData);
+    }
+
+    // Si no tiene información monetaria, crear solo la entrada del histórico
     const metadata = {
       ...eventData.metadata,
       amount: eventData.amount,
@@ -188,6 +196,122 @@ export class ContractService implements IContractService {
       eventData.details,
       metadata,
     );
+  }
+
+  /**
+   * Crea un evento del histórico con su movimiento correspondiente enlazado
+   */
+  async reportEventWithMovement(
+    contractId: string,
+    userId: string,
+    eventData: ReportEventDTO,
+  ): Promise<ContractHistory> {
+    try {
+      // Determinar el tipo y dirección del movimiento basándose en el evento
+      const movementType = this.determineMovementType(eventData.eventType);
+      const movementDirection = this.determineMovementDirection(eventData.eventType, eventData.amount);
+
+      // Preparar datos para el servicio de enlace
+      const linkedEventData = {
+        ...eventData,
+        type: movementType,
+        direction: movementDirection,
+        metadata: {
+          ...eventData.metadata,
+          amount: eventData.amount,
+          paymentMethod: eventData.paymentMethod,
+          vehicle: eventData.vehicle,
+          beneficiary: eventData.beneficiary,
+          date: eventData.date || new Date().toISOString(),
+        }
+      };
+
+      // Crear movimiento e histórico enlazados
+      const result = await this.contractMovementLinkService.createLinkedMovementAndHistory(
+        contractId,
+        userId,
+        linkedEventData
+      );
+
+      console.log(`[ContractService] Creado enlace: Movimiento ${result.movement.id?.toValue()} ↔ Histórico ${(result.historyEntry as any)._id}`);
+
+      return result.historyEntry;
+    } catch (error) {
+      console.error('[ContractService] Error creando evento con movimiento enlazado:', error);
+      
+      // Fallback: crear solo la entrada del histórico si falla el enlace
+      const metadata = {
+        ...eventData.metadata,
+        amount: eventData.amount,
+        paymentMethod: eventData.paymentMethod,
+        vehicle: eventData.vehicle,
+        beneficiary: eventData.beneficiary,
+        date: eventData.date || new Date().toISOString(),
+      };
+
+      return await this.contractRepository.createHistoryEvent(
+        contractId,
+        userId,
+        eventData.eventType,
+        eventData.details,
+        metadata,
+      );
+    }
+  }
+
+  /**
+   * Determina el tipo de movimiento basándose en el tipo de evento
+   */
+  private determineMovementType(eventType: string): string {
+    // Mapear tipos de eventos a tipos de movimientos
+    const eventTypeMap: { [key: string]: string } = {
+      'EXTENSION_PAYMENT': 'EXTENSION',
+      'DAMAGE_PAYMENT': 'DAMAGE',
+      'REFUND': 'REFUND',
+      'PENALTY': 'PENALTY',
+      'COMMISSION': 'COMMISSION',
+      'MAINTENANCE': 'MAINTENANCE',
+      'FUEL': 'FUEL',
+      'CLEANING': 'CLEANING',
+      'OTHER': 'OTHER'
+    };
+
+    // Si no encuentra el mapeo, usar un tipo genérico
+    return eventTypeMap[eventType] || 'OTHER';
+  }
+
+  /**
+   * Determina la dirección del movimiento basándose en el tipo de evento y monto
+   */
+  private determineMovementDirection(eventType: string, amount: number): 'IN' | 'OUT' {
+    // Eventos que típicamente son ingresos (IN)
+    const incomeEvents = [
+      'EXTENSION_PAYMENT',
+      'DAMAGE_PAYMENT', 
+      'PENALTY',
+      'ADDITIONAL_PAYMENT'
+    ];
+
+    // Eventos que típicamente son egresos (OUT)
+    const expenseEvents = [
+      'REFUND',
+      'COMMISSION',
+      'MAINTENANCE',
+      'FUEL',
+      'CLEANING',
+      'REPAIR'
+    ];
+
+    if (incomeEvents.some(event => eventType.includes(event))) {
+      return 'IN';
+    }
+
+    if (expenseEvents.some(event => eventType.includes(event))) {
+      return 'OUT';
+    }
+
+    // Si no se puede determinar por el tipo, usar el signo del monto
+    return amount >= 0 ? 'IN' : 'OUT';
   }
 
   /**
@@ -218,5 +342,51 @@ export class ContractService implements IContractService {
     const timeline = await this.contractRepository.getTimelineForContract(contractId);
 
     return this.bookingTotalsService.calculateTotals(originalTotal, timeline);
+  }
+
+  async deleteHistoryEntry(
+    historyId: string,
+    userId: string,
+    reason?: string
+  ): Promise<ContractHistory> {
+    try {
+      // Intentar eliminar usando el servicio de enlace (elimina histórico y movimiento)
+      const result = await this.contractMovementLinkService.deleteMovementWithHistory(
+        historyId, // En este caso, usamos el historyId para buscar el movimiento relacionado
+        userId,
+        reason
+      );
+      
+      if (result.historyEntry) {
+        console.log(`[ContractService] Eliminado enlace: Histórico ${historyId} y movimiento relacionado`);
+        return result.historyEntry;
+      }
+    } catch (error) {
+      console.warn(`[ContractService] No se pudo eliminar con enlace, usando método directo: ${error.message}`);
+    }
+
+    // Fallback: eliminar solo la entrada del histórico
+    return this.contractRepository.softDeleteHistoryEntry(historyId, userId, reason);
+  }
+
+  async restoreHistoryEntry(historyId: string): Promise<ContractHistory> {
+    try {
+      // Intentar restaurar usando el servicio de enlace (restaura histórico y movimiento)
+      const result = await this.contractMovementLinkService.restoreMovementWithHistory(historyId);
+      
+      if (result.historyEntry) {
+        console.log(`[ContractService] Restaurado enlace: Histórico ${historyId} y movimiento relacionado`);
+        return result.historyEntry;
+      }
+    } catch (error) {
+      console.warn(`[ContractService] No se pudo restaurar con enlace, usando método directo: ${error.message}`);
+    }
+
+    // Fallback: restaurar solo la entrada del histórico
+    return this.contractRepository.restoreHistoryEntry(historyId);
+  }
+
+  async getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]> {
+    return this.contractRepository.getDeletedHistoryEntries(contractId);
   }
 }

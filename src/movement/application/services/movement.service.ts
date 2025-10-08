@@ -37,4 +37,16 @@ export class MovementService implements IMovementService {
     }> {
         return this.movementRepository.findAll(filters, userId);
     }
+
+    async deleteMovement(movementId: string, userId: string, reason?: string): Promise<MovementModel> {
+        return this.movementRepository.softDeleteMovement(movementId, userId, reason);
+    }
+
+    async restoreMovement(movementId: string): Promise<MovementModel> {
+        return this.movementRepository.restoreMovement(movementId);
+    }
+
+    async getDeletedMovements(filters: any): Promise<MovementModel[]> {
+        return this.movementRepository.getDeletedMovements(filters);
+    }
 }

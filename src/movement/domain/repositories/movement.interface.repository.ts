@@ -15,4 +15,15 @@ export interface IMovementRepository {
             hasPreviousPage: boolean;
         };
     }>;
+
+    // Métodos para soft delete de movimientos
+    softDeleteMovement(
+        movementId: string,
+        userId: string,
+        reason?: string
+    ): Promise<MovementModel>;
+
+    restoreMovement(movementId: string): Promise<MovementModel>;
+
+    getDeletedMovements(filters: any): Promise<MovementModel[]>;
 }
