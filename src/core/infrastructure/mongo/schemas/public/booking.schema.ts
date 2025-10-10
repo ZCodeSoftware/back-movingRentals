@@ -9,6 +9,9 @@ export class Booking {
   @Prop({ type: String, required: true })
   cart: string;
 
+  @Prop({ type: mongoose.Schema.Types.Mixed, required: false })
+  metadata?: Record<string, any>;
+
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'CartVersion',

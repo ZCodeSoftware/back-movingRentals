@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
@@ -26,6 +27,7 @@ import {
 import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
 import { ContractMovementLinkService } from './contract-movement-link.service';
+import { TypeCatPaymentMethodAdmin } from '../../../core/domain/enums/type-cat-payment-method-admin';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -173,6 +175,15 @@ export class ContractService implements IContractService {
     userId: string,
     eventData: ReportEventDTO,
   ): Promise<ContractHistory> {
+    // Validación de metadata.paymentMedium (si viene)
+    const pm = (eventData as any)?.metadata?.paymentMedium;
+    if (pm !== undefined && pm !== null) {
+      const allowed = Object.values(TypeCatPaymentMethodAdmin);
+      if (!allowed.includes(pm)) {
+        throw new BadRequestException('metadata.paymentMedium inválido. Debe pertenecer a TypeCatPaymentMethodAdmin');
+      }
+    }
+
     // Si el evento tiene información monetaria, crear movimiento enlazado
     if (eventData.amount && eventData.paymentMethod) {
       console.log('[ContractService] Creando evento con movimiento enlazado');

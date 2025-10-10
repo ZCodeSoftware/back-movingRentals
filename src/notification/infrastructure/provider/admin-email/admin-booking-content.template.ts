@@ -281,9 +281,12 @@ export function generateAdminBookingNotification(booking: BookingModel): {
 
         <div class="section">
           <h2>💳 Resumen de Pago:</h2>
-          <p><strong>Total de la reserva:</strong> $${totalReserva.toFixed(2)} MXN</p>
-          <p><strong>Total pagado:</strong> $${totalPagado.toFixed(2)} MXN</p>
-          <p><strong>Saldo pendiente:</strong> $${saldoPendiente.toFixed(2)} MXN</p>
+          <p><strong>Total de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
+          <p><strong>Total pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
+          <p><strong>Saldo pendiente:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
+          <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'No especificado'}</p>
+          <p><strong>Medio de pago (administrativo):</strong> ${bookingData?.metadata?.paymentMedium || bookingData?.paymentMedium || 'No especificado'}</p>
+          ${bookingData?.metadata?.depositNote ? `<p><strong>Nota de depósito:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
         </div>
 
         <div class="footer">

@@ -816,7 +816,30 @@ export class ContractRepository implements IContractRepository {
       changes: [],
     });
 
-    return historyEntry.save();
+    const savedHistory = await historyEntry.save();
+
+    // Persistir en booking.metadata los campos relevantes de metadata (si vienen)
+    try {
+      if (metadata && (typeof metadata === 'object')) {
+        const setObj: any = {};
+        if ((metadata as any).paymentMedium !== undefined) {
+          setObj['metadata.paymentMedium'] = (metadata as any).paymentMedium;
+        }
+        if ((metadata as any).depositNote !== undefined) {
+          setObj['metadata.depositNote'] = (metadata as any).depositNote;
+        }
+        if (Object.keys(setObj).length > 0) {
+          const contractDoc = await this.contractModel.findById(contractId).lean();
+          if (contractDoc?.booking) {
+            await this.bookingModel.updateOne({ _id: contractDoc.booking }, { $set: setObj });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ContractRepository][createHistoryEvent] No se pudo actualizar booking.metadata:', err?.message || err);
+    }
+
+    return savedHistory;
   }
 
   async softDeleteHistoryEntry(
