@@ -53,7 +53,8 @@ export class ContractEventSeed implements OnModuleInit {
       'TRANSFER TULUM-AEROPUERTO',
       'REPORTE',
       'IMPRESIONES A COLOR',
-      'GASTO PARA TOURS'
+      'GASTO PARA TOURS',
+      "CAMBIO DE VEHICULO"
     ];
 
     for (const name of names) {

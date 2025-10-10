@@ -42,13 +42,16 @@ export class MovementRepository implements IMovementRepository {
         if (!newMovement) throw new BaseErrorException(`Movement shouldn't be created`, HttpStatus.BAD_REQUEST);
 
         // Populate the created movement with user and role data
-        const populatedMovement = await this.movementDB.findById(newMovement._id).populate({
-            path: 'createdBy',
-            populate: {
-                path: 'role'
-            }
-        })
-            .populate('beneficiary');
+        const populatedMovement = await this.movementDB.findById(newMovement._id)
+            .populate({
+                path: 'createdBy',
+                select: '-password',
+                populate: { path: 'role' }
+            })
+            .populate({
+                path: 'beneficiary',
+                select: '-password'
+            });
 
         return MovementModel.hydrate(populatedMovement);
     }
@@ -77,9 +80,13 @@ export class MovementRepository implements IMovementRepository {
         const updated = await this.movementDB.findByIdAndUpdate(id, updateData, { new: true })
             .populate({
                 path: 'createdBy',
+                select: '-password',
                 populate: { path: 'role' }
             })
-            .populate('beneficiary');
+            .populate({
+                path: 'beneficiary',
+                select: '-password'
+            });
 
         if (!updated) throw new BaseErrorException('Movement not found', HttpStatus.NOT_FOUND);
 
@@ -87,12 +94,16 @@ export class MovementRepository implements IMovementRepository {
     }
 
     async findById(id: string): Promise<MovementModel> {
-        const movement = await this.movementDB.findById(id).populate({
-            path: 'createdBy',
-            populate: {
-                path: 'role'
-            }
-        });
+        const movement = await this.movementDB.findOne({ _id: id, $or: [{ isDeleted: { $exists: false } }, { isDeleted: false }] })
+            .populate({
+                path: 'createdBy',
+                select: '-password',
+                populate: { path: 'role' }
+            })
+            .populate({
+                path: 'beneficiary',
+                select: '-password'
+            });
         if (!movement) throw new BaseErrorException('Movement not found', HttpStatus.NOT_FOUND);
         return MovementModel.hydrate(movement);
     }
@@ -151,15 +162,23 @@ export class MovementRepository implements IMovementRepository {
 
         const finalQuery = { ...query, ...otherFilters };
 
+        // Excluir eliminados por defecto en listados
+        const notDeleted = { isDeleted: { $ne: true } };
         const [movements, totalItems] = await Promise.all([
-            this.movementDB.find(finalQuery).sort({ createdAt: -1 }).skip(skip).limit(limitNumber).populate({
-                path: 'createdBy',
-                populate: {
-                    path: 'role'
-                }
-            })
-                .populate('beneficiary'),
-            this.movementDB.countDocuments(finalQuery)
+            this.movementDB.find({ $and: [finalQuery, notDeleted] })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNumber)
+                .populate({
+                    path: 'createdBy',
+                    select: '-password',
+                    populate: { path: 'role' }
+                })
+                .populate({
+                    path: 'beneficiary',
+                    select: '-password'
+                }),
+            this.movementDB.countDocuments({ $and: [finalQuery, notDeleted] })
         ]);
 
         const totalPages = Math.ceil(totalItems / limitNumber);
@@ -175,5 +194,80 @@ export class MovementRepository implements IMovementRepository {
                 hasPreviousPage: pageNumber > 1,
             },
         };
+    }
+
+    async softDeleteMovement(
+        movementId: string,
+        userId: string,
+        reason?: string
+    ): Promise<MovementModel> {
+        const movement = await this.movementDB.findById(movementId).populate('createdBy').populate('beneficiary').populate('vehicle');
+
+        if (!movement) {
+            throw new BaseErrorException('Movimiento no encontrado', HttpStatus.NOT_FOUND);
+        }
+
+        if (movement.isDeleted) {
+            throw new BaseErrorException('El movimiento ya está eliminado', HttpStatus.BAD_REQUEST);
+        }
+
+        movement.isDeleted = true;
+        movement.deletedBy = userId as any;
+        movement.deletedAt = new Date();
+        movement.deletionReason = reason;
+
+        const savedMovement = await movement.save();
+        return MovementModel.hydrate(savedMovement);
+    }
+
+    async restoreMovement(movementId: string): Promise<MovementModel> {
+        // Buscar incluyendo los eliminados
+        const movement = await this.movementDB.findOne({
+            _id: movementId,
+            isDeleted: true
+        });
+
+        if (!movement) {
+            throw new BaseErrorException('Movimiento eliminado no encontrado', HttpStatus.NOT_FOUND);
+        }
+
+        movement.isDeleted = false;
+        movement.deletedBy = undefined;
+        movement.deletedAt = undefined;
+        movement.deletionReason = undefined;
+
+        const savedMovement = await movement.save();
+        return MovementModel.hydrate(savedMovement);
+    }
+
+    async getDeletedMovements(filters: any): Promise<MovementModel[]> {
+        const query: any = { isDeleted: true };
+
+        // Aplicar filtros si se proporcionan
+        if (filters.vehicle) {
+            query.vehicle = filters.vehicle;
+        }
+        if (filters.beneficiary) {
+            query.beneficiary = filters.beneficiary;
+        }
+        if (filters.type) {
+            query.type = filters.type;
+        }
+
+        const movements = await this.movementDB
+            .find(query)
+            .sort({ deletedAt: -1 })
+            .populate({
+                path: 'createdBy',
+                select: 'name lastName email'
+            })
+            .populate({
+                path: 'deletedBy',
+                select: 'name lastName email'
+            })
+            .populate('beneficiary')
+            .populate('vehicle');
+
+        return movements.map(movement => MovementModel.hydrate(movement));
     }
 }

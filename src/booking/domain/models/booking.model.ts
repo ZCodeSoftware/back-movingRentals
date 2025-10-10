@@ -12,6 +12,8 @@ export class BookingModel extends BaseModel {
   private _totalPaid?: number;
   private _bookingNumber: number;
   private _isValidated: boolean;
+  private _metadata?: Record<string, any>;
+  private _commission?: number;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -25,6 +27,8 @@ export class BookingModel extends BaseModel {
       totalPaid: this._totalPaid,
       bookingNumber: this._bookingNumber,
       isValidated: this._isValidated,
+      metadata: this._metadata,
+      commission: this._commission,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -36,6 +40,14 @@ export class BookingModel extends BaseModel {
 
   addStatus(status: CatStatusModel): void {
     this._status = status;
+  }
+
+  addMetadata(metadata: Record<string, any>): void {
+    this._metadata = metadata;
+  }
+
+  addCommission(commission: number): void {
+    this._commission = commission;
   }
 
   payBooking(paid: boolean): void {
@@ -62,6 +74,8 @@ export class BookingModel extends BaseModel {
     newBooking._totalPaid = booking.totalPaid;
     newBooking._paymentMethod = booking.paymentMethod
     newBooking._isValidated = booking.isValidated ?? false;
+    newBooking._metadata = booking.metadata;
+    newBooking._commission = booking.commission;
 
     return newBooking;
   }
@@ -81,6 +95,8 @@ export class BookingModel extends BaseModel {
       : null;
     newBooking._bookingNumber = booking.bookingNumber;
     newBooking._isValidated = booking.isValidated;
+    newBooking._metadata = booking.metadata;
+    newBooking._commission = booking.commission;
     newBooking._createdAt = booking.createdAt;
     newBooking._updatedAt = booking.updatedAt;
 

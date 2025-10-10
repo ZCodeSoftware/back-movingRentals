@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -12,8 +12,16 @@ import {
   Max,
   Min,
   ValidateNested,
+  MaxLength,
 } from 'class-validator';
 import { TypeCatPaymentMethodAdmin } from '../../../../core/domain/enums/type-cat-payment-method-admin';
+
+function sanitizePlainText(value: any): string {
+  if (typeof value !== 'string') return value;
+  // Remover etiquetas HTML básicas y recortar espacios
+  const noTags = value.replace(/<[^>]*>/g, '');
+  return noTags.trim();
+}
 
 // --- DTO para el sub-documento de la extensión ---
 export class ContractExtensionDTO {
@@ -139,6 +147,20 @@ export class UpdateContractDTO {
   eventType?: string;
 }
 
+export class ReportEventMetadataDTO {
+  @ApiPropertyOptional({ description: 'Medio de pago utilizado', enum: TypeCatPaymentMethodAdmin })
+  @IsOptional()
+  @IsEnum(TypeCatPaymentMethodAdmin)
+  paymentMedium?: TypeCatPaymentMethodAdmin;
+
+  @ApiPropertyOptional({ description: 'Nota de depósito (0–120 caracteres)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  @Transform(({ value }) => sanitizePlainText(value))
+  depositNote?: string;
+}
+
 export class ReportEventDTO {
   @ApiProperty({ description: 'ID del tipo de evento (CatContractEvent._id)' })
   @IsString()
@@ -177,6 +199,14 @@ export class ReportEventDTO {
 
   @ApiPropertyOptional({ description: 'Datos estructurados adicionales sobre el evento.' })
   @IsOptional()
-  @IsObject()
-  metadata?: Record<string, any>;
+  @ValidateNested()
+  @Type(() => ReportEventMetadataDTO)
+  metadata?: ReportEventMetadataDTO;
+}
+
+export class DeleteHistoryEntryDTO {
+  @ApiPropertyOptional({ description: 'Razón de la eliminación del movimiento' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }

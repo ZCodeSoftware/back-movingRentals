@@ -13,6 +13,7 @@ export class UserModel extends BaseModel {
   private _newsletter: boolean;
   private _bookings: BookingModel[];
   private _role: CatRoleModel;
+  private _address: any;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -29,6 +30,7 @@ export class UserModel extends BaseModel {
         ? this._bookings.map((booking) => booking.toJSON())
         : null,
       role: this._role ? this._role.toJSON() : null,
+      address: this._address,
     };
   }
 
@@ -67,6 +69,7 @@ export class UserModel extends BaseModel {
       ? user.bookings.map((booking: BookingModel) => BookingModel.hydrate(booking))
       : [];
     newUser._role = user.role ? CatRoleModel.hydrate(user.role) : null;
+    newUser._address = user.address;
 
     return newUser;
   }

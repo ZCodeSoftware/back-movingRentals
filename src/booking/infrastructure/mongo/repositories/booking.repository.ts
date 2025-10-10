@@ -49,6 +49,7 @@ export class BookingRepository implements IBookingRepository {
             const newReservation = {
               start: new Date(vehicleBooking.dates.start),
               end: new Date(vehicleBooking.dates.end),
+              bookingId: newBooking._id.toString(), // Agregar el ID del booking para identificar la reserva
             };
 
             if (!vehicle.reservations) {
@@ -63,7 +64,13 @@ export class BookingRepository implements IBookingRepository {
       }
     }
 
-    return BookingModel.hydrate(newBooking);
+    // Populate paymentMethod and status before returning
+    const populatedBooking = await this.bookingDB
+      .findById(newBooking._id)
+      .populate('paymentMethod status')
+      .exec();
+
+    return BookingModel.hydrate(populatedBooking);
   }
 
   async findById(id: string): Promise<BookingModel> {

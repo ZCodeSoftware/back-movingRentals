@@ -1,17 +1,18 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Put } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
@@ -22,6 +23,7 @@ import { IMovementService } from '../../../domain/services/movement.interface.se
 import SymbolsMovement from '../../../symbols-movement';
 import { CreateMovementDTO } from '../dtos/movement.dto';
 import { UpdateMovementDTO } from '../dtos/movement-update.dto';
+import { DeleteMovementDTO } from '../dtos/movement-delete.dto';
 
 @ApiTags('movement')
 @Controller('movement')
@@ -134,5 +136,162 @@ export class MovementController {
   @UseGuards(AuthGuards, RoleGuard)
   async update(@Param('id') id: string, @Body() body: UpdateMovementDTO) {
     return this.movementService.update(id, body);
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Elimina un movimiento (soft delete)',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Movimiento eliminado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Movimiento eliminado exitosamente' },
+        data: {
+          type: 'object',
+          description: 'Datos del movimiento eliminado'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Movimiento no encontrado' })
+  @ApiResponse({ status: 400, description: 'El movimiento ya está eliminado' })
+  @ApiBody({
+    type: DeleteMovementDTO,
+    description: 'Datos para la eliminación del movimiento',
+    required: false,
+  })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async deleteMovement(
+    @Param('id') movementId: string,
+    @Body() body: DeleteMovementDTO,
+    @Req() req: IUserRequest,
+  ) {
+    const deletedMovement = await this.movementService.deleteMovement(
+      movementId,
+      req.user._id,
+      body.reason,
+    );
+
+    return {
+      success: true,
+      message: 'Movimiento eliminado exitosamente',
+      data: deletedMovement,
+    };
+  }
+
+  @Post(':id/restore')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Restaura un movimiento eliminado',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Movimiento restaurado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Movimiento restaurado exitosamente' },
+        data: {
+          type: 'object',
+          description: 'Datos del movimiento restaurado'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Movimiento no encontrado' })
+  @ApiResponse({ status: 400, description: 'El movimiento no está eliminado' })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async restoreMovement(@Param('id') movementId: string) {
+    const restoredMovement = await this.movementService.restoreMovement(movementId);
+
+    return {
+      success: true,
+      message: 'Movimiento restaurado exitosamente',
+      data: restoredMovement,
+    };
+  }
+
+  @Get('deleted/list')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Obtiene los movimientos eliminados',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de movimientos eliminados',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Movimientos eliminados obtenidos exitosamente' },
+        data: {
+          type: 'array',
+          description: 'Lista de movimientos eliminados',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string' },
+              type: { type: 'string' },
+              direction: { type: 'string' },
+              detail: { type: 'string' },
+              amount: { type: 'number' },
+              deletedBy: { type: 'object' },
+              deletedAt: { type: 'string', format: 'date-time' },
+              deletionReason: { type: 'string' },
+              createdAt: { type: 'string', format: 'date-time' }
+            }
+          }
+        }
+      }
+    }
+  })
+  @ApiQuery({
+    name: 'vehicle',
+    required: false,
+    type: 'string',
+    description: 'Filter by vehicle ID',
+  })
+  @ApiQuery({
+    name: 'beneficiary',
+    required: false,
+    type: 'string',
+    description: 'Filter by beneficiary ID',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: TypeCatTypeMovement,
+    description: 'Filter by movement type',
+  })
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  async getDeletedMovements(@Query() filters: any) {
+    const deletedMovements = await this.movementService.getDeletedMovements(filters);
+
+    return {
+      success: true,
+      message: 'Movimientos eliminados obtenidos exitosamente',
+      data: deletedMovements,
+    };
   }
 }

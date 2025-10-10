@@ -191,7 +191,7 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
     }
   }
 
-  async sendAdminBookingCreated(booking: BookingModel): Promise<any> {
+  async sendAdminBookingCreated(booking: BookingModel, userData?: any): Promise<any> {
     const bookingId =
       (booking as any).bookingNumber || (booking as any).id || 'unknown';
     const context = `admin-booking-created-${bookingId}`;
@@ -201,7 +201,7 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
     );
 
     try {
-      const { subject, html } = generateAdminBookingNotification(booking);
+      const { subject, html } = generateAdminBookingNotification(booking, userData);
 
       this.logger.log(`[${context}] Subject generado: ${subject}`);
       this.logger.log(

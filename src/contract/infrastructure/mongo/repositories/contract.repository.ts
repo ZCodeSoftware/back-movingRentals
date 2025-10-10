@@ -2,7 +2,9 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  HttpStatus,
 } from '@nestjs/common';
+import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 import { Model } from 'mongoose';
@@ -396,11 +398,16 @@ export class ContractRepository implements IContractRepository {
       matchConditions['bookingData.bookingNumber'] = filters.bookingNumber;
     }
     if (filters.status) {
-      matchConditions.status = new mongoose.Types.ObjectId(filters.status);
+      matchConditions['bookingData.status'] = new mongoose.Types.ObjectId(filters.status);
     }
     if (filters.reservingUser) {
-      const regex = new RegExp(escapeRegex(filters.reservingUser), 'i');
-      matchConditions['reservingUserData.email'] = regex;
+      // Detectar si es un ObjectId válido o un email/texto
+      if (mongoose.Types.ObjectId.isValid(filters.reservingUser)) {
+        matchConditions['reservingUser'] = new mongoose.Types.ObjectId(filters.reservingUser);
+      } else {
+        const regex = new RegExp(escapeRegex(filters.reservingUser), 'i');
+        matchConditions['reservingUserData.email'] = regex;
+      }
     }
     if (filters.search) {
       const regex = new RegExp(escapeRegex(filters.search), 'i');
@@ -420,9 +427,38 @@ export class ContractRepository implements IContractRepository {
       ];
     }
     if (filters.createdByUser) {
-      matchConditions.createdByUser = new mongoose.Types.ObjectId(
-        filters.createdByUser,
-      );
+      // Detectar si es un ObjectId válido o un email/texto
+      if (mongoose.Types.ObjectId.isValid(filters.createdByUser)) {
+        matchConditions.createdByUser = new mongoose.Types.ObjectId(
+          filters.createdByUser,
+        );
+      } else {
+        // Si no es un ObjectId, necesitamos hacer lookup del usuario por email
+        // Primero agregamos el lookup de createdByUser si no existe
+        const hasCreatedByUserLookup = pipeline.some(
+          (stage: any) => stage.$lookup?.as === 'createdByUserData'
+        );
+        
+        if (!hasCreatedByUserLookup) {
+          pipeline.push({
+            $lookup: {
+              from: 'users',
+              localField: 'createdByUser',
+              foreignField: '_id',
+              as: 'createdByUserData',
+            },
+          });
+          pipeline.push({
+            $unwind: {
+              path: '$createdByUserData',
+              preserveNullAndEmptyArrays: true,
+            },
+          });
+        }
+        
+        const regex = new RegExp(escapeRegex(filters.createdByUser), 'i');
+        matchConditions['createdByUserData.email'] = regex;
+      }
     }
     if (filters.service) {
       // The booking.cart is stored as a JSON string; build specific regexes for service names inside vehicle/tour/ticket/transfer entries
@@ -466,9 +502,11 @@ export class ContractRepository implements IContractRepository {
     const totalPages = Math.ceil(totalItems / limit);
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
-    const contractModels = contracts.map((contract) =>
-      ContractModel.hydrate(contract),
-    );
+    const contractModels = contracts.map((contract) => {
+      // Convertir el documento de Mongoose a objeto plano antes de hidratar
+      const plainContract = contract.toObject ? contract.toObject() : contract;
+      return ContractModel.hydrate(plainContract);
+    });
     return {
       data: contractModels,
       pagination: {
@@ -573,6 +611,14 @@ export class ContractRepository implements IContractRepository {
       if (newCart) {
         // LOG NEW CART Y SNAPSHOT
         console.log('[ContractRepository][update] newCart recibido:', JSON.stringify(newCart, null, 2));
+        
+        // IMPORTANTE: Obtener el carrito anterior ANTES de aplicar los cambios
+        const booking = await this.bookingModel
+          .findById(originalContract.booking)
+          .session(session);
+        const oldCartData = JSON.parse(booking.cart);
+        
+        // Ahora sí aplicar los cambios al booking
         await this.applyBookingChangesFromExtension(
           id,
           newCart,
@@ -582,11 +628,8 @@ export class ContractRepository implements IContractRepository {
           contractData // Nuevo: Se pasa el update completo como snapshot para el historial
         );
 
-        const booking = await this.bookingModel
-          .findById(originalContract.booking)
-          .session(session);
-        const oldCartData = JSON.parse(booking.cart);
-        await this.updateVehicleReservations(oldCartData, newCart, session);
+        // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
+        await this.updateVehicleReservations(oldCartData, newCart, session, id);
       }
 
       // Se actualiza el contrato principal como parte de la transacción.
@@ -631,9 +674,9 @@ export class ContractRepository implements IContractRepository {
     oldCart: CartWithVehicles,
     newCart: CartWithVehicles,
     session: mongoose.ClientSession,
+    contractId?: string,
   ): Promise<void> {
-    if (!newCart.vehicles || newCart.vehicles.length === 0) return;
-
+    // Crear mapas de vehículos para comparar
     const oldVehiclesMap = new Map(
       (oldCart.vehicles || []).map((v: CartVehicleItem) => {
         const id =
@@ -642,7 +685,37 @@ export class ContractRepository implements IContractRepository {
       }),
     );
 
-    for (const newVehicleItem of newCart.vehicles) {
+    const newVehiclesMap = new Map(
+      (newCart.vehicles || []).map((v: CartVehicleItem) => {
+        const id =
+          typeof v.vehicle === 'string' ? v.vehicle : v.vehicle._id.toString();
+        return [id, v];
+      }),
+    );
+
+    // Obtener el bookingId del contrato para una identificación más precisa
+    let bookingId: string | undefined;
+    if (contractId) {
+      const contract = await this.contractModel.findById(contractId).session(session);
+      bookingId = contract?.booking?.toString();
+    }
+
+    // 1. Liberar reservas de vehículos que ya no están en el nuevo carrito
+    for (const [vehicleId, oldVehicleItem] of oldVehiclesMap) {
+      if (!newVehiclesMap.has(vehicleId)) {
+        // Este vehículo ya no está en uso, liberar su reserva
+        await this.releaseVehicleReservation(
+          vehicleId,
+          new Date(oldVehicleItem.dates.start),
+          new Date(oldVehicleItem.dates.end),
+          session,
+          bookingId,
+        );
+      }
+    }
+
+    // 2. Actualizar fechas de vehículos que siguen en uso pero con fechas diferentes
+    for (const newVehicleItem of newCart.vehicles || []) {
       const vehicleId =
         typeof newVehicleItem.vehicle === 'string'
           ? newVehicleItem.vehicle
@@ -688,6 +761,71 @@ export class ContractRepository implements IContractRepository {
     }
   }
 
+  /**
+   * Libera una reserva específica de un vehículo
+   */
+  private async releaseVehicleReservation(
+    vehicleId: string,
+    startDate: Date,
+    endDate: Date,
+    session: mongoose.ClientSession,
+    bookingId?: string,
+  ): Promise<void> {
+    try {
+      const vehicle = await this.vehicleModel
+        .findById(vehicleId)
+        .session(session);
+      
+      if (!vehicle || !vehicle.reservations) {
+        console.warn(`Vehículo ${vehicleId} no encontrado o sin reservas al intentar liberar reserva`);
+        return;
+      }
+
+      const reservationsTyped = vehicle.reservations as ReservationWithId[];
+      
+      // Encontrar la reserva que coincide con el booking
+      const reservationIndex = reservationsTyped.findIndex((reservation) => {
+        // Si tenemos bookingId, usarlo como identificador principal
+        if (bookingId && (reservation as any).bookingId) {
+          return (reservation as any).bookingId === bookingId;
+        }
+
+        // Fallback: usar fechas con tolerancia mejorada
+        const reservationStart = new Date(reservation.start).getTime();
+        const reservationEnd = new Date(reservation.end).getTime();
+        const bookingStart = startDate.getTime();
+        const bookingEnd = endDate.getTime();
+
+        // Permitir tolerancia de 5 minutos para diferencias de fecha (más seguro)
+        const startDiff = Math.abs(reservationStart - bookingStart);
+        const endDiff = Math.abs(reservationEnd - bookingEnd);
+
+        return startDiff <= 300000 && endDiff <= 300000; // 5 minutes tolerance
+      });
+
+      if (reservationIndex === -1) {
+        console.warn(
+          `No se encontró reserva coincidente para el vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ` con fechas ${startDate} - ${endDate}`}`,
+        );
+        return;
+      }
+
+      // Remover la reserva del array
+      const reservationToRemoveId = reservationsTyped[reservationIndex]._id;
+      
+      await this.vehicleModel.updateOne(
+        { _id: vehicleId },
+        { $pull: { reservations: { _id: reservationToRemoveId } } },
+        { session },
+      );
+
+      console.log(`Reserva liberada para vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ` en fechas ${startDate} - ${endDate}`}`);
+    } catch (error) {
+      console.error(`Error liberando reserva para vehículo ${vehicleId}:`, error);
+      throw error;
+    }
+  }
+
   async createHistoryEvent(
     contractId: string,
     userId: string,
@@ -719,6 +857,95 @@ export class ContractRepository implements IContractRepository {
       changes: [],
     });
 
+    const savedHistory = await historyEntry.save();
+
+    // Persistir en booking.metadata los campos relevantes de metadata (si vienen)
+    try {
+      if (metadata && (typeof metadata === 'object')) {
+        const setObj: any = {};
+        if ((metadata as any).paymentMedium !== undefined) {
+          setObj['metadata.paymentMedium'] = (metadata as any).paymentMedium;
+        }
+        if ((metadata as any).depositNote !== undefined) {
+          setObj['metadata.depositNote'] = (metadata as any).depositNote;
+        }
+        if (Object.keys(setObj).length > 0) {
+          const contractDoc = await this.contractModel.findById(contractId).lean();
+          if (contractDoc?.booking) {
+            await this.bookingModel.updateOne({ _id: contractDoc.booking }, { $set: setObj });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ContractRepository][createHistoryEvent] No se pudo actualizar booking.metadata:', err?.message || err);
+    }
+
+    return savedHistory;
+  }
+
+  async softDeleteHistoryEntry(
+    historyId: string,
+    userId: string,
+    reason?: string
+  ): Promise<ContractHistory> {
+    const historyEntry = await this.contractHistoryModel.findById(historyId);
+    
+    if (!historyEntry) {
+      throw new NotFoundException(`Movimiento con ID "${historyId}" no encontrado.`);
+    }
+
+    if (historyEntry.isDeleted) {
+      throw new BaseErrorException('El movimiento ya está eliminado', HttpStatus.BAD_REQUEST);
+    }
+
+    // Verificar que no sea un movimiento crítico (como CONTRACT_CREATED)
+    if (historyEntry.action === ContractAction.CONTRACT_CREATED) {
+      throw new BaseErrorException(
+        'No se puede eliminar el movimiento de creación del contrato',
+        HttpStatus.FORBIDDEN
+      );
+    }
+
+    historyEntry.isDeleted = true;
+    historyEntry.deletedBy = new mongoose.Types.ObjectId(userId) as any;
+    historyEntry.deletedAt = new Date();
+    historyEntry.deletionReason = reason;
+
     return historyEntry.save();
+  }
+
+  async restoreHistoryEntry(historyId: string): Promise<ContractHistory> {
+    // Buscar incluyendo los eliminados
+    const historyEntry = await this.contractHistoryModel
+      .findById(historyId)
+      .setOptions({ includeDeleted: true });
+    
+    if (!historyEntry) {
+      throw new NotFoundException(`Movimiento con ID "${historyId}" no encontrado.`);
+    }
+
+    if (!historyEntry.isDeleted) {
+      throw new BaseErrorException('El movimiento no está eliminado', HttpStatus.BAD_REQUEST);
+    }
+
+    historyEntry.isDeleted = false;
+    historyEntry.deletedBy = undefined;
+    historyEntry.deletedAt = undefined;
+    historyEntry.deletionReason = undefined;
+
+    return historyEntry.save();
+  }
+
+  async getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]> {
+    return this.contractHistoryModel
+      .find({ 
+        contract: contractId,
+        isDeleted: true 
+      })
+      .sort({ createdAt: 'asc' })
+      .populate('performedBy', 'name lastName email')
+      .populate('deletedBy', 'name lastName email')
+      .populate('eventType')
+      .exec();
   }
 }

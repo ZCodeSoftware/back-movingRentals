@@ -17,7 +17,9 @@ import {
   contractSchema,
   vehicleSchema,
 } from './infrastructure/nest/constants/custom-schema';
+import { Movement, MovementSchema } from '../core/infrastructure/mongo/schemas/public/movement.schema';
 import { ContractController } from './infrastructure/nest/controllers/contract.controller';
+import { ContractMovementLinkService } from './application/services/contract-movement-link.service';
 
 @Module({
   imports: [
@@ -28,7 +30,8 @@ import { ContractController } from './infrastructure/nest/controllers/contract.c
       contractHistorySchema,
       cartVersionSchema,
       cartSchema,
-      catContractEventSchema
+      catContractEventSchema,
+      { name: Movement.name, schema: MovementSchema }
     ]),
     EventEmitterModule.forRoot(),
     MovementModule
@@ -38,6 +41,7 @@ import { ContractController } from './infrastructure/nest/controllers/contract.c
     contractService,
     contractRepository,
     BookingTotalsService,
+    ContractMovementLinkService,
     {
       provide: SymbolsVehicle.IVehicleRepository,
       useClass: VehicleRepository,

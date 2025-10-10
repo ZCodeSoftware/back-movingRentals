@@ -445,6 +445,9 @@ export function generateUserBookingConfirmation(
           <p><strong>Total de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
           <p><strong>Total pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
           <p><strong>Saldo pendiente:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
+          <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'No especificado'}</p>
+          <p><strong>Medio de pago (administrativo):</strong> ${bookingData?.metadata?.paymentMedium || bookingData?.paymentMedium || 'No especificado'}</p>
+          ${bookingData?.metadata?.depositNote ? `<p><strong>Nota de depósito:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
           ${saldoPendiente > 0 ? `
           <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
             <p style="margin: 0; font-size: 14px; color: #856404;"><strong>💰 Método de pago del saldo:</strong> Efectivo, tarjeta de crédito/débito en sucursal</p>
@@ -456,6 +459,7 @@ export function generateUserBookingConfirmation(
         <div class="section pickup-info">
           <h2>📍 Información de retiro (Vehículos):</h2>
           <p>Para vehículos, el retiro es en Sucursal ${branchName} – <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Ver en Google Maps</a></p>
+          <p><strong>Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., México</p>
           <p><strong><span class="emoji">⏰</span> Horario de atención:</strong> 9:00 AM a 7:00 PM</p>
         </div>` : `
         <div class="section pickup-info">

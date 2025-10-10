@@ -57,6 +57,36 @@ export class ContractHistory {
 
     @Prop({ type: mongoose.Schema.Types.Mixed })
     eventMetadata?: Record<string, any>;
+
+    // Relación con movimientos
+    @Prop({ required: false, type: mongoose.Schema.Types.ObjectId, ref: 'Movement' })
+    relatedMovement?: mongoose.Types.ObjectId;
+
+    // Campos para soft delete
+    @Prop({ type: Boolean, default: false, index: true })
+    isDeleted: boolean;
+
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false })
+    deletedBy?: User;
+
+    @Prop({ type: Date, required: false })
+    deletedAt?: Date;
+
+    @Prop({ type: String, required: false })
+    deletionReason?: string;
 }
 
 export const ContractHistorySchema = SchemaFactory.createForClass(ContractHistory);
+
+// Middleware para excluir registros eliminados por defecto
+ContractHistorySchema.pre(/^find/, function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+ContractHistorySchema.pre('countDocuments', function (next) {
+  // @ts-ignore - this refers to the current mongoose query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
