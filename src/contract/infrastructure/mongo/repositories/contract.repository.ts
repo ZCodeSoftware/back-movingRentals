@@ -398,11 +398,16 @@ export class ContractRepository implements IContractRepository {
       matchConditions['bookingData.bookingNumber'] = filters.bookingNumber;
     }
     if (filters.status) {
-      matchConditions.status = new mongoose.Types.ObjectId(filters.status);
+      matchConditions['bookingData.status'] = new mongoose.Types.ObjectId(filters.status);
     }
     if (filters.reservingUser) {
-      const regex = new RegExp(escapeRegex(filters.reservingUser), 'i');
-      matchConditions['reservingUserData.email'] = regex;
+      // Detectar si es un ObjectId válido o un email/texto
+      if (mongoose.Types.ObjectId.isValid(filters.reservingUser)) {
+        matchConditions['reservingUser'] = new mongoose.Types.ObjectId(filters.reservingUser);
+      } else {
+        const regex = new RegExp(escapeRegex(filters.reservingUser), 'i');
+        matchConditions['reservingUserData.email'] = regex;
+      }
     }
     if (filters.search) {
       const regex = new RegExp(escapeRegex(filters.search), 'i');
@@ -422,9 +427,38 @@ export class ContractRepository implements IContractRepository {
       ];
     }
     if (filters.createdByUser) {
-      matchConditions.createdByUser = new mongoose.Types.ObjectId(
-        filters.createdByUser,
-      );
+      // Detectar si es un ObjectId válido o un email/texto
+      if (mongoose.Types.ObjectId.isValid(filters.createdByUser)) {
+        matchConditions.createdByUser = new mongoose.Types.ObjectId(
+          filters.createdByUser,
+        );
+      } else {
+        // Si no es un ObjectId, necesitamos hacer lookup del usuario por email
+        // Primero agregamos el lookup de createdByUser si no existe
+        const hasCreatedByUserLookup = pipeline.some(
+          (stage: any) => stage.$lookup?.as === 'createdByUserData'
+        );
+        
+        if (!hasCreatedByUserLookup) {
+          pipeline.push({
+            $lookup: {
+              from: 'users',
+              localField: 'createdByUser',
+              foreignField: '_id',
+              as: 'createdByUserData',
+            },
+          });
+          pipeline.push({
+            $unwind: {
+              path: '$createdByUserData',
+              preserveNullAndEmptyArrays: true,
+            },
+          });
+        }
+        
+        const regex = new RegExp(escapeRegex(filters.createdByUser), 'i');
+        matchConditions['createdByUserData.email'] = regex;
+      }
     }
     if (filters.service) {
       // The booking.cart is stored as a JSON string; build specific regexes for service names inside vehicle/tour/ticket/transfer entries
@@ -468,9 +502,11 @@ export class ContractRepository implements IContractRepository {
     const totalPages = Math.ceil(totalItems / limit);
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
-    const contractModels = contracts.map((contract) =>
-      ContractModel.hydrate(contract),
-    );
+    const contractModels = contracts.map((contract) => {
+      // Convertir el documento de Mongoose a objeto plano antes de hidratar
+      const plainContract = contract.toObject ? contract.toObject() : contract;
+      return ContractModel.hydrate(plainContract);
+    });
     return {
       data: contractModels,
       pagination: {
@@ -575,6 +611,14 @@ export class ContractRepository implements IContractRepository {
       if (newCart) {
         // LOG NEW CART Y SNAPSHOT
         console.log('[ContractRepository][update] newCart recibido:', JSON.stringify(newCart, null, 2));
+        
+        // IMPORTANTE: Obtener el carrito anterior ANTES de aplicar los cambios
+        const booking = await this.bookingModel
+          .findById(originalContract.booking)
+          .session(session);
+        const oldCartData = JSON.parse(booking.cart);
+        
+        // Ahora sí aplicar los cambios al booking
         await this.applyBookingChangesFromExtension(
           id,
           newCart,
@@ -584,10 +628,7 @@ export class ContractRepository implements IContractRepository {
           contractData // Nuevo: Se pasa el update completo como snapshot para el historial
         );
 
-        const booking = await this.bookingModel
-          .findById(originalContract.booking)
-          .session(session);
-        const oldCartData = JSON.parse(booking.cart);
+        // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
         await this.updateVehicleReservations(oldCartData, newCart, session, id);
       }
 

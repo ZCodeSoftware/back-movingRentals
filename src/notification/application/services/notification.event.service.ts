@@ -141,6 +141,19 @@ export class NotificationEventService implements INotificationEventService {
     );
     await this.checkNetworkConnectivity();
 
+    // Obtener información del usuario para el email (fuera del try para que esté disponible para ambos emails)
+    let userData = null;
+    try {
+      const bookingData = booking.toJSON();
+      const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
+      const user = await this.findUserByBookingId(bookingId);
+      if (user) {
+        userData = user.toJSON();
+      }
+    } catch (error) {
+      this.logger.warn(`[Reserva #${bookingIdForLogs}] No se pudo obtener información del usuario: ${error.message}`);
+    }
+
     try {
       this.logger.log(
         `[Reserva #${bookingIdForLogs}] Intentando enviar correo al USUARIO....`,
@@ -148,20 +161,6 @@ export class NotificationEventService implements INotificationEventService {
       this.logger.log(
         `[Reserva #${bookingIdForLogs}] Timestamp inicio envío usuario: ${new Date().toISOString()}`,
       );
-
-      // Obtener información del usuario para el email
-      let userData = null;
-      try {
-        // Intentar obtener datos del usuario desde el booking o buscar por email
-        const bookingData = booking.toJSON();
-        const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
-        const user = await this.findUserByBookingId(bookingId);
-        if (user) {
-          userData = user.toJSON();
-        }
-      } catch (error) {
-        this.logger.warn(`[Reserva #${bookingIdForLogs}] No se pudo obtener información del usuario: ${error.message}`);
-      }
 
       const userResult = await Promise.race([
         this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang, userData),
@@ -219,7 +218,7 @@ export class NotificationEventService implements INotificationEventService {
       );
 
       const adminResult = await Promise.race([
-        this.adminEmailAdapter.sendAdminBookingCreated(booking),
+        this.adminEmailAdapter.sendAdminBookingCreated(booking, userData),
         this.createTimeoutPromise(60000, 'Admin email timeout'), // 1 minuto
       ]);
 

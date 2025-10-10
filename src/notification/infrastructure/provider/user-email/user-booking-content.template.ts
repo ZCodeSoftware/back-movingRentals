@@ -459,6 +459,7 @@ export function generateUserBookingConfirmation(
         <div class="section pickup-info">
           <h2>📍 Información de retiro (Vehículos):</h2>
           <p>Para vehículos, el retiro es en Sucursal ${branchName} – <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Ver en Google Maps</a></p>
+          <p><strong>Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., México</p>
           <p><strong><span class="emoji">⏰</span> Horario de atención:</strong> 9:00 AM a 7:00 PM</p>
         </div>` : `
         <div class="section pickup-info">

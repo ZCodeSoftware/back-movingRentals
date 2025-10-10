@@ -64,7 +64,13 @@ export class BookingRepository implements IBookingRepository {
       }
     }
 
-    return BookingModel.hydrate(newBooking);
+    // Populate paymentMethod and status before returning
+    const populatedBooking = await this.bookingDB
+      .findById(newBooking._id)
+      .populate('paymentMethod status')
+      .exec();
+
+    return BookingModel.hydrate(populatedBooking);
   }
 
   async findById(id: string): Promise<BookingModel> {
