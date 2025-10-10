@@ -55,4 +55,13 @@ export class CreateBookingDTO {
   @ApiPropertyOptional({ description: 'Concierge (VehicleOwner) ID for Dashboard bookings' })
   @IsString()
   concierge?: string;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Metadata for booking (contactSource, hotel, paymentMedium, depositNote, etc.)' })
+  metadata?: Record<string, any>;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Commission percentage for the booking' })
+  @IsNumber()
+  commission?: number;
 }

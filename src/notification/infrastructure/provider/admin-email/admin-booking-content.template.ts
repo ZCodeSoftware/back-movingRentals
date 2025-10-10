@@ -79,7 +79,7 @@ function formatDate(dateString?: string): string {
  * @param booking El objeto de la reserva.
  * @returns Un objeto con el 'subject' y el 'html' del correo.
  */
-export function generateAdminBookingNotification(booking: BookingModel): {
+export function generateAdminBookingNotification(booking: BookingModel, userData?: any): {
   subject: string;
   html: string;
 } {
@@ -91,9 +91,13 @@ export function generateAdminBookingNotification(booking: BookingModel): {
   const totalReserva = bookingData.total || 0;
   const totalPagado = bookingData.totalPaid || 0;
 
-  const customerName = bookingData.user?.name || 'No especificado';
-  const customerEmail = bookingData.user?.email || 'No especificado';
-  const customerPhone = bookingData.user?.phone || 'No especificado';
+  // Usar userData si está disponible, sino usar bookingData.user
+  const customerName = userData?.name || bookingData.user?.name || 'No especificado';
+  const customerLastName = userData?.lastName || bookingData.user?.lastName || '';
+  const customerFullName = `${customerName} ${customerLastName}`.trim();
+  const customerEmail = userData?.email || bookingData.user?.email || 'No especificado';
+  const customerPhone = userData?.cellphone || userData?.phone || bookingData.user?.phone || bookingData.user?.cellphone || 'No especificado';
+  const customerAddress = userData?.address || bookingData.user?.address;
 
   const errorSubject = `[ACCIÓN REQUERIDA] Problema al procesar Reserva #${bookingNumber}`;
   const errorHtml = `
@@ -199,6 +203,23 @@ export function generateAdminBookingNotification(booking: BookingModel): {
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
           ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
         </div>
+
+        <div class="section">
+          <h2>👤 Información del Cliente:</h2>
+          <div class="item-details customer-details">
+            <p><strong>Nombre completo:</strong> ${customerFullName}</p>
+            <p><strong>Email:</strong> ${customerEmail}</p>
+            <p><strong>Teléfono:</strong> ${customerPhone}</p>
+          </div>
+        </div>
+
+        ${branchName !== 'Sucursal no especificada' ? `
+        <div class="section">
+          <h2>📍 Ubicación de la Sucursal:</h2>
+          <p><strong>Sucursal:</strong> ${branchName}</p>
+          <p><strong>Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., México</p>
+          <p><strong>Horario:</strong> 9:00 AM - 7:00 PM</p>
+        </div>` : ''}
         
         ${
           vehicles.length > 0

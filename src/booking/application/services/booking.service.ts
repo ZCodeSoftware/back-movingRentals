@@ -200,12 +200,14 @@ export class BookingService implements IBookingService {
       );
     }
 
-    // 6. Crear el booking con los datos del carrito
+    // 6. Crear el booking con los datos del carrito y metadata
     const bookingData = {
       cart: JSON.stringify(cartData),
-      total: total,
-      totalPaid: total,
+      total: body.total ?? total,
+      totalPaid: body.totalPaid ?? total,
       isValidated: true,
+      metadata: body.metadata || {},
+      commission: body.commission,
     };
 
     const bookingModel = BookingModel.create(bookingData);
