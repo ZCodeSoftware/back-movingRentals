@@ -15,6 +15,9 @@ export class Booking {
   @Prop({ type: Number, required: false })
   commission?: number;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'VehicleOwner', required: false })
+  concierge?: mongoose.Types.ObjectId;
+
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'CartVersion',

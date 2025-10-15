@@ -14,6 +14,7 @@ export class BookingModel extends BaseModel {
   private _isValidated: boolean;
   private _metadata?: Record<string, any>;
   private _commission?: number;
+  private _concierge?: string;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -29,6 +30,7 @@ export class BookingModel extends BaseModel {
       isValidated: this._isValidated,
       metadata: this._metadata,
       commission: this._commission,
+      concierge: this._concierge,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -76,6 +78,7 @@ export class BookingModel extends BaseModel {
     newBooking._isValidated = booking.isValidated ?? false;
     newBooking._metadata = booking.metadata;
     newBooking._commission = booking.commission;
+    newBooking._concierge = booking.concierge;
 
     return newBooking;
   }
@@ -97,6 +100,7 @@ export class BookingModel extends BaseModel {
     newBooking._isValidated = booking.isValidated;
     newBooking._metadata = booking.metadata;
     newBooking._commission = booking.commission;
+    newBooking._concierge = booking.concierge;
     newBooking._createdAt = booking.createdAt;
     newBooking._updatedAt = booking.updatedAt;
 

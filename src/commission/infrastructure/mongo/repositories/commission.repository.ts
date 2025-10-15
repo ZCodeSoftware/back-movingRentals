@@ -41,7 +41,8 @@ export class CommissionRepository implements ICommissionRepository {
     const totalItems = await this.commissionDB.countDocuments(query);
     const list = await this.commissionDB
       .find(query)
-      .populate('user vehicleOwner vehicle booking')
+      .populate('user vehicleOwner vehicle vehicles booking')
+      .sort({ createdAt: -1 }) // Ordenar de más nuevo a más viejo
       .skip(skip)
       .limit(limit);
 
@@ -63,7 +64,8 @@ export class CommissionRepository implements ICommissionRepository {
   async findByBooking(bookingId: string): Promise<CommissionModel[]> {
     const list = await this.commissionDB
       .find({ booking: new Types.ObjectId(String(bookingId)) })
-      .populate('user vehicleOwner vehicle booking');
+      .populate('user vehicleOwner vehicle vehicles booking')
+      .sort({ createdAt: -1 }); // Ordenar de más nuevo a más viejo
     return list.map((doc) => CommissionModel.hydrate(doc));
   }
 

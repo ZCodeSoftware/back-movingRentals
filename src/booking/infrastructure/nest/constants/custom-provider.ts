@@ -13,6 +13,8 @@ import { TransferRepository } from '../../../../transfer/infrastructure/mongo/re
 import SymbolsUser from '../../../../user/symbols-user';
 import SymbolsVehicle from '../../../../vehicle/symbols-vehicle';
 import { VehicleRepository } from '../../../../vehicle/infrastructure/mongo/repositories/vehicle.repository';
+import SymbolsVehicleOwner from '../../../../vehicleowner/symbols-vehicleowner';
+import { VehicleOwnerRepository } from '../../../../vehicleowner/infrastructure/mongo/repositories/vehicleowner.repository';
 import { BookingService } from '../../../application/services/booking.service';
 import { UserService } from '../../../application/services/user.service';
 import SymbolsBooking from '../../../symbols-booking';
@@ -84,4 +86,9 @@ export const transferRepository = {
 export const ticketRepository = {
   provide: SymbolsTicket.ITicketRepository,
   useClass: TicketRepository,
+};
+
+export const vehicleOwnerRepository = {
+  provide: SymbolsVehicleOwner.IVehicleOwnerRepository,
+  useClass: VehicleOwnerRepository,
 };

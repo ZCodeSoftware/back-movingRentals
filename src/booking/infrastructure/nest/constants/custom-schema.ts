@@ -12,6 +12,7 @@ import {
   UserSchema,
 } from '../../../../core/infrastructure/mongo/schemas/public/user.schema';
 import { Vehicle, VehicleSchema } from '../../../../core/infrastructure/mongo/schemas/public/vehicle.schema';
+import { VehicleOwner, VehicleOwnerSchema } from '../../../../core/infrastructure/mongo/schemas/public/vehicle-owner.schema';
 
 export const bookingSchema = {
   name: Booking.name,
@@ -36,4 +37,9 @@ export const vehicleSchema = {
 export const catStatusSchema = {
   name: CatStatus.name,
   schema: CatStatusSchema,
+}
+
+export const vehicleOwnerSchema = {
+  name: VehicleOwner.name,
+  schema: VehicleOwnerSchema,
 }
