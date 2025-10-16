@@ -14,7 +14,19 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
     ) { }
 
     async create(vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {
-        const schema = new this.vehicleownerDB(vehicleowner.toJSON());
+        const vehicleOwnerData = vehicleowner.toJSON();
+        
+        // Validar que el nombre sea único (solo entre los no eliminados)
+        const existingOwner = await this.vehicleownerDB.findOne({ 
+            name: { $regex: new RegExp(`^${vehicleOwnerData.name}$`, 'i') },
+            deletedAt: null
+        });
+        
+        if (existingOwner) {
+            throw new BaseErrorException(`A vehicle owner with the name "${vehicleOwnerData.name}" already exists`, HttpStatus.CONFLICT);
+        }
+
+        const schema = new this.vehicleownerDB(vehicleOwnerData);
         const newVehicleOwner = await schema.save();
 
         if (!newVehicleOwner) throw new BaseErrorException(`VehicleOwner shouldn't be created`, HttpStatus.BAD_REQUEST);
@@ -23,21 +35,22 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
     }
 
     async findById(id: string): Promise<VehicleOwnerModel> {
-        const vehicleowner = await this.vehicleownerDB.findById(id);
+        const vehicleowner = await this.vehicleownerDB.findOne({ _id: id, deletedAt: null });
         if (!vehicleowner) throw new BaseErrorException('VehicleOwner not found', HttpStatus.NOT_FOUND);
         return VehicleOwnerModel.hydrate(vehicleowner);
     }
 
     async findByName(name: string): Promise<VehicleOwnerModel | null> {
         const vehicleowner = await this.vehicleownerDB.findOne({ 
-            name: { $regex: new RegExp(`^${name}$`, 'i') } 
+            name: { $regex: new RegExp(`^${name}$`, 'i') },
+            deletedAt: null
         });
         return vehicleowner ? VehicleOwnerModel.hydrate(vehicleowner) : null;
     }
 
     async findAll(filters?: IVehicleOwnerFilters): Promise<{ data: VehicleOwnerModel[], total: number }> {
         // Build match conditions
-        const matchConditions: any = {};
+        const matchConditions: any = { deletedAt: null };
         
         if (filters?.name) {
             matchConditions.name = { $regex: filters.name, $options: 'i' };
@@ -50,10 +63,8 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         // Build aggregation pipeline
         const pipeline: mongoose.PipelineStage[] = [];
 
-        // Add match stage if there are filters
-        if (Object.keys(matchConditions).length > 0) {
-            pipeline.push({ $match: matchConditions });
-        }
+        // Add match stage
+        pipeline.push({ $match: matchConditions });
 
         // Add lookup for vehicles
         pipeline.push({
@@ -100,7 +111,7 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
 
     async findAllConcierges(): Promise<VehicleOwnerModel[]> {
         const pipeline: mongoose.PipelineStage[] = [
-            { $match: { isConcierge: true } },
+            { $match: { isConcierge: true, deletedAt: null } },
             {
                 $lookup: {
                     from: 'vehicle',
@@ -118,7 +129,7 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
 
     async findAllOwners(): Promise<VehicleOwnerModel[]> {
         const pipeline: mongoose.PipelineStage[] = [
-            { $match: { isConcierge: false } },
+            { $match: { isConcierge: false, deletedAt: null } },
             {
                 $lookup: {
                     from: 'vehicle',
@@ -136,19 +147,51 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
 
     async update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {
         const updateObject = vehicleowner.toJSON();
+        
+        // Si se está actualizando el nombre, validar que sea único
+        if (updateObject.name) {
+            const existingOwner = await this.vehicleownerDB.findOne({ 
+                name: { $regex: new RegExp(`^${updateObject.name}$`, 'i') },
+                deletedAt: null,
+                _id: { $ne: id }
+            });
+            
+            if (existingOwner) {
+                throw new BaseErrorException(`A vehicle owner with the name "${updateObject.name}" already exists`, HttpStatus.CONFLICT);
+            }
+        }
+
         const filteredUpdateObject = Object.fromEntries(
             Object.entries(updateObject).filter(([key, value]) => value !== null && value !== undefined)
         );
-        const updated = await this.vehicleownerDB.findByIdAndUpdate(id, filteredUpdateObject, { new: true });
+        const updated = await this.vehicleownerDB.findOneAndUpdate(
+            { _id: id, deletedAt: null },
+            filteredUpdateObject,
+            { new: true }
+        );
 
         if (!updated) throw new BaseErrorException(`VehicleOwner shouldn't be updated`, HttpStatus.BAD_REQUEST);
 
         return VehicleOwnerModel.hydrate(updated);
     }
 
+    async softDelete(id: string): Promise<VehicleOwnerModel> {
+        const vehicleowner = await this.vehicleownerDB.findOneAndUpdate(
+            { _id: id, deletedAt: null },
+            { deletedAt: new Date() },
+            { new: true }
+        );
+
+        if (!vehicleowner) {
+            throw new BaseErrorException('VehicleOwner not found or already deleted', HttpStatus.NOT_FOUND);
+        }
+
+        return VehicleOwnerModel.hydrate(vehicleowner);
+    }
+
     async setConciergeCommission(percentage: number): Promise<{ matched: number; modified: number }> {
         const res = await this.vehicleownerDB.updateMany(
-            { isConcierge: true },
+            { isConcierge: true, deletedAt: null },
             { $set: { commissionPercentage: percentage } }
         );
         return { matched: res.matchedCount ?? (res as any).n ?? 0, modified: res.modifiedCount ?? (res as any).nModified ?? 0 };

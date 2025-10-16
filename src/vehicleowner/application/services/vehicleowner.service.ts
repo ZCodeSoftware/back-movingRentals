@@ -46,4 +46,8 @@ export class VehicleOwnerService implements IVehicleOwnerService {
         const vehicleownerModel = VehicleOwnerModel.create(vehicleowner);
         return this.vehicleownerRepository.update(id, vehicleownerModel);
     }
+
+    async softDelete(id: string): Promise<VehicleOwnerModel> {
+        return this.vehicleownerRepository.softDelete(id);
+    }
 }
