@@ -7,5 +7,7 @@ export interface IVehicleOwnerRepository {
     findAll(filters?: IVehicleOwnerFilters): Promise<{ data: VehicleOwnerModel[], total: number }>;
     findAllConcierges(): Promise<VehicleOwnerModel[]>;
     findAllOwners(): Promise<VehicleOwnerModel[]>;
-    update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel>
+    update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel>;
+    findByName(name: string): Promise<VehicleOwnerModel | null>;
+    setConciergeCommission(percentage: number): Promise<{ matched: number; modified: number }>;
 }

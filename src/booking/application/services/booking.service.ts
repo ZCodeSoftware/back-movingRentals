@@ -13,6 +13,8 @@ import SymbolsUser from '../../../user/symbols-user';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
 import { ReservationModel } from '../../../vehicle/domain/models/reservation.model';
 import SymbolsVehicle from '../../../vehicle/symbols-vehicle';
+import { IVehicleOwnerRepository } from '../../../vehicleowner/domain/repositories/vehicleowner.interface.repository';
+import SymbolsVehicleOwner from '../../../vehicleowner/symbols-vehicleowner';
 import { BookingModel } from '../../domain/models/booking.model';
 import { IBookingRepository } from '../../domain/repositories/booking.interface.repository';
 import { ICatPaymentMethodRepository } from '../../domain/repositories/cat-payment-method.interface.repository';
@@ -45,6 +47,9 @@ export class BookingService implements IBookingService {
 
     @Inject(SymbolsVehicle.IVehicleRepository)
     private readonly vehicleRepository: IVehicleRepository,
+
+    @Inject(SymbolsVehicleOwner.IVehicleOwnerRepository)
+    private readonly vehicleOwnerRepository: IVehicleOwnerRepository,
 
     private readonly eventEmitter: EventEmitter2,
   ) { }
@@ -208,6 +213,7 @@ export class BookingService implements IBookingService {
       isValidated: true,
       metadata: body.metadata || {},
       commission: body.commission,
+      concierge: body.concierge,
     };
 
     const bookingModel = BookingModel.create(bookingData);
@@ -240,15 +246,45 @@ export class BookingService implements IBookingService {
         const bookingJson = bookingSave.toJSON();
         const bookingId = bookingJson._id?.toString?.() ?? '';
         const bookingNumber = bookingJson.bookingNumber;
+        const bookingTotal = body.total ?? total;
 
-        if (cartData?.vehicles && Array.isArray(cartData.vehicles)) {
+        // Si viene el campo concierge, crear comisión sobre el total de la reserva
+        if (body.concierge) {
+          try {
+            const concierge = await this.vehicleOwnerRepository.findById(body.concierge);
+            if (concierge) {
+              const conciergeData = concierge.toJSON();
+              // Si viene commission en el body, usarlo; si no, usar el del concierge (default 15)
+              const percentage = body.commission !== undefined && body.commission !== null 
+                ? body.commission 
+                : (conciergeData.commissionPercentage ?? 15);
+              const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
+
+              await this.commissionRepository.create(
+                CommissionModel.create({
+                  booking: bookingId as any,
+                  bookingNumber: bookingNumber as any,
+                  user: userId as any,
+                  vehicleOwner: body.concierge as any,
+                  vehicles: [], // No hay vehículos específicos, es sobre el total
+                  detail: 'Comisión Concierge',
+                  status: 'PENDING',
+                  amount: amount as any,
+                } as any)
+              );
+            }
+          } catch (err) {
+            console.warn('Error creating concierge commission:', err);
+          }
+        } else if (cartData?.vehicles && Array.isArray(cartData.vehicles)) {
+          // Lógica original: crear comisiones por vehículo
           const existing = await this.commissionRepository.findByBooking(bookingId);
           if (!existing || existing.length === 0) {
             for (const v of cartData.vehicles) {
               const vehicle = v.vehicle;
               const vehicleId = vehicle?._id?.toString();
               let ownerId = (vehicle as any)?.owner?._id;
-              const total = v.total ?? 0;
+              const vehicleTotal = v.total ?? 0;
 
               // Fallback: fetch vehicle to get owner if not present in cart JSON
               if (!ownerId && vehicleId) {
@@ -258,9 +294,9 @@ export class BookingService implements IBookingService {
                 } catch { }
               }
 
-              if (ownerId && vehicleId && typeof total === 'number') {
+              if (ownerId && vehicleId && typeof vehicleTotal === 'number') {
                 const percentage = (vehicle as any)?.owner?.commissionPercentage ?? 0;
-                const amount = Math.round((total * (percentage / 100)) * 100) / 100;
+                const amount = Math.round((vehicleTotal * (percentage / 100)) * 100) / 100;
 
                 await this.commissionRepository.create(
                   CommissionModel.create({
@@ -280,6 +316,7 @@ export class BookingService implements IBookingService {
         }
       } catch (e) {
         // ignore commission errors
+        console.error('Error creating commissions:', e);
       }
     }
 
@@ -308,6 +345,14 @@ export class BookingService implements IBookingService {
     booking: Partial<ICreateBooking>,
   ): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
+    
+    // Obtener la reserva actual para comparar cambios
+    const currentBooking = await this.bookingRepository.findById(id);
+    if (!currentBooking) {
+      throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
+    }
+
+    const currentBookingData = currentBooking.toJSON();
     const bookingModel = BookingModel.create(res);
 
     const catPaymentMethod =
@@ -328,7 +373,78 @@ export class BookingService implements IBookingService {
     if ((booking as any).totalPaid !== undefined) {
       (bookingModel as any)._totalPaid = (booking as any).totalPaid;
     }
-    return this.bookingRepository.update(id, bookingModel);
+
+    const updatedBooking = await this.bookingRepository.update(id, bookingModel);
+
+    // Actualizar comisiones si hay cambios relevantes
+    try {
+      const bookingNumber = currentBookingData.bookingNumber;
+      const hasCommissionChange = (booking as any).commission !== undefined;
+      const hasConciergeChange = (booking as any).concierge !== undefined && 
+                                 (booking as any).concierge?.toString() !== currentBookingData.concierge?.toString();
+      const hasTotalChange = (booking as any).total !== undefined && 
+                             (booking as any).total !== currentBookingData.total;
+
+      console.log('Commission update check:', {
+        bookingNumber,
+        hasCommissionChange,
+        hasConciergeChange,
+        hasTotalChange,
+        newCommission: (booking as any).commission,
+        currentCommission: currentBookingData.commission,
+        newTotal: (booking as any).total,
+        currentTotal: currentBookingData.total
+      });
+
+      if (hasCommissionChange || hasConciergeChange || hasTotalChange) {
+        // Buscar comisiones existentes por número de reserva
+        const existingCommissions = await this.commissionRepository.findByBookingNumber(bookingNumber);
+        
+        console.log(`Found ${existingCommissions?.length || 0} existing commissions for booking ${bookingNumber}`);
+        
+        if (existingCommissions && existingCommissions.length > 0) {
+          // Preparar actualizaciones
+          const updates: any = {};
+          
+          if (hasConciergeChange) {
+            updates.vehicleOwner = (booking as any).concierge;
+            console.log('Will update vehicleOwner to:', updates.vehicleOwner);
+          }
+          
+          // Si se envía el porcentaje de comisión, recalcular el monto
+          if (hasCommissionChange) {
+            const newTotal = (booking as any).total ?? currentBookingData.total;
+            const newCommissionPercentage = (booking as any).commission;
+            const newAmount = Math.round((newTotal * (newCommissionPercentage / 100)) * 100) / 100;
+            updates.amount = newAmount;
+            console.log(`Recalculating amount: ${newTotal} * ${newCommissionPercentage}% = ${newAmount}`);
+          } else if (hasTotalChange && !hasCommissionChange) {
+            // Si solo cambió el total pero no el porcentaje, recalcular con el porcentaje actual
+            const newTotal = (booking as any).total;
+            const currentCommissionPercentage = currentBookingData.commission ?? 15;
+            const newAmount = Math.round((newTotal * (currentCommissionPercentage / 100)) * 100) / 100;
+            updates.amount = newAmount;
+            console.log(`Recalculating amount with current percentage: ${newTotal} * ${currentCommissionPercentage}% = ${newAmount}`);
+          }
+
+          // Actualizar comisiones
+          if (Object.keys(updates).length > 0) {
+            console.log('Updating commissions with:', updates);
+            const result = await this.commissionRepository.updateByBookingNumber(bookingNumber, updates);
+            console.log(`Updated ${result?.length || 0} commissions`);
+          } else {
+            console.log('No updates to apply');
+          }
+        }
+      } else {
+        console.log('No relevant changes detected for commission update');
+      }
+    } catch (error) {
+      console.error('Error updating commissions:', error);
+      // No fallar la actualización de booking si falla la actualización de comisiones
+    }
+
+    return updatedBooking;
   }
 
   async validateBooking(

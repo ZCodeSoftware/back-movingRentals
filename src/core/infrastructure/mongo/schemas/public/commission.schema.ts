@@ -21,8 +21,11 @@ export class Commission {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'VehicleOwner', required: true })
   vehicleOwner: VehicleOwner;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', required: true })
-  vehicle: Vehicle;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', required: false })
+  vehicle?: Vehicle;
+
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' }], default: [] })
+  vehicles?: Vehicle[];
 
   @Prop({ type: String, default: 'Renta' })
   detail: string;
@@ -32,6 +35,12 @@ export class Commission {
 
   @Prop({ type: Number, required: true })
   amount: number;
+
+  @Prop({ type: String, enum: ['booking', 'extension'], default: 'booking' })
+  source: 'booking' | 'extension';
+
+  @Prop({ type: Number, required: false })
+  commissionPercentage?: number;
 }
 
 export const CommissionSchema = SchemaFactory.createForClass(Commission);

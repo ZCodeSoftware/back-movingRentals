@@ -313,6 +313,22 @@ export class ContractRepository implements IContractRepository {
           localField: 'booking',
           foreignField: '_id',
           as: 'booking',
+          pipeline: [
+            {
+              $lookup: {
+                from: 'vehicle_owner',
+                localField: 'concierge',
+                foreignField: '_id',
+                as: 'concierge',
+              },
+            },
+            {
+              $unwind: {
+                path: '$concierge',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ],
         },
       },
       {
@@ -374,6 +390,22 @@ export class ContractRepository implements IContractRepository {
         localField: 'booking',
         foreignField: '_id',
         as: 'bookingData',
+        pipeline: [
+          {
+            $lookup: {
+              from: 'vehicle_owner',
+              localField: 'concierge',
+              foreignField: '_id',
+              as: 'concierge',
+            },
+          },
+          {
+            $unwind: {
+              path: '$concierge',
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+        ],
       },
     });
     pipeline.push({

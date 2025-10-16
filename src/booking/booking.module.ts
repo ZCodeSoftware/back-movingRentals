@@ -20,6 +20,7 @@ import {
   userRepository,
   userService,
   vehicleRepository,
+  vehicleOwnerRepository,
 } from './infrastructure/nest/constants/custom-provider';
 import {
   bookingSchema,
@@ -27,6 +28,7 @@ import {
   paymentMethodSchema,
   userSchema,
   vehicleSchema,
+  vehicleOwnerSchema,
 } from './infrastructure/nest/constants/custom-schema';
 import { BookingController } from './infrastructure/nest/controllers/booking.controller';
 import { commissionRepository } from '../commission/infrastructure/nest/constants/custom-provider';
@@ -34,7 +36,7 @@ import { commissionSchema } from '../commission/infrastructure/nest/constants/cu
 
 @Module({
   imports: [
-    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema, catStatusSchema, cartSchema, branchesSchema, tourSchema, transferSchema, ticketSchema, commissionSchema]),
+    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema, catStatusSchema, cartSchema, branchesSchema, tourSchema, transferSchema, ticketSchema, commissionSchema, vehicleOwnerSchema]),
     EventEmitterModule.forRoot(),
   ],
   controllers: [BookingController],
@@ -52,7 +54,8 @@ import { commissionSchema } from '../commission/infrastructure/nest/constants/cu
     vehicleRepository,
     transferRepository,
     ticketRepository,
-    commissionRepository
+    commissionRepository,
+    vehicleOwnerRepository
   ],
   exports: [
     bookingService

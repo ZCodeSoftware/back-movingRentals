@@ -14,5 +14,7 @@ export interface ICommissionRepository {
     };
   }>;
   findByBooking(bookingId: string): Promise<CommissionModel[]>;
+  findByBookingNumber(bookingNumber: number): Promise<CommissionModel[]>;
+  updateByBookingNumber(bookingNumber: number, updates: Partial<CommissionModel>): Promise<CommissionModel[]>;
   markAsPaid(id: string): Promise<CommissionModel>;
 }

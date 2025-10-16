@@ -28,6 +28,13 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         return VehicleOwnerModel.hydrate(vehicleowner);
     }
 
+    async findByName(name: string): Promise<VehicleOwnerModel | null> {
+        const vehicleowner = await this.vehicleownerDB.findOne({ 
+            name: { $regex: new RegExp(`^${name}$`, 'i') } 
+        });
+        return vehicleowner ? VehicleOwnerModel.hydrate(vehicleowner) : null;
+    }
+
     async findAll(filters?: IVehicleOwnerFilters): Promise<{ data: VehicleOwnerModel[], total: number }> {
         // Build match conditions
         const matchConditions: any = {};
@@ -137,5 +144,13 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         if (!updated) throw new BaseErrorException(`VehicleOwner shouldn't be updated`, HttpStatus.BAD_REQUEST);
 
         return VehicleOwnerModel.hydrate(updated);
+    }
+
+    async setConciergeCommission(percentage: number): Promise<{ matched: number; modified: number }> {
+        const res = await this.vehicleownerDB.updateMany(
+            { isConcierge: true },
+            { $set: { commissionPercentage: percentage } }
+        );
+        return { matched: res.matchedCount ?? (res as any).n ?? 0, modified: res.modifiedCount ?? (res as any).nModified ?? 0 };
     }
 }

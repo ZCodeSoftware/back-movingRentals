@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { cartSchema, catContractEventSchema } from '../catalogs/infrastructure/constants/custom-schema';
 import { BookingTotalsService } from '../booking/application/services/booking-totals.service';
 import { MovementModule } from '../movement/movement.module';
+import { CommissionModule } from '../commission/commission.module';
 import { VehicleRepository } from '../vehicle/infrastructure/mongo/repositories/vehicle.repository';
 import SymbolsVehicle from '../vehicle/symbols-vehicle';
 import {
@@ -34,7 +35,8 @@ import { ContractMovementLinkService } from './application/services/contract-mov
       { name: Movement.name, schema: MovementSchema }
     ]),
     EventEmitterModule.forRoot(),
-    MovementModule
+    MovementModule,
+    CommissionModule
   ],
   controllers: [ContractController],
   providers: [

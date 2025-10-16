@@ -145,6 +145,11 @@ export class UpdateContractDTO {
   @IsOptional()
   @IsString()
   eventType?: string;
+
+  @ApiPropertyOptional({ description: 'Indica si es una extensión de contrato' })
+  @IsOptional()
+  @IsBoolean()
+  isExtension?: boolean;
 }
 
 export class ReportEventMetadataDTO {
