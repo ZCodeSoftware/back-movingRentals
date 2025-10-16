@@ -8,6 +8,6 @@ import { CommissionController } from './infrastructure/nest/controllers/commissi
   imports: [MongooseModule.forFeature([commissionSchema, userSchema, vehicleSchema, vehicleOwnerSchema])],
   controllers: [CommissionController],
   providers: [commissionService, commissionRepository, userRepository, vehicleRepository, vehicleOwnerRepository],
-  exports: [],
+  exports: [commissionRepository],
 })
 export class CommissionModule {}

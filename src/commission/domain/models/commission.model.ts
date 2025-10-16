@@ -13,6 +13,8 @@ export class CommissionModel extends BaseModel {
   private _detail: string;
   private _status: 'PENDING' | 'PAID' | 'CANCELLED';
   private _amount: number;
+  private _source: 'booking' | 'extension';
+  private _commissionPercentage?: number;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -26,6 +28,8 @@ export class CommissionModel extends BaseModel {
       detail: this._detail,
       status: this._status,
       amount: this._amount,
+      source: this._source,
+      commissionPercentage: this._commissionPercentage,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -41,6 +45,8 @@ export class CommissionModel extends BaseModel {
     m._detail = data.detail ?? 'Renta';
     m._status = data.status ?? 'PENDING';
     m._amount = data.amount;
+    m._source = data.source ?? 'booking';
+    m._commissionPercentage = data.commissionPercentage;
     return m;
   }
 
@@ -54,6 +60,8 @@ export class CommissionModel extends BaseModel {
     m._detail = data.detail;
     m._status = data.status;
     m._amount = data.amount;
+    m._source = data.source ?? 'booking';
+    m._commissionPercentage = data.commissionPercentage;
     m._createdAt = data.createdAt;
     m._updatedAt = data.updatedAt;
     return m;

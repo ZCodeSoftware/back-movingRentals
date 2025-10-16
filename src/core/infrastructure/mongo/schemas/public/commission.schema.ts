@@ -35,6 +35,12 @@ export class Commission {
 
   @Prop({ type: Number, required: true })
   amount: number;
+
+  @Prop({ type: String, enum: ['booking', 'extension'], default: 'booking' })
+  source: 'booking' | 'extension';
+
+  @Prop({ type: Number, required: false })
+  commissionPercentage?: number;
 }
 
 export const CommissionSchema = SchemaFactory.createForClass(Commission);

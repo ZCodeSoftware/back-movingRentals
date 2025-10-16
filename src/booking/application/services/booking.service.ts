@@ -345,6 +345,14 @@ export class BookingService implements IBookingService {
     booking: Partial<ICreateBooking>,
   ): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
+    
+    // Obtener la reserva actual para comparar cambios
+    const currentBooking = await this.bookingRepository.findById(id);
+    if (!currentBooking) {
+      throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
+    }
+
+    const currentBookingData = currentBooking.toJSON();
     const bookingModel = BookingModel.create(res);
 
     const catPaymentMethod =
@@ -365,7 +373,78 @@ export class BookingService implements IBookingService {
     if ((booking as any).totalPaid !== undefined) {
       (bookingModel as any)._totalPaid = (booking as any).totalPaid;
     }
-    return this.bookingRepository.update(id, bookingModel);
+
+    const updatedBooking = await this.bookingRepository.update(id, bookingModel);
+
+    // Actualizar comisiones si hay cambios relevantes
+    try {
+      const bookingNumber = currentBookingData.bookingNumber;
+      const hasCommissionChange = (booking as any).commission !== undefined;
+      const hasConciergeChange = (booking as any).concierge !== undefined && 
+                                 (booking as any).concierge?.toString() !== currentBookingData.concierge?.toString();
+      const hasTotalChange = (booking as any).total !== undefined && 
+                             (booking as any).total !== currentBookingData.total;
+
+      console.log('Commission update check:', {
+        bookingNumber,
+        hasCommissionChange,
+        hasConciergeChange,
+        hasTotalChange,
+        newCommission: (booking as any).commission,
+        currentCommission: currentBookingData.commission,
+        newTotal: (booking as any).total,
+        currentTotal: currentBookingData.total
+      });
+
+      if (hasCommissionChange || hasConciergeChange || hasTotalChange) {
+        // Buscar comisiones existentes por número de reserva
+        const existingCommissions = await this.commissionRepository.findByBookingNumber(bookingNumber);
+        
+        console.log(`Found ${existingCommissions?.length || 0} existing commissions for booking ${bookingNumber}`);
+        
+        if (existingCommissions && existingCommissions.length > 0) {
+          // Preparar actualizaciones
+          const updates: any = {};
+          
+          if (hasConciergeChange) {
+            updates.vehicleOwner = (booking as any).concierge;
+            console.log('Will update vehicleOwner to:', updates.vehicleOwner);
+          }
+          
+          // Si se envía el porcentaje de comisión, recalcular el monto
+          if (hasCommissionChange) {
+            const newTotal = (booking as any).total ?? currentBookingData.total;
+            const newCommissionPercentage = (booking as any).commission;
+            const newAmount = Math.round((newTotal * (newCommissionPercentage / 100)) * 100) / 100;
+            updates.amount = newAmount;
+            console.log(`Recalculating amount: ${newTotal} * ${newCommissionPercentage}% = ${newAmount}`);
+          } else if (hasTotalChange && !hasCommissionChange) {
+            // Si solo cambió el total pero no el porcentaje, recalcular con el porcentaje actual
+            const newTotal = (booking as any).total;
+            const currentCommissionPercentage = currentBookingData.commission ?? 15;
+            const newAmount = Math.round((newTotal * (currentCommissionPercentage / 100)) * 100) / 100;
+            updates.amount = newAmount;
+            console.log(`Recalculating amount with current percentage: ${newTotal} * ${currentCommissionPercentage}% = ${newAmount}`);
+          }
+
+          // Actualizar comisiones
+          if (Object.keys(updates).length > 0) {
+            console.log('Updating commissions with:', updates);
+            const result = await this.commissionRepository.updateByBookingNumber(bookingNumber, updates);
+            console.log(`Updated ${result?.length || 0} commissions`);
+          } else {
+            console.log('No updates to apply');
+          }
+        }
+      } else {
+        console.log('No relevant changes detected for commission update');
+      }
+    } catch (error) {
+      console.error('Error updating commissions:', error);
+      // No fallar la actualización de booking si falla la actualización de comisiones
+    }
+
+    return updatedBooking;
   }
 
   async validateBooking(

@@ -28,6 +28,9 @@ import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
 import { ContractMovementLinkService } from './contract-movement-link.service';
 import { TypeCatPaymentMethodAdmin } from '../../../core/domain/enums/type-cat-payment-method-admin';
+import { CommissionModel } from '../../../commission/domain/models/commission.model';
+import { ICommissionRepository } from '../../../commission/domain/repositories/commission.interface.repository';
+import SymbolsCommission from '../../../commission/symbols-commission';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -36,6 +39,8 @@ export class ContractService implements IContractService {
     private readonly contractRepository: IContractRepository,
     @Inject(SymbolsVehicle.IVehicleRepository)
     private readonly vehicleRepository: IVehicleRepository,
+    @Inject(SymbolsCommission.ICommissionRepository)
+    private readonly commissionRepository: ICommissionRepository,
     private readonly bookingTotalsService: BookingTotalsService,
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
@@ -155,8 +160,78 @@ export class ContractService implements IContractService {
         updateData,
         userId,
       );
-      // La lógica de extensión ya se maneja en el histórico del contrato
-      // Los movimientos monetarios se registran a través de reportEvent
+
+      // Si es una extensión, crear comisión basada en el extensionAmount
+      console.log('[ContractService] Checking extension commission creation:', {
+        isExtension: (updateData as any).isExtension,
+        hasExtension: !!updateData.extension,
+        extensionAmount: updateData.extension?.extensionAmount,
+        concierge: (updateData as any).concierge
+      });
+
+      if ((updateData as any).isExtension && updateData.extension?.extensionAmount) {
+        try {
+          const contractData = updated.toJSON();
+          const bookingData = contractData.booking;
+          
+          console.log('[ContractService] Contract data for commission:', {
+            hasBooking: !!bookingData,
+            bookingId: bookingData?._id,
+            bookingNumber: bookingData?.bookingNumber,
+            reservingUserId: contractData.reservingUser?._id
+          });
+          
+          if (bookingData) {
+            const extensionAmount = updateData.extension.extensionAmount;
+            const commissionPercentage = updateData.extension.commissionPercentage ?? 15;
+            const concierge = (updateData as any).concierge;
+            
+            if (!concierge) {
+              console.warn('[ContractService] No concierge provided, skipping commission creation');
+              return updated;
+            }
+            
+            // Calcular el monto de la comisión
+            const commissionAmount = Math.round((extensionAmount * (commissionPercentage / 100)) * 100) / 100;
+            
+            console.log('[ContractService] Creating extension commission:', {
+              extensionAmount,
+              commissionPercentage,
+              commissionAmount,
+              concierge,
+              bookingNumber: bookingData.bookingNumber,
+              bookingId: bookingData._id,
+              userId: contractData.reservingUser?._id
+            });
+
+            // Crear la comisión con source: 'extension'
+            const commissionCreated = await this.commissionRepository.create(
+              CommissionModel.create({
+                booking: bookingData._id as any,
+                bookingNumber: bookingData.bookingNumber as any,
+                user: contractData.reservingUser?._id as any,
+                vehicleOwner: concierge as any,
+                vehicles: [], // Las extensiones no están asociadas a vehículos específicos
+                detail: 'Extensión de Renta',
+                status: 'PENDING',
+                amount: commissionAmount as any,
+                source: 'extension' as any,
+                commissionPercentage: commissionPercentage,
+              } as any)
+            );
+
+            console.log('[ContractService] Extension commission created successfully:', commissionCreated.toJSON());
+          } else {
+            console.warn('[ContractService] No booking data found in contract');
+          }
+        } catch (commissionError) {
+          console.error('[ContractService] Error creating extension commission:', commissionError);
+          console.error('[ContractService] Error stack:', commissionError.stack);
+          // No fallar la actualización del contrato si falla la creación de la comisión
+        }
+      } else {
+        console.log('[ContractService] Conditions not met for extension commission creation');
+      }
 
       return updated;
     } catch (error) {
