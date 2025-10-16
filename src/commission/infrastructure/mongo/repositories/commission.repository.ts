@@ -335,4 +335,32 @@ export class CommissionRepository implements ICommissionRepository {
     console.log(`Updated ${updatedCommissions.length} commissions`);
     return updatedCommissions;
   }
+
+  async deleteById(id: string): Promise<void> {
+    const deleted = await this.commissionDB.findByIdAndDelete(id);
+    if (!deleted) {
+      throw new BaseErrorException('Commission not found', HttpStatus.NOT_FOUND);
+    }
+  }
+
+  async deleteByBookingNumberAndSource(bookingNumber: number, source: 'booking' | 'extension'): Promise<number> {
+    const result = await this.commissionDB.deleteMany({
+      bookingNumber,
+      source
+    });
+    return result.deletedCount || 0;
+  }
+
+  async getBookingIdByCommissionId(commissionId: string): Promise<string | null> {
+    const commission = await this.commissionDB.findById(commissionId).select('booking').lean();
+    return commission?.booking?.toString() || null;
+  }
+
+  async getCommissionDetailsById(commissionId: string): Promise<{ bookingId: string | null; source: string | null }> {
+    const commission = await this.commissionDB.findById(commissionId).select('booking source').lean();
+    return {
+      bookingId: commission?.booking?.toString() || null,
+      source: commission?.source || null,
+    };
+  }
 }

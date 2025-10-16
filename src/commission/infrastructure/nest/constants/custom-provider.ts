@@ -4,9 +4,11 @@ import { CommissionRepository } from '../../mongo/repositories/commission.reposi
 import SymbolsUser from '../../../../user/symbols-user';
 import SymbolsVehicle from '../../../../vehicle/symbols-vehicle';
 import SymbolsVehicleOwner from '../../../../vehicleowner/symbols-vehicleowner';
+import SymbolsBooking from '../../../../booking/symbols-booking';
 import { UserRepository } from '../../../../cart/infrastructure/mongo/repositories/user.repository';
 import { VehicleRepository } from '../../../../vehicle/infrastructure/mongo/repositories/vehicle.repository';
 import { VehicleOwnerRepository } from '../../../../vehicle/infrastructure/mongo/repositories/vehicleowner.repository';
+import { BookingRepository } from '../../../../booking/infrastructure/mongo/repositories/booking.repository';
 
 export const commissionService = {
   provide: SymbolsCommission.ICommissionService,
@@ -31,4 +33,9 @@ export const vehicleRepository = {
 export const vehicleOwnerRepository = {
   provide: SymbolsVehicleOwner.IVehicleOwnerRepository,
   useClass: VehicleOwnerRepository,
+};
+
+export const bookingRepository = {
+  provide: SymbolsBooking.IBookingRepository,
+  useClass: BookingRepository,
 };
