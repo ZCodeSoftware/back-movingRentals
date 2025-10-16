@@ -19,6 +19,9 @@ export class VehicleOwner {
 
     @Prop({ default: false })
     isConcierge: boolean;
+
+    @Prop({ default: null })
+    deletedAt: Date;
 }
 
 export const VehicleOwnerSchema = SchemaFactory.createForClass(VehicleOwner);

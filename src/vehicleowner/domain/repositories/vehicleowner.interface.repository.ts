@@ -10,4 +10,5 @@ export interface IVehicleOwnerRepository {
     update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel>;
     findByName(name: string): Promise<VehicleOwnerModel | null>;
     setConciergeCommission(percentage: number): Promise<{ matched: number; modified: number }>;
+    softDelete(id: string): Promise<VehicleOwnerModel>;
 }

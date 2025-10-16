@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
 import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
@@ -74,5 +74,15 @@ export class VehicleOwnerController {
     @UseGuards(AuthGuards, RoleGuard)
     async update(@Param('id') id: string, @Body() body: UpdateVehicleOwnerDTO) {
         return this.vehicleownerService.update(id, body);
+    }
+
+    @Delete(':id')
+    @HttpCode(200)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+    @UseGuards(AuthGuards, RoleGuard)
+    @ApiResponse({ status: 200, description: 'VehicleOwner soft deleted successfully' })
+    @ApiResponse({ status: 404, description: 'VehicleOwner not found or already deleted' })
+    async softDelete(@Param('id') id: string) {
+        return this.vehicleownerService.softDelete(id);
     }
 }

@@ -42,9 +42,11 @@ export class CommissionRepository implements ICommissionRepository {
     if (filters.bookingNumber !== undefined && filters.bookingNumber !== null) {
       query.bookingNumber = filters.bookingNumber;
     }
+
+    // Filtro: Solo comisiones con amount mayor a 0 (que tengan comisión asociada)
+    query.amount = { $gt: 0 };
     
     // Filtro por vehicle (por nombre)
-    // Este filtro se aplicará después del populate, por lo que necesitamos un enfoque diferente
     let vehicleNameFilter = null;
     if (filters.vehicle) {
       vehicleNameFilter = filters.vehicle;
@@ -84,13 +86,72 @@ export class CommissionRepository implements ICommissionRepository {
     const limit = parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
     const skip = (page - 1) * limit;
 
-    let list;
-    let totalItems;
+    // Obtener el ID del estado "APROBADO"
+    const approvedStatus = await this.commissionDB.db.collection('cat_status').findOne({ name: 'APROBADO' });
+    if (!approvedStatus) {
+      console.warn('Estado "APROBADO" no encontrado');
+      return {
+        data: [],
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: limit,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      };
+    }
 
-    // Si hay filtro por nombre de vehículo, usar aggregation pipeline
+    // Usar aggregation pipeline para filtrar por estado del booking O del contract
+    const pipeline: any[] = [
+      { $match: query },
+      // Lookup para obtener el booking completo
+      {
+        $lookup: {
+          from: 'booking',
+          localField: 'booking',
+          foreignField: '_id',
+          as: 'bookingData'
+        }
+      },
+      // Unwind del booking
+      {
+        $unwind: {
+          path: '$bookingData',
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      // Lookup para obtener el contract asociado al booking
+      {
+        $lookup: {
+          from: 'contracts',
+          localField: 'booking',
+          foreignField: 'booking',
+          as: 'contractData'
+        }
+      },
+      // Unwind del contract (puede no existir)
+      {
+        $unwind: {
+          path: '$contractData',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Filtrar: booking APROBADO O contract APROBADO (o contract no existe pero booking está aprobado)
+      {
+        $match: {
+          $or: [
+            { 'bookingData.status': approvedStatus._id },
+            { 'contractData.status': approvedStatus._id }
+          ]
+        }
+      }
+    ];
+
+    // Si hay filtro por nombre de vehículo, agregar lookup y filtro
     if (vehicleNameFilter) {
-      const pipeline: any[] = [
-        { $match: query },
+      pipeline.push(
         // Lookup para el campo vehicle (singular)
         {
           $lookup: {
@@ -132,40 +193,33 @@ export class CommissionRepository implements ICommissionRepository {
           $match: {
             'allVehicles.name': { $regex: vehicleNameFilter, $options: 'i' }
           }
-        },
-        { $sort: { createdAt: -1 } }
-      ];
-
-      // Contar total de items con el filtro de vehículo
-      const countPipeline = [...pipeline, { $count: 'total' }];
-      const countResult = await this.commissionDB.aggregate(countPipeline);
-      totalItems = countResult.length > 0 ? countResult[0].total : 0;
-
-      // Agregar paginación
-      pipeline.push({ $skip: skip });
-      pipeline.push({ $limit: limit });
-
-      // Ejecutar el pipeline
-      const aggregateResult = await this.commissionDB.aggregate(pipeline);
-
-      // Populate los campos restantes manualmente
-      list = await this.commissionDB.populate(aggregateResult, [
-        { path: 'user' },
-        { path: 'vehicleOwner' },
-        { path: 'vehicle' },
-        { path: 'vehicles' },
-        { path: 'booking' }
-      ]);
-    } else {
-      // Sin filtro de vehículo, usar el método normal
-      totalItems = await this.commissionDB.countDocuments(query);
-      list = await this.commissionDB
-        .find(query)
-        .populate('user vehicleOwner vehicle vehicles booking')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+        }
+      );
     }
+
+    // Agregar sort
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Contar total de items
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const countResult = await this.commissionDB.aggregate(countPipeline);
+    const totalItems = countResult.length > 0 ? countResult[0].total : 0;
+
+    // Agregar paginación
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
+    // Ejecutar el pipeline
+    const aggregateResult = await this.commissionDB.aggregate(pipeline);
+
+    // Populate los campos restantes manualmente
+    const list = await this.commissionDB.populate(aggregateResult, [
+      { path: 'user' },
+      { path: 'vehicleOwner' },
+      { path: 'vehicle' },
+      { path: 'vehicles' },
+      { path: 'booking' }
+    ]);
 
     // Obtener los contratos asociados a las reservas
     const bookingIds = list.map(doc => (doc.booking as any)?._id).filter(Boolean);
