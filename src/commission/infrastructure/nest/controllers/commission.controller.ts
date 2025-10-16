@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Inject, Put, Query, UseGuards, Param } from '@nestjs/common';
+import { Controller, Get, HttpCode, Inject, Put, Query, UseGuards, Param, Delete } from '@nestjs/common';
 import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
@@ -65,5 +65,40 @@ export class CommissionController {
   @UseGuards(AuthGuards, RoleGuard)
   async pay(@Param('id') id: string) {
     return this.service.pay(id);
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Commission deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Commission not found' })
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  async deleteById(@Param('id') id: string) {
+    await this.service.deleteById(id);
+    return { message: 'Commission deleted successfully' };
+  }
+
+  @Delete('booking/:bookingNumber')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Commissions deleted successfully' })
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiQuery({ name: 'source', required: true, type: 'string', description: 'Source type: booking or extension' })
+  async deleteByBookingNumber(
+    @Param('bookingNumber') bookingNumber: string,
+    @Query('source') source: 'booking' | 'extension',
+  ) {
+    const bookingNum = parseInt(bookingNumber, 10);
+    if (isNaN(bookingNum)) {
+      return { message: 'Invalid booking number', deletedCount: 0 };
+    }
+    if (!source || (source !== 'booking' && source !== 'extension')) {
+      return { message: 'Source must be either "booking" or "extension"', deletedCount: 0 };
+    }
+    const result = await this.service.deleteByBookingNumberAndSource(bookingNum, source);
+    return {
+      message: `${result.deletedCount} commission(s) deleted successfully`,
+      deletedCount: result.deletedCount,
+    };
   }
 }
