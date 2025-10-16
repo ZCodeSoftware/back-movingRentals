@@ -86,8 +86,10 @@ export class CommissionRepository implements ICommissionRepository {
     const limit = parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
     const skip = (page - 1) * limit;
 
-    // Obtener el ID del estado "APROBADO"
+    // Obtener el ID del estado "APROBADO" y "CANCELADO"
     const approvedStatus = await this.commissionDB.db.collection('cat_status').findOne({ name: 'APROBADO' });
+    const cancelledStatus = await this.commissionDB.db.collection('cat_status').findOne({ name: 'CANCELADO' });
+    
     if (!approvedStatus) {
       console.warn('Estado "APROBADO" no encontrado');
       return {
@@ -138,12 +140,19 @@ export class CommissionRepository implements ICommissionRepository {
           preserveNullAndEmptyArrays: true
         }
       },
-      // Filtrar: booking APROBADO O contract APROBADO (o contract no existe pero booking está aprobado)
+      // Filtrar: booking APROBADO Y NO CANCELADO, O contract APROBADO Y NO CANCELADO
       {
         $match: {
-          $or: [
-            { 'bookingData.status': approvedStatus._id },
-            { 'contractData.status': approvedStatus._id }
+          $and: [
+            // El booking NO debe estar cancelado
+            cancelledStatus ? { 'bookingData.status': { $ne: cancelledStatus._id } } : {},
+            // Y debe cumplir: booking APROBADO O contract APROBADO
+            {
+              $or: [
+                { 'bookingData.status': approvedStatus._id },
+                { 'contractData.status': approvedStatus._id }
+              ]
+            }
           ]
         }
       }
@@ -344,10 +353,20 @@ export class CommissionRepository implements ICommissionRepository {
   }
 
   async deleteByBookingNumberAndSource(bookingNumber: number, source: 'booking' | 'extension'): Promise<number> {
-    const result = await this.commissionDB.deleteMany({
-      bookingNumber,
-      source
-    });
+    let query: any = { bookingNumber };
+    
+    if (source === 'booking') {
+      // Si es 'booking', incluir también comisiones sin el campo source (retrocompatibilidad)
+      query.$or = [
+        { source: 'booking' },
+        { source: { $exists: false } }
+      ];
+    } else if (source === 'extension') {
+      // Si es 'extension', buscar solo ese valor específico
+      query.source = 'extension';
+    }
+    
+    const result = await this.commissionDB.deleteMany(query);
     return result.deletedCount || 0;
   }
 
