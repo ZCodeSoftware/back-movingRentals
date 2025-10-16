@@ -43,8 +43,8 @@ export class CommissionRepository implements ICommissionRepository {
       query.bookingNumber = filters.bookingNumber;
     }
 
-    // Filtro: Solo comisiones con porcentaje distinto de 0
-    query.commissionPercentage = { $ne: 0, $exists: true };
+    // Filtro: Solo comisiones con amount mayor a 0 (que tengan comisión asociada)
+    query.amount = { $gt: 0 };
     
     // Filtro por vehicle (por nombre)
     let vehicleNameFilter = null;
@@ -103,7 +103,7 @@ export class CommissionRepository implements ICommissionRepository {
       };
     }
 
-    // Usar aggregation pipeline para filtrar por estado del booking
+    // Usar aggregation pipeline para filtrar por estado del booking O del contract
     const pipeline: any[] = [
       { $match: query },
       // Lookup para obtener el booking completo
@@ -122,10 +122,29 @@ export class CommissionRepository implements ICommissionRepository {
           preserveNullAndEmptyArrays: false
         }
       },
-      // Filtrar solo bookings con estado APROBADO
+      // Lookup para obtener el contract asociado al booking
+      {
+        $lookup: {
+          from: 'contracts',
+          localField: 'booking',
+          foreignField: 'booking',
+          as: 'contractData'
+        }
+      },
+      // Unwind del contract (puede no existir)
+      {
+        $unwind: {
+          path: '$contractData',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Filtrar: booking APROBADO O contract APROBADO (o contract no existe pero booking está aprobado)
       {
         $match: {
-          'bookingData.status': approvedStatus._id
+          $or: [
+            { 'bookingData.status': approvedStatus._id },
+            { 'contractData.status': approvedStatus._id }
+          ]
         }
       }
     ];
