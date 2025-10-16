@@ -362,9 +362,38 @@ export class BookingService implements IBookingService {
 
     // Nueva lógica: asignar status si viene en el payload
     const statusId = (booking as any).status;
+    let newStatus = null;
     if (statusId) {
-      const status = await this.catStatusRepository.getStatusById(statusId);
-      if (status) bookingModel.addStatus(status);
+      newStatus = await this.catStatusRepository.getStatusById(statusId);
+      if (newStatus) bookingModel.addStatus(newStatus);
+    }
+    
+    // Detectar si se está cancelando la reserva
+    const isBeingCancelled = newStatus && newStatus.toJSON().name === TypeStatus.CANCELLED;
+    const wasNotCancelled = currentBookingData.status?.name !== TypeStatus.CANCELLED;
+    
+    // Si se está cancelando, liberar vehículos
+    if (isBeingCancelled && wasNotCancelled) {
+      try {
+        const parsedCart = JSON.parse(currentBookingData.cart || '{}');
+        const bookingId = currentBookingData._id?.toString();
+
+        if (parsedCart?.vehicles?.length > 0) {
+          for (const vehicleBooking of parsedCart.vehicles) {
+            if (vehicleBooking.dates?.start && vehicleBooking.dates?.end && vehicleBooking.vehicle?._id) {
+              await this.releaseVehicleReservation(
+                vehicleBooking.vehicle._id,
+                new Date(vehicleBooking.dates.start),
+                new Date(vehicleBooking.dates.end),
+                bookingId
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error releasing vehicle reservations during update:', error);
+        // No fallar la actualización si falla la liberación de vehículos
+      }
     }
     // Nueva lógica: actualizar total y totalPaid si vienen en el payload
     if ((booking as any).total !== undefined) {
