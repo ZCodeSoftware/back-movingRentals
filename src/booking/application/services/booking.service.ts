@@ -405,14 +405,17 @@ export class BookingService implements IBookingService {
 
     const updatedBooking = await this.bookingRepository.update(id, bookingModel);
 
-    // Actualizar comisiones si hay cambios relevantes
+    // Actualizar o crear comisiones si hay cambios relevantes
     try {
       const bookingNumber = currentBookingData.bookingNumber;
+      const bookingId = currentBookingData._id?.toString();
       const hasCommissionChange = (booking as any).commission !== undefined;
       const hasConciergeChange = (booking as any).concierge !== undefined && 
                                  (booking as any).concierge?.toString() !== currentBookingData.concierge?.toString();
       const hasTotalChange = (booking as any).total !== undefined && 
                              (booking as any).total !== currentBookingData.total;
+      const newConcierge = (booking as any).concierge;
+      const hadConcierge = currentBookingData.concierge;
 
       console.log('Commission update check:', {
         bookingNumber,
@@ -422,21 +425,55 @@ export class BookingService implements IBookingService {
         newCommission: (booking as any).commission,
         currentCommission: currentBookingData.commission,
         newTotal: (booking as any).total,
-        currentTotal: currentBookingData.total
+        currentTotal: currentBookingData.total,
+        newConcierge,
+        hadConcierge
       });
 
       if (hasCommissionChange || hasConciergeChange || hasTotalChange) {
-        // Buscar comisiones existentes por número de reserva
+        // Buscar comisiones existentes por número de reserva (solo de tipo booking)
         const existingCommissions = await this.commissionRepository.findByBookingNumber(bookingNumber);
+        const bookingCommissions = existingCommissions.filter(c => 
+          (c as any).source === 'booking' || !(c as any).source
+        );
         
-        console.log(`Found ${existingCommissions?.length || 0} existing commissions for booking ${bookingNumber}`);
+        console.log(`Found ${bookingCommissions?.length || 0} existing booking commissions for booking ${bookingNumber}`);
         
-        if (existingCommissions && existingCommissions.length > 0) {
+        // Si hay concierge nuevo y NO hay comisiones existentes, crear una nueva
+        if (newConcierge && bookingCommissions.length === 0) {
+          console.log('Creating new commission for concierge');
+          try {
+            const user = await this.bookingRepository.findUserByBookingId(bookingId);
+            const userId = user?.toJSON()._id?.toString();
+            const bookingTotal = (booking as any).total ?? currentBookingData.total;
+            const commissionPercentage = (booking as any).commission ?? 15;
+            const amount = Math.round((bookingTotal * (commissionPercentage / 100)) * 100) / 100;
+
+            await this.commissionRepository.create(
+              CommissionModel.create({
+                booking: bookingId as any,
+                bookingNumber: bookingNumber as any,
+                user: userId as any,
+                vehicleOwner: newConcierge as any,
+                vehicles: [],
+                detail: 'Comisión Concierge',
+                status: 'PENDING',
+                amount: amount as any,
+                source: 'booking' as any,
+              } as any)
+            );
+            console.log('Commission created successfully');
+          } catch (err) {
+            console.error('Error creating commission:', err);
+          }
+        } 
+        // Si hay comisiones existentes, actualizarlas
+        else if (bookingCommissions.length > 0) {
           // Preparar actualizaciones
           const updates: any = {};
           
           if (hasConciergeChange) {
-            updates.vehicleOwner = (booking as any).concierge;
+            updates.vehicleOwner = newConcierge;
             console.log('Will update vehicleOwner to:', updates.vehicleOwner);
           }
           

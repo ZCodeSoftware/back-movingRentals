@@ -22,4 +22,5 @@ export interface IBookingRepository {
     id: string,
     booking: Partial<BookingModel>,
   ): Promise<BookingModel>;
+  removeFields(id: string, fields: string[]): Promise<void>;
 }

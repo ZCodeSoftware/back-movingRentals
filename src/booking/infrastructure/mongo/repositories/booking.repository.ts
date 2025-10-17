@@ -325,4 +325,21 @@ export class BookingRepository implements IBookingRepository {
 
     return BookingModel.hydrate(updatedBooking);
   }
+
+  async removeFields(id: string, fields: string[]): Promise<void> {
+    console.log(`[BookingRepository.removeFields] Removing fields ${fields.join(', ')} from booking ${id}`);
+    const unsetFields: any = {};
+    fields.forEach(field => {
+      unsetFields[field] = '';
+    });
+    
+    console.log(`[BookingRepository.removeFields] Unset object:`, unsetFields);
+    const result = await this.bookingDB.findByIdAndUpdate(id, { $unset: unsetFields });
+    
+    if (result) {
+      console.log(`[BookingRepository.removeFields] Successfully updated booking ${id}`);
+    } else {
+      console.log(`[BookingRepository.removeFields] Booking ${id} not found or not updated`);
+    }
+  }
 }
