@@ -5,7 +5,7 @@ import { VehicleModel } from '../../../vehicle/domain/models/vehicle.model';
 import { VehicleOwnerModel } from '../../../vehicleowner/domain/models/vehicleowner.model';
 
 export class CommissionModel extends BaseModel {
-  private _booking: string;
+  private _booking: string | any;
   private _bookingNumber: number;
   private _user: UserModel | string;
   private _vehicleOwner: VehicleOwnerModel | string;
@@ -15,10 +15,11 @@ export class CommissionModel extends BaseModel {
   private _amount: number;
   private _source: 'booking' | 'extension';
   private _commissionPercentage?: number;
+  private _contract?: any;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
-    return {
+    const result: any = {
       ...aggregate,
       booking: this._booking,
       bookingNumber: this._bookingNumber,
@@ -33,6 +34,13 @@ export class CommissionModel extends BaseModel {
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
+    
+    // Solo agregar contract si existe
+    if (this._contract) {
+      result.contract = this._contract;
+    }
+    
+    return result;
   }
 
   static create(data: any): CommissionModel {
@@ -52,7 +60,12 @@ export class CommissionModel extends BaseModel {
 
   static hydrate(data: any): CommissionModel {
     const m = new CommissionModel(new Identifier(data._id));
-    m._booking = data.booking?.toString?.() ?? data.booking;
+    // Si booking es un objeto (populado), mantenerlo como objeto; si es ObjectId, convertir a string
+    if (data.booking && typeof data.booking === 'object' && !data.booking._bsontype) {
+      m._booking = data.booking;
+    } else {
+      m._booking = data.booking?.toString?.() ?? data.booking;
+    }
     m._bookingNumber = data.bookingNumber;
     m._user = data.user ? UserModel.hydrate(data.user) : data.user;
     m._vehicleOwner = data.vehicleOwner ? VehicleOwnerModel.hydrate(data.vehicleOwner) : data.vehicleOwner;
@@ -62,6 +75,7 @@ export class CommissionModel extends BaseModel {
     m._amount = data.amount;
     m._source = data.source ?? 'booking';
     m._commissionPercentage = data.commissionPercentage;
+    m._contract = data.contract;
     m._createdAt = data.createdAt;
     m._updatedAt = data.updatedAt;
     return m;

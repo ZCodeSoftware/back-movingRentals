@@ -236,27 +236,51 @@ export class CommissionRepository implements ICommissionRepository {
       booking: { $in: bookingIds }
     }).toArray();
 
+    // Obtener los contract IDs para buscar sus timelines
+    const contractIds = contracts.map(c => c._id).filter(Boolean);
+    
+    // Obtener los timelines de los contratos
+    const timelines = await this.commissionDB.db.collection('contract_history').find({
+      contract: { $in: contractIds },
+      isDeleted: { $ne: true }
+    }).sort({ createdAt: 1 }).toArray();
+
+    // Crear un mapa de contract -> timeline
+    const timelineMap = new Map();
+    timelines.forEach(timeline => {
+      const contractId = timeline.contract.toString();
+      if (!timelineMap.has(contractId)) {
+        timelineMap.set(contractId, []);
+      }
+      timelineMap.get(contractId).push(timeline);
+    });
+
     // Crear un mapa de booking -> contract para acceso rápido
     const contractMap = new Map();
     contracts.forEach(contract => {
-      contractMap.set(contract.booking.toString(), contract);
+      contractMap.set(contract.booking.toString(), {
+        ...contract,
+        timeline: timelineMap.get(contract._id.toString()) || []
+      });
     });
 
     const totalPages = Math.ceil(totalItems / limit) || 1;
 
     return {
       data: list.map((doc) => {
-        const hydrated = CommissionModel.hydrate(doc);
         const contract = contractMap.get((doc.booking as any)?._id?.toString());
         
-        // Agregar información del contrato al objeto hidratado
-        if (contract) {
-          (hydrated as any).contract = {
-            commission: contract.extension?.commissionPercentage || null
-          };
-        }
+        // Agregar información del contrato al documento antes de hidratar
+        const docWithContract = {
+          ...doc,
+          contract: contract ? {
+            _id: contract._id,
+            commission: contract.extension?.commissionPercentage || null,
+            timeline: contract.timeline || []
+          } : undefined
+        };
         
-        return hydrated;
+        return CommissionModel.hydrate(docWithContract);
       }),
       pagination: {
         currentPage: page,
@@ -286,7 +310,7 @@ export class CommissionRepository implements ICommissionRepository {
   async findByBookingNumber(bookingNumber: number): Promise<CommissionModel[]> {
     const list = await this.commissionDB
       .find({ bookingNumber })
-      .populate('user vehicleOwner vehicle vehicles booking')
+      .populate('user vehicleOwner vehicle vehicles')
       .sort({ createdAt: -1 });
     return list.map((doc) => CommissionModel.hydrate(doc));
   }
