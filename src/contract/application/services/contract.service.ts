@@ -191,15 +191,24 @@ export class ContractService implements IContractService {
       );
 
       // Si es una extensión con pago, crear movimiento enlazado al EXTENSION_UPDATED
+      // IMPORTANTE: Solo crear movimiento de extensión si el reasonForChange es "EXTENSION DE RENTA"
+      const reasonForChange = (updateData as any).reasonForChange;
+      // Normalizar el reasonForChange para comparación (trim y uppercase)
+      const isExtensionReason = reasonForChange && 
+        typeof reasonForChange === 'string' && 
+        reasonForChange.trim().toUpperCase() === 'EXTENSION DE RENTA';
+      
       console.log('[ContractService] Checking extension payment:', {
         isExtension: (updateData as any).isExtension,
         hasExtension: !!updateData.extension,
         extensionAmount: updateData.extension?.extensionAmount,
         paymentMethod: updateData.extension?.paymentMethod,
-        eventType: (updateData as any).eventType
+        eventType: (updateData as any).eventType,
+        reasonForChange: reasonForChange,
+        isExtensionReason: isExtensionReason
       });
 
-      if ((updateData as any).isExtension && updateData.extension?.extensionAmount && updateData.extension?.paymentMethod) {
+      if ((updateData as any).isExtension && updateData.extension?.extensionAmount && updateData.extension?.paymentMethod && isExtensionReason) {
         try {
           const extensionAmount = updateData.extension.extensionAmount;
           const paymentMedium = updateData.extension.paymentMedium || 'CUENTA';
@@ -259,6 +268,9 @@ export class ContractService implements IContractService {
           console.error('[ContractService] Error stack:', movementError.stack);
           // No fallar la actualización del contrato si falla el movimiento
         }
+      } else if ((updateData as any).isExtension && updateData.extension?.extensionAmount && !isExtensionReason) {
+        console.log('[ContractService] Extension data provided but reasonForChange is not "EXTENSION DE RENTA":', reasonForChange);
+        console.log('[ContractService] Skipping extension movement creation. This should be handled as a different event type.');
       }
 
       // Si es una extensión, crear comisión basada en el extensionAmount
