@@ -85,13 +85,13 @@ export class ContractController {
 
   @Get()
   @HttpCode(200)
-  /*   @Roles(
-      TypeRoles.ADMIN,
-      TypeRoles.SELLER,
-      TypeRoles.SUPERVISOR,
-      TypeRoles.SUPERADMIN,
-    )
-    @UseGuards(AuthGuards, RoleGuard) */
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({
     status: 200,
     description: 'Return all Contracts with pagination',
