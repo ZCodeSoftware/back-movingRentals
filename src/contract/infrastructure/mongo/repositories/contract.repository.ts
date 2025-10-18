@@ -316,6 +316,7 @@ export class ContractRepository implements IContractRepository {
           foreignField: 'contract',
           as: 'timeline',
           pipeline: [
+            // NO filtrar por isDeleted para incluir movimientos eliminados
             { $sort: { createdAt: 1 } },
             {
               $lookup: {
@@ -331,46 +332,88 @@ export class ContractRepository implements IContractRepository {
                 preserveNullAndEmptyArrays: true,
               },
             },
-            { $project: { 'performedBy.password': 0, 'performedBy.role': 0 } },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'deletedBy',
+                foreignField: '_id',
+                as: 'deletedBy',
+              },
+            },
+            {
+              $unwind: {
+                path: '$deletedBy',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $lookup: {
+                from: 'cat_contract_event',
+                localField: 'eventType',
+                foreignField: '_id',
+                as: 'eventType',
+              },
+            },
+            {
+              $unwind: {
+                path: '$eventType',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            { 
+              $project: { 
+                'performedBy.password': 0, 
+                'performedBy.role': 0,
+                'deletedBy.password': 0,
+                'deletedBy.role': 0
+              } 
+            },
             {
               $addFields: {
+                // Si createdBy ya existe en el documento, usarlo; si no, calcularlo
                 createdBy: {
                   $cond: {
-                    if: { $ifNull: ['$performedBy', false] },
-                    then: {
+                    if: { $ne: [{ $ifNull: ['$createdBy', null] }, null] },
+                    then: '$createdBy',
+                    else: {
                       $cond: {
-                        if: {
-                          $or: [
-                            { $ne: [{ $ifNull: ['$performedBy.name', ''] }, ''] },
-                            { $ne: [{ $ifNull: ['$performedBy.lastName', ''] }, ''] }
-                          ]
-                        },
+                        if: { $ifNull: ['$performedBy', false] },
                         then: {
-                          $concat: [
-                            { $trim: { input: { $concat: [
-                              { $ifNull: ['$performedBy.name', ''] },
-                              ' ',
-                              { $ifNull: ['$performedBy.lastName', ''] }
-                            ] } } },
-                            {
+                          $cond: {
+                            if: {
+                              $or: [
+                                { $ne: [{ $ifNull: ['$performedBy.name', ''] }, ''] },
+                                { $ne: [{ $ifNull: ['$performedBy.lastName', ''] }, ''] }
+                              ]
+                            },
+                            then: {
+                              $concat: [
+                                { $trim: { input: { $concat: [
+                                  { $ifNull: ['$performedBy.name', ''] },
+                                  ' ',
+                                  { $ifNull: ['$performedBy.lastName', ''] }
+                                ] } } },
+                                {
+                                  $cond: {
+                                    if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
+                                    then: { $concat: [' - ', '$performedBy.email'] },
+                                    else: ''
+                                  }
+                                }
+                              ]
+                            },
+                            else: {
                               $cond: {
                                 if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
-                                then: { $concat: [' - ', '$performedBy.email'] },
-                                else: ''
+                                then: '$performedBy.email',
+                                else: 'Usuario desconocido'
                               }
                             }
-                          ]
-                        },
-                        else: {
-                          $cond: {
-                            if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
-                            then: '$performedBy.email',
-                            else: 'Usuario desconocido'
                           }
-                        }
+                        },
+                        else: 'Usuario desconocido'
                       }
-                    },
-                    else: 'Usuario desconocido'
+                    }
                   }
                 }
               }
