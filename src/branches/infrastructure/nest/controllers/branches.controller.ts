@@ -39,7 +39,7 @@ export class BranchesController {
 
   @Post('carousel/:id')
   @HttpCode(201)
-  @Roles(TypeRoles.ADMIN)
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
   @UseGuards(AuthGuards, RoleGuard)
   @ApiResponse({ status: 201, description: 'Carousel created' })
   @ApiResponse({ status: 400, description: `Carousel shouldn't be created` })
@@ -57,6 +57,15 @@ export class BranchesController {
   @ApiResponse({ status: 404, description: 'Branches not found' })
   async findAll() {
     return this.branchesService.findAll();
+  }
+
+  @Get('carousel/:id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Return Carousel by branch id' })
+  @ApiResponse({ status: 404, description: 'Carousel not found' })
+  async getCarousel(@Param('id') id: string) {
+    const branch = await this.branchesService.findById(id);
+    return branch;
   }
 
   @Get(':id')

@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
+import { TypeRoles } from '../../../../core/domain/enums/type-roles.enum';
 import { IUserRepository } from '../../../domain/repositories/user.interface.repository';
 
 import SymbolsUser from '../../../../user/symbols-user';
@@ -29,8 +30,14 @@ export class RoleGuard implements CanActivate {
     }
 
     const findRole = await this.userRepository.findById(user._id);
+    const userRole = findRole.toJSON().role.name;
 
-    if (roles.includes(findRole.toJSON().role.name)) {
+    // SUPERADMIN tiene acceso a todo sin restricciones
+    if (userRole === TypeRoles.SUPERADMIN) {
+      return true;
+    }
+
+    if (roles.includes(userRole)) {
       return true;
     } else {
       throw new BaseErrorException(

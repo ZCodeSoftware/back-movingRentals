@@ -65,17 +65,20 @@ export class VehicleService implements IVehicleService {
         const { category, owner, ...rest } = vehicle;
         const vehicleModel = VehicleModel.create(rest);
 
-        const catCategory = await this.catCategoryRepository.findById(category);
+        if (category) {
+            const catCategory = await this.catCategoryRepository.findById(category);
+            if (catCategory) vehicleModel.addCategory(catCategory);
+        }
 
-        if (catCategory) vehicleModel.addCategory(catCategory);
+        if (owner) {
+            const vehicleOwner = await this.vehicleOwnerRepository.findById(owner);
+            if (vehicleOwner) vehicleModel.addOwner(vehicleOwner);
+        }
 
-        const vehicleOwner = await this.vehicleOwnerRepository.findById(owner);
-
-        if (vehicleOwner) vehicleModel.addOwner(vehicleOwner);
-
-        const catModel = await this.catModelRepository.findById(vehicle.model);
-
-        if (catModel) vehicleModel.addModel(catModel);
+        if (vehicle.model) {
+            const catModel = await this.catModelRepository.findById(vehicle.model);
+            if (catModel) vehicleModel.addModel(catModel);
+        }
 
         return this.vehicleRepository.update(id, vehicleModel);
     }
