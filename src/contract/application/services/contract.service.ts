@@ -437,8 +437,8 @@ export class ContractService implements IContractService {
   ): Promise<ContractHistory> {
     try {
       // Intentar eliminar usando el servicio de enlace (elimina histórico y movimiento)
-      const result = await this.contractMovementLinkService.deleteMovementWithHistory(
-        historyId, // En este caso, usamos el historyId para buscar el movimiento relacionado
+      const result = await this.contractMovementLinkService.deleteHistoryWithMovement(
+        historyId,
         userId,
         reason
       );
@@ -458,7 +458,7 @@ export class ContractService implements IContractService {
   async restoreHistoryEntry(historyId: string): Promise<ContractHistory> {
     try {
       // Intentar restaurar usando el servicio de enlace (restaura histórico y movimiento)
-      const result = await this.contractMovementLinkService.restoreMovementWithHistory(historyId);
+      const result = await this.contractMovementLinkService.restoreHistoryWithMovement(historyId);
       
       if (result.historyEntry) {
         console.log(`[ContractService] Restaurado enlace: Histórico ${historyId} y movimiento relacionado`);

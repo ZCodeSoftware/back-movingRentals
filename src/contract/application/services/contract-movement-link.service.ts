@@ -70,6 +70,55 @@ export class ContractMovementLinkService {
   }
 
   /**
+   * Elimina una entrada del histórico y su movimiento relacionado
+   */
+  async deleteHistoryWithMovement(
+    historyId: string,
+    userId: string,
+    reason?: string
+  ): Promise<{ movement: any; historyEntry: any }> {
+    // 1. Buscar la entrada del histórico
+    const historyEntry = await this.contractHistoryModel.findById(historyId);
+    if (!historyEntry) {
+      throw new Error('Entrada del histórico no encontrada');
+    }
+
+    // 2. Buscar el movimiento relacionado
+    let movement = null;
+    if (historyEntry.relatedMovement) {
+      movement = await this.movementModel.findById(historyEntry.relatedMovement);
+    } else {
+      // Buscar por referencia inversa
+      movement = await this.movementModel.findOne({
+        contractHistoryEntry: historyId,
+        isDeleted: false
+      });
+    }
+
+    // 3. Eliminar la entrada del histórico (soft delete)
+    const deletedHistoryEntry = await this.contractRepository.softDeleteHistoryEntry(
+      historyId,
+      userId,
+      reason
+    );
+
+    // 4. Eliminar el movimiento si existe (soft delete)
+    let deletedMovement = null;
+    if (movement) {
+      deletedMovement = await this.movementService.deleteMovement(
+        movement._id.toString(),
+        userId,
+        reason
+      );
+    }
+
+    return {
+      movement: deletedMovement,
+      historyEntry: deletedHistoryEntry
+    };
+  }
+
+  /**
    * Restaura un movimiento y su entrada relacionada en el histórico del contrato
    */
   async restoreMovementWithHistory(movementId: string): Promise<{ movement: any; historyEntry: any }> {
@@ -99,6 +148,48 @@ export class ContractMovementLinkService {
           historyEntry._id.toString()
         );
       }
+    }
+
+    return {
+      movement: restoredMovement,
+      historyEntry: restoredHistoryEntry
+    };
+  }
+
+  /**
+   * Restaura una entrada del histórico y su movimiento relacionado
+   */
+  async restoreHistoryWithMovement(historyId: string): Promise<{ movement: any; historyEntry: any }> {
+    // 1. Buscar la entrada del histórico (incluyendo eliminados)
+    const historyEntry = await this.contractHistoryModel
+      .findById(historyId)
+      .setOptions({ includeDeleted: true });
+    
+    if (!historyEntry) {
+      throw new Error('Entrada del histórico no encontrada');
+    }
+
+    // 2. Buscar el movimiento relacionado
+    let movement = null;
+    if (historyEntry.relatedMovement) {
+      movement = await this.movementModel.findById(historyEntry.relatedMovement);
+    } else {
+      // Buscar por referencia inversa
+      movement = await this.movementModel.findOne({
+        contractHistoryEntry: historyId,
+        isDeleted: true
+      });
+    }
+
+    // 3. Restaurar la entrada del histórico
+    const restoredHistoryEntry = await this.contractRepository.restoreHistoryEntry(historyId);
+
+    // 4. Restaurar el movimiento si existe
+    let restoredMovement = null;
+    if (movement) {
+      restoredMovement = await this.movementService.restoreMovement(
+        movement._id.toString()
+      );
     }
 
     return {
