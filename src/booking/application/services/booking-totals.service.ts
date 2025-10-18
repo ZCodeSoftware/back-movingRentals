@@ -27,6 +27,11 @@ export class BookingTotalsService {
 
     if (contractHistory && contractHistory.length > 0) {
       for (const historyEntry of contractHistory) {
+        // Ignorar movimientos eliminados
+        if (historyEntry.isDeleted === true) {
+          continue;
+        }
+
         // Verificar si el evento tiene metadatos con información monetaria
         if (historyEntry.eventMetadata && historyEntry.eventMetadata.amount) {
           const amount = parseFloat(historyEntry.eventMetadata.amount);
