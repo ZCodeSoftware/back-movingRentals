@@ -693,6 +693,10 @@ export class ContractRepository implements IContractRepository {
           .session(session);
         const oldCartData = JSON.parse(booking.cart);
         
+        // Detectar si es un cambio de vehículo
+        const isVehicleChange = await this.isVehicleChangeEvent(contractData);
+        console.log('[ContractRepository][update] isVehicleChange:', isVehicleChange);
+        
         // Ahora sí aplicar los cambios al booking
         await this.applyBookingChangesFromExtension(
           id,
@@ -704,7 +708,7 @@ export class ContractRepository implements IContractRepository {
         );
 
         // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
-        await this.updateVehicleReservations(oldCartData, newCart, session, id);
+        await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange);
       }
 
       // Se actualiza el contrato principal como parte de la transacción.
@@ -750,6 +754,7 @@ export class ContractRepository implements IContractRepository {
     newCart: CartWithVehicles,
     session: mongoose.ClientSession,
     contractId?: string,
+    isVehicleChange?: boolean,
   ): Promise<void> {
     // Crear mapas de vehículos para comparar
     const oldVehiclesMap = new Map(
@@ -773,6 +778,31 @@ export class ContractRepository implements IContractRepository {
     if (contractId) {
       const contract = await this.contractModel.findById(contractId).session(session);
       bookingId = contract?.booking?.toString();
+    }
+
+    // Si es un cambio de vehículo, necesitamos manejar la lógica especial
+    if (isVehicleChange) {
+      console.log('[ContractRepository] Procesando cambio de vehículo - liberando vehículo actual y restaurando anterior');
+      
+      // Encontrar el vehículo que fue removido (el actual que se está cambiando)
+      for (const [vehicleId, oldVehicleItem] of oldVehiclesMap) {
+        if (!newVehiclesMap.has(vehicleId)) {
+          // Este es el vehículo que se está liberando
+          console.log(`[ContractRepository] Liberando vehículo actual: ${vehicleId}`);
+          await this.releaseVehicleReservation(
+            vehicleId,
+            new Date(oldVehicleItem.dates.start),
+            new Date(oldVehicleItem.dates.end),
+            session,
+            bookingId,
+          );
+        }
+      }
+
+      // Los vehículos en newCart ya deberían tener sus reservas creadas
+      // por el proceso normal de actualización del carrito
+      console.log('[ContractRepository] Vehículos en el nuevo carrito ya tienen sus reservas');
+      return;
     }
 
     // 1. Liberar reservas de vehículos que ya no están en el nuevo carrito
@@ -833,6 +863,36 @@ export class ContractRepository implements IContractRepository {
           { session },
         );
       }
+    }
+  }
+
+  /**
+   * Detecta si el evento es un cambio de vehículo
+   */
+  private async isVehicleChangeEvent(contractData: UpdateContractDTO): Promise<boolean> {
+    try {
+      // Verificar si hay eventType en el contractData
+      const eventTypeId = (contractData as any).eventType;
+      
+      if (!eventTypeId) {
+        return false;
+      }
+
+      // Buscar el evento en el catálogo
+      const catEvent = await this.catContractEventModel
+        .findById(eventTypeId)
+        .lean();
+
+      if (!catEvent) {
+        return false;
+      }
+
+      // Verificar si el nombre del evento es "CAMBIO DE VEHICULO"
+      const eventName = (catEvent as any).name;
+      return eventName === 'CAMBIO DE VEHICULO';
+    } catch (error) {
+      console.error('[ContractRepository] Error detectando cambio de vehículo:', error);
+      return false;
     }
   }
 
