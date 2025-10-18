@@ -48,4 +48,7 @@ export interface IContractRepository {
   restoreHistoryEntry(historyId: string): Promise<ContractHistory>;
 
   getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]>;
+
+  // TEMPORAL: Método para debug
+  getContractWithMovementsByBookingNumber(bookingNumber: number): Promise<any>;
 }

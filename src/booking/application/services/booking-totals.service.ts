@@ -24,18 +24,35 @@ export class BookingTotalsService {
   calculateTotals(originalTotal: number, contractHistory: any[]): BookingTotals {
     let netTotal = originalTotal;
     const adjustments: BookingTotals['adjustments'] = [];
+    const processedExtensionIds = new Set<string>(); // Rastrear IDs de EXTENSION_UPDATED procesados
 
     if (contractHistory && contractHistory.length > 0) {
+      // PASO 1: Identificar qué EXTENSION_UPDATED tienen movimientos enlazados
+      // Ahora los EXTENSION_UPDATED tienen directamente el eventMetadata con el monto
+      const extensionUpdatesWithMovement = contractHistory.filter(entry =>
+        !entry.isDeleted &&
+        entry.action === 'EXTENSION_UPDATED' &&
+        entry.eventMetadata?.amount
+      );
+
+      // Marcar estos EXTENSION_UPDATED como procesados para no contarlos dos veces
+      for (const extensionUpdate of extensionUpdatesWithMovement) {
+        processedExtensionIds.add(extensionUpdate._id?.toString() || '');
+      }
+
+      // PASO 2: Procesar todas las entradas
       for (const historyEntry of contractHistory) {
         // Ignorar movimientos eliminados
         if (historyEntry.isDeleted === true) {
+          console.log(`[BookingTotalsService] Skipping deleted entry: ${historyEntry._id}`);
           continue;
         }
 
-        // Verificar si el evento tiene metadatos con información monetaria
+        // PRIORIDAD 1: Verificar si el evento tiene metadatos con información monetaria
+        // Esto incluye los movimientos enlazados creados con reportEventWithMovement
         if (historyEntry.eventMetadata && historyEntry.eventMetadata.amount) {
           const amount = parseFloat(historyEntry.eventMetadata.amount);
-          
+
           if (!isNaN(amount) && amount !== 0) {
             // Determinar la dirección del movimiento basándose en el tipo de evento
             const direction = this.determineMovementDirection(
@@ -61,30 +78,38 @@ export class BookingTotalsService {
             });
           }
         }
+        // PRIORIDAD 2: Solo procesar EXTENSION_UPDATED si NO tiene un movimiento enlazado
+        // Esto es para compatibilidad con extensiones antiguas que no tienen movimientos enlazados
+        else if (historyEntry.action === 'EXTENSION_UPDATED' && historyEntry.changes) {
+          const entryId = historyEntry._id?.toString() || '';
 
-        // También verificar si hay información de extensión con monto
-        if (historyEntry.action === 'EXTENSION_UPDATED' && historyEntry.changes) {
-          for (const change of historyEntry.changes) {
-            if (change.field === 'extension' && change.newValue?.extensionAmount) {
-              const extensionAmount = parseFloat(change.newValue.extensionAmount);
-              
-              if (!isNaN(extensionAmount) && extensionAmount > 0) {
-                netTotal += extensionAmount;
-                
-                adjustments.push({
-                  eventType: 'extension',
-                  eventName: 'Extensión de Renta',
-                  amount: extensionAmount,
-                  direction: 'IN',
-                  date: historyEntry.createdAt || new Date(),
-                  details: 'Extensión de contrato'
-                });
+          // Solo procesar si NO tiene movimiento enlazado
+          if (!processedExtensionIds.has(entryId)) {
+            for (const change of historyEntry.changes) {
+              if (change.field === 'extension' && change.newValue?.extensionAmount) {
+                const extensionAmount = parseFloat(change.newValue.extensionAmount);
+
+                if (!isNaN(extensionAmount) && extensionAmount > 0) {
+                  netTotal += extensionAmount;
+
+                  adjustments.push({
+                    eventType: 'extension',
+                    eventName: 'Extensión de Renta',
+                    amount: extensionAmount,
+                    direction: 'IN',
+                    date: historyEntry.createdAt || new Date(),
+                    details: 'Extensión de contrato'
+                  });
+                }
               }
             }
+          } else {
+            console.log(`[BookingTotalsService] Skipping EXTENSION_UPDATED ${entryId} - has linked movement`);
           }
         }
       }
     }
+
 
     return {
       originalTotal,
@@ -103,7 +128,7 @@ export class BookingTotalsService {
     if (!eventName) return 'IN';
 
     const eventNameUpper = eventName.toUpperCase();
-    
+
     // Eventos que típicamente representan ingresos (IN)
     const incomeEvents = [
       'EXTENSION DE RENTA',

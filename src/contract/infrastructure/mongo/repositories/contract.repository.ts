@@ -68,8 +68,6 @@ export class ContractRepository implements IContractRepository {
     session.startTransaction();
 
     try {
-      console.log('[ContractRepository][create] userId recibido:', userId);
-      
       const contractData = {
         booking: contract.booking?.id?.toValue() || contract.booking,
         reservingUser:
@@ -90,7 +88,7 @@ export class ContractRepository implements IContractRepository {
         ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
         : 'Usuario desconocido';
       
-      console.log('[ContractRepository][create] createdBy calculado:', createdByValue);
+
 
       const historyEntry = new this.contractHistoryModel({
         contract: savedContract._id,
@@ -160,7 +158,7 @@ export class ContractRepository implements IContractRepository {
       try {
         oldCartSnapshot = JSON.parse(booking.cart);
       } catch (err) {
-        console.warn('[ContractRepository][applyBookingChangesFromExtension] No se pudo parsear el carrito anterior:', err);
+
       }
     }
 
@@ -257,7 +255,7 @@ export class ContractRepository implements IContractRepository {
     };
 
     // Obtener información del usuario para createdBy
-    console.log('[ContractRepository][applyBookingChangesFromExtension] userId recibido:', userId);
+
     const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
     console.log('[ContractRepository][applyBookingChangesFromExtension] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
     
@@ -265,7 +263,7 @@ export class ContractRepository implements IContractRepository {
       ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
       : 'Usuario desconocido';
     
-    console.log('[ContractRepository][applyBookingChangesFromExtension] createdBy calculado:', createdByValue);
+
 
     const historyEntry = new this.contractHistoryModel({
       contract: contract._id,
@@ -635,6 +633,7 @@ export class ContractRepository implements IContractRepository {
         foreignField: 'contract',
         as: 'timeline',
         pipeline: [
+          // NO filtrar por isDeleted - incluir todas las entradas para que el frontend las muestre
           { $sort: { createdAt: 1 } },
           {
             $lookup: {
@@ -657,6 +656,10 @@ export class ContractRepository implements IContractRepository {
               'eventType._id': 1,
               'eventType.name': 1,
               isDeleted: 1,
+              eventMetadata: 1,
+              createdAt: 1,
+              details: 1,
+              changes: 1,
             }
           }
         ],
@@ -782,7 +785,7 @@ export class ContractRepository implements IContractRepository {
       // LOG CAMBIOS QUE SE VAN A GUARDAR EN EL MOVIMIENTO
       if (changesToLog.length > 0) {
         console.log('[ContractRepository][update] changes a guardar en historial:', JSON.stringify(changesToLog, null, 2));
-        console.log('[ContractRepository][update] userId recibido:', userId);
+
         
         // Obtener información del usuario para createdBy
         const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
@@ -792,8 +795,38 @@ export class ContractRepository implements IContractRepository {
           ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
           : 'Usuario desconocido';
         
-        console.log('[ContractRepository][update] createdBy calculado:', createdByValue);
+
         
+        // Preparar eventMetadata si es una extensión con información de pago
+        let eventMetadata = undefined;
+        let eventTypeId = undefined;
+        
+        if (contractUpdateData.extension?.extensionAmount && contractUpdateData.extension?.paymentMethod) {
+
+          
+          // Obtener el eventType del contractData (viene del payload)
+          eventTypeId = (contractData as any).eventType || '68c72448518e24b76294edf4';
+          
+          // Obtener el vehículo del newCart si existe
+          const vehicleId = (contractData as any).newCart?.vehicles?.[0]?.vehicle?._id || 
+                           (contractData as any).newCart?.vehicles?.[0]?.vehicle;
+          
+          // Obtener el concierge del contractData
+          const concierge = (contractData as any).concierge;
+          
+          eventMetadata = {
+            amount: contractUpdateData.extension.extensionAmount,
+            paymentMethod: contractUpdateData.extension.paymentMethod,
+            paymentMedium: (contractData as any).extension?.paymentMedium || 'CUENTA',
+            depositNote: (contractData as any).extension?.depositNote,
+            vehicle: vehicleId,
+            beneficiary: concierge,
+            date: contractUpdateData.extension.newEndDateTime || new Date()
+          };
+          
+          console.log('[ContractRepository][update] eventMetadata creado:', JSON.stringify(eventMetadata, null, 2));
+        }
+
         await new this.contractHistoryModel({
           contract: id,
           performedBy: userId,
@@ -801,6 +834,8 @@ export class ContractRepository implements IContractRepository {
           changes: changesToLog,
           details: `Se actualizaron campos del contrato.`,
           createdBy: createdByValue,
+          eventMetadata: eventMetadata,
+          eventType: eventTypeId ? new mongoose.Types.ObjectId(eventTypeId) : undefined,
         }).save({ session });
       }
 
@@ -817,18 +852,39 @@ export class ContractRepository implements IContractRepository {
         // Detectar si es un cambio de vehículo o una extensión
         const isVehicleChange = await this.isVehicleChangeEvent(contractData);
         const isExtension = this.isExtensionEvent(contractData);
-        console.log('[ContractRepository][update] isVehicleChange:', isVehicleChange);
-        console.log('[ContractRepository][update] isExtension:', isExtension);
+
+
         
-        // Ahora sí aplicar los cambios al booking
-        await this.applyBookingChangesFromExtension(
-          id,
-          newCart,
-          userId,
-          reasonForChange,
-          session,
-          contractData // Nuevo: Se pasa el update completo como snapshot para el historial
-        );
+        // Si es una extensión, NO crear BOOKING_MODIFIED porque ya se creó EXTENSION_UPDATED
+        if (!isExtension) {
+          // Solo aplicar cambios al booking si NO es una extensión
+          await this.applyBookingChangesFromExtension(
+            id,
+            newCart,
+            userId,
+            reasonForChange,
+            session,
+            contractData // Nuevo: Se pasa el update completo como snapshot para el historial
+          );
+        } else {
+          // Para extensiones, solo actualizar el carrito sin crear histórico adicional
+          const lastVersion = await this.cartVersionModel
+            .findOne({ booking: booking._id })
+            .sort({ version: -1 })
+            .session(session);
+          const newVersionNumber = lastVersion ? lastVersion.version + 1 : 1;
+
+          const newCartVersion = new this.cartVersionModel({
+            booking: booking._id,
+            version: newVersionNumber,
+            data: newCart,
+          });
+          await newCartVersion.save({ session });
+
+          booking.activeCartVersion = newCartVersion._id;
+          booking.cart = JSON.stringify(newCart);
+          await booking.save({ session });
+        }
 
         // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
         await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange, isExtension);
@@ -906,13 +962,13 @@ export class ContractRepository implements IContractRepository {
 
     // Si es un cambio de vehículo, necesitamos manejar la lógica especial
     if (isVehicleChange) {
-      console.log('[ContractRepository] Procesando cambio de vehículo - liberando vehículo actual y restaurando anterior');
+
       
       // Encontrar el vehículo que fue removido (el actual que se está cambiando)
       for (const [vehicleId, oldVehicleItem] of oldVehiclesMap) {
         if (!newVehiclesMap.has(vehicleId)) {
           // Este es el vehículo que se está liberando
-          console.log(`[ContractRepository] Liberando vehículo actual: ${vehicleId}`);
+
           await this.releaseVehicleReservation(
             vehicleId,
             new Date(oldVehicleItem.dates.start),
@@ -925,7 +981,7 @@ export class ContractRepository implements IContractRepository {
 
       // Los vehículos en newCart ya deberían tener sus reservas creadas
       // por el proceso normal de actualización del carrito
-      console.log('[ContractRepository] Vehículos en el nuevo carrito ya tienen sus reservas');
+
       return;
     }
 
@@ -1015,7 +1071,7 @@ export class ContractRepository implements IContractRepository {
       const eventName = (catEvent as any).name;
       return eventName === 'CAMBIO DE VEHICULO';
     } catch (error) {
-      console.error('[ContractRepository] Error detectando cambio de vehículo:', error);
+
       return false;
     }
   }
@@ -1044,7 +1100,7 @@ export class ContractRepository implements IContractRepository {
         .session(session);
       
       if (!vehicle || !vehicle.reservations) {
-        console.warn(`Vehículo ${vehicleId} no encontrado o sin reservas al intentar liberar reserva`);
+
         return;
       }
 
@@ -1088,7 +1144,7 @@ export class ContractRepository implements IContractRepository {
 
       console.log(`Reserva liberada para vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ` en fechas ${startDate} - ${endDate}`}`);
     } catch (error) {
-      console.error(`Error liberando reserva para vehículo ${vehicleId}:`, error);
+
       throw error;
     }
   }
@@ -1100,7 +1156,7 @@ export class ContractRepository implements IContractRepository {
     details: string,
     metadata?: Record<string, any>,
   ): Promise<ContractHistory> {
-    console.log('[ContractRepository][createHistoryEvent] userId recibido:', userId);
+
     
     // Obtener información del usuario para createdBy
     const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
@@ -1110,7 +1166,7 @@ export class ContractRepository implements IContractRepository {
       ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
       : 'Usuario desconocido';
     
-    console.log('[ContractRepository][createHistoryEvent] createdBy calculado:', createdByValue);
+
     
     // Permitir que eventType sea un ObjectId string del catálogo
     const eventTypeId = mongoose.Types.ObjectId.isValid(eventType)
@@ -1157,7 +1213,7 @@ export class ContractRepository implements IContractRepository {
         }
       }
     } catch (err) {
-      console.warn('[ContractRepository][createHistoryEvent] No se pudo actualizar booking.metadata:', err?.message || err);
+
     }
 
     return savedHistory;
@@ -1168,7 +1224,7 @@ export class ContractRepository implements IContractRepository {
     userId: string,
     reason?: string
   ): Promise<ContractHistory> {
-    console.log('[ContractRepository][softDeleteHistoryEntry] userId recibido:', userId);
+
     
     const historyEntry = await this.contractHistoryModel.findById(historyId);
     
@@ -1196,7 +1252,7 @@ export class ContractRepository implements IContractRepository {
       ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
       : 'Usuario desconocido';
     
-    console.log('[ContractRepository][softDeleteHistoryEntry] deletedByInfo calculado:', deletedByInfoValue);
+
 
     historyEntry.isDeleted = true;
     historyEntry.deletedBy = new mongoose.Types.ObjectId(userId) as any;
@@ -1240,5 +1296,122 @@ export class ContractRepository implements IContractRepository {
       .populate('deletedBy', 'name lastName email')
       .populate('eventType')
       .exec();
+  }
+
+  /**
+   * TEMPORAL: Obtiene un contrato por número de booking con timeline y movimientos enlazados
+   */
+  async getContractWithMovementsByBookingNumber(bookingNumber: number): Promise<any> {
+    // 1. Buscar el booking por número
+    const booking = await this.bookingModel.findOne({ bookingNumber }).lean();
+    
+    if (!booking) {
+      throw new NotFoundException(`Booking con número ${bookingNumber} no encontrado`);
+    }
+
+    // 2. Buscar el contrato asociado al booking
+    const contract = await this.contractModel
+      .findOne({ booking: booking._id })
+      .populate('booking')
+      .populate('reservingUser')
+      .populate('createdByUser')
+      .populate('status')
+      .populate('extension.paymentMethod')
+      .populate('extension.extensionStatus')
+      .lean();
+
+    if (!contract) {
+      throw new NotFoundException(`Contrato para booking ${bookingNumber} no encontrado`);
+    }
+
+    // 3. Obtener el timeline del contrato (incluyendo eliminados)
+    const timeline = await this.contractHistoryModel
+      .find({ contract: contract._id })
+      .setOptions({ includeDeleted: true })
+      .sort({ createdAt: 'asc' })
+      .populate('performedBy', 'name lastName email')
+      .populate('deletedBy', 'name lastName email')
+      .populate('eventType')
+      .lean();
+
+    // 4. Obtener todos los IDs de histórico para buscar movimientos
+    const historyIds = timeline.map(h => h._id);
+
+    // 5. Buscar movimientos enlazados (incluyendo eliminados)
+    const Movement = this.connection.collection('movement');
+    const movements = await Movement.find({
+      contractHistoryEntry: { $in: historyIds }
+    }).toArray();
+
+    // 6. Crear un mapa de movimientos por historyId
+    const movementsByHistoryId = new Map();
+    movements.forEach(movement => {
+      if (movement.contractHistoryEntry) {
+        movementsByHistoryId.set(
+          movement.contractHistoryEntry.toString(),
+          movement
+        );
+      }
+    });
+
+    // 7. Enriquecer el timeline con los movimientos relacionados
+    const enrichedTimeline = timeline.map(historyEntry => {
+      const movement = movementsByHistoryId.get(historyEntry._id.toString());
+      
+      return {
+        ...historyEntry,
+        relatedMovement: historyEntry.relatedMovement,
+        movementData: movement || null,
+        hasMovement: !!movement,
+        movementLink: movement ? {
+          _id: movement._id,
+          amount: movement.amount,
+          type: movement.type,
+          direction: movement.direction,
+          paymentMethod: movement.paymentMethod,
+          isDeleted: movement.isDeleted || false,
+          deletedAt: movement.deletedAt,
+          deletedBy: movement.deletedBy,
+          deletionReason: movement.deletionReason
+        } : null
+      };
+    });
+
+    // 8. Buscar también movimientos que no tengan histórico enlazado (huérfanos)
+    const orphanMovements = await Movement.find({
+      $or: [
+        { contractHistoryEntry: { $exists: false } },
+        { contractHistoryEntry: null }
+      ]
+    }).toArray();
+
+    // 9. Retornar toda la información
+    return {
+      contract: {
+        _id: contract._id,
+        booking: contract.booking,
+        reservingUser: contract.reservingUser,
+        createdByUser: contract.createdByUser,
+        status: contract.status,
+        extension: contract.extension,
+        createdAt: (contract as any).createdAt,
+        updatedAt: (contract as any).updatedAt
+      },
+      timeline: enrichedTimeline,
+      movements: {
+        linked: movements.filter(m => m.contractHistoryEntry),
+        orphan: orphanMovements,
+        total: movements.length + orphanMovements.length
+      },
+      summary: {
+        totalHistoryEntries: timeline.length,
+        historyWithMovements: enrichedTimeline.filter(h => h.hasMovement).length,
+        historyWithoutMovements: enrichedTimeline.filter(h => !h.hasMovement).length,
+        totalMovements: movements.length,
+        orphanMovements: orphanMovements.length,
+        deletedHistoryEntries: timeline.filter(h => h.isDeleted).length,
+        deletedMovements: movements.filter(m => m.isDeleted).length
+      }
+    };
   }
 }

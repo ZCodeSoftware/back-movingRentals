@@ -206,6 +206,9 @@ export class ContractMovementLinkService {
     userId: string,
     eventData: any
   ): Promise<{ movement: any; historyEntry: any }> {
+    console.log('[ContractMovementLinkService] Creating linked movement and history');
+    console.log('[ContractMovementLinkService] Event data:', JSON.stringify(eventData, null, 2));
+
     // 1. Crear la entrada del histórico
     const historyEntry = await this.contractRepository.createHistoryEvent(
       contractId,
@@ -222,6 +225,14 @@ export class ContractMovementLinkService {
       }
     );
 
+    console.log('[ContractMovementLinkService] History entry created:', (historyEntry as any)._id);
+
+    // 2. Obtener el valor del enum de paymentMethod desde eventMetadata
+    // El paymentMethod en el histórico se guarda en eventMetadata.paymentMedium
+    const paymentMethodValue = eventData.metadata?.paymentMedium || 'CUENTA';
+    
+    console.log('[ContractMovementLinkService] Payment method value:', paymentMethodValue);
+
     // 2. Crear el movimiento con referencia al histórico
     const movementData = {
       type: eventData.type,
@@ -229,23 +240,33 @@ export class ContractMovementLinkService {
       detail: eventData.details,
       amount: eventData.amount,
       date: eventData.date || new Date(),
-      paymentMethod: eventData.paymentMethod,
+      paymentMethod: paymentMethodValue, // Usar el valor del enum, no el ObjectId
       vehicle: eventData.vehicle,
       beneficiary: eventData.beneficiary,
       contractHistoryEntry: (historyEntry as any)._id
     };
 
+    console.log('[ContractMovementLinkService] Creating movement with data:', JSON.stringify(movementData, null, 2));
+
     const movement = await this.movementService.create(movementData, userId);
 
+    // Obtener el ID del movimiento (puede ser un ValueObject o un string)
+    const movementId = movement.id?.toValue ? movement.id.toValue() : (movement as any)._id;
+    
+    console.log('[ContractMovementLinkService] Movement created with ID:', movementId);
+
     // 3. Actualizar la entrada del histórico con la referencia al movimiento
-    await this.contractHistoryModel.findByIdAndUpdate(
+    const updatedHistory = await this.contractHistoryModel.findByIdAndUpdate(
       (historyEntry as any)._id,
-      { relatedMovement: movement.id?.toValue() }
+      { relatedMovement: movementId },
+      { new: true }
     );
+
+    console.log('[ContractMovementLinkService] History updated with relatedMovement:', updatedHistory?.relatedMovement);
 
     return {
       movement,
-      historyEntry
+      historyEntry: updatedHistory || historyEntry
     };
   }
 }

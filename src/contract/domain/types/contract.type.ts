@@ -2,6 +2,8 @@
 export interface IContractExtension {
   newEndDateTime?: string | Date;
   paymentMethod?: string;
+  paymentMedium?: string;
+  depositNote?: string;
   extensionAmount?: number;
   commissionPercentage?: number;
   extensionStatus?: string;

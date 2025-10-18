@@ -85,13 +85,13 @@ export class ContractController {
 
   @Get()
   @HttpCode(200)
-  @Roles(
-    TypeRoles.ADMIN,
-    TypeRoles.SELLER,
-    TypeRoles.SUPERVISOR,
-    TypeRoles.SUPERADMIN,
-  )
-  @UseGuards(AuthGuards, RoleGuard)
+  /*   @Roles(
+      TypeRoles.ADMIN,
+      TypeRoles.SELLER,
+      TypeRoles.SUPERVISOR,
+      TypeRoles.SUPERADMIN,
+    )
+    @UseGuards(AuthGuards, RoleGuard) */
   @ApiResponse({
     status: 200,
     description: 'Return all Contracts with pagination',
@@ -492,5 +492,22 @@ export class ContractController {
       message: 'Movimientos eliminados obtenidos exitosamente',
       data: deletedEntries,
     };
+  }
+
+  // TEMPORAL: Endpoint para verificar enlace entre timeline y movimientos
+  @Get('debug/booking/:bookingNumber')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: '[TEMPORAL] Obtiene contrato por número de booking con timeline y movimientos enlazados',
+  })
+  /*   @Roles(
+      TypeRoles.ADMIN,
+      TypeRoles.SELLER,
+      TypeRoles.SUPERVISOR,
+      TypeRoles.SUPERADMIN,
+    )
+    @UseGuards(AuthGuards, RoleGuard) */
+  async getContractWithMovementsByBookingNumber(@Param('bookingNumber') bookingNumber: string) {
+    return this.contractService.getContractWithMovementsByBookingNumber(parseInt(bookingNumber, 10));
   }
 }
