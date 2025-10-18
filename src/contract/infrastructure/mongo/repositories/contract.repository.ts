@@ -626,6 +626,43 @@ export class ContractRepository implements IContractRepository {
     if (Object.keys(matchConditions).length > 0) {
       pipeline.push({ $match: matchConditions });
     }
+    
+    // Agregar lookup del timeline para poder calcular isExtended
+    pipeline.push({
+      $lookup: {
+        from: 'contract_history',
+        localField: '_id',
+        foreignField: 'contract',
+        as: 'timeline',
+        pipeline: [
+          { $sort: { createdAt: 1 } },
+          {
+            $lookup: {
+              from: 'cat_contract_event',
+              localField: 'eventType',
+              foreignField: '_id',
+              as: 'eventType',
+            },
+          },
+          {
+            $unwind: {
+              path: '$eventType',
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          // Solo incluir campos necesarios para reducir el tamaño de la respuesta
+          {
+            $project: {
+              action: 1,
+              'eventType._id': 1,
+              'eventType.name': 1,
+              isDeleted: 1,
+            }
+          }
+        ],
+      },
+    });
+    
     pipeline.push({ $sort: { createdAt: -1 } });
     const countPipeline = [...pipeline, { $count: 'total' }];
     const countResult = await this.contractModel

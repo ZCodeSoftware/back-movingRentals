@@ -125,16 +125,38 @@ export class ContractService implements IContractService {
           } else if (contract && typeof contract === 'object') {
             contractObj = { ...contract };
           }
+          
+          // Verificar si tiene extensión en el timeline
+          let isExtended = false;
+          if (contractObj.timeline && Array.isArray(contractObj.timeline)) {
+            isExtended = contractObj.timeline.some((entry: any) => {
+              // Verificar si el eventType tiene el nombre "EXTENSION DE RENTA"
+              if (entry.eventType && entry.eventType.name) {
+                return entry.eventType.name.toUpperCase().includes('EXTENSION DE RENTA');
+              }
+              // También verificar en el action si es EXTENSION_UPDATED
+              if (entry.action === 'EXTENSION_UPDATED') {
+                return true;
+              }
+              return false;
+            });
+          }
+          
           try {
             if (contractObj.booking && contractObj._id) {
               const totals = await this.getBookingTotals(contractObj._id);
               return {
                 ...contractObj,
                 bookingTotals: totals,
+                isExtended,
               };
             }
           } catch (e) {}
-          return contractObj;
+          
+          return {
+            ...contractObj,
+            isExtended,
+          };
         })
       );
       return { ...result, data: dataWithTotals };

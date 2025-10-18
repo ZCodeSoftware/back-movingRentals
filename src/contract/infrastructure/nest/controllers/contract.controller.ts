@@ -85,13 +85,13 @@ export class ContractController {
 
   @Get()
   @HttpCode(200)
-  @Roles(
-    TypeRoles.ADMIN,
-    TypeRoles.SELLER,
-    TypeRoles.SUPERVISOR,
-    TypeRoles.SUPERADMIN,
-  )
-  @UseGuards(AuthGuards, RoleGuard)
+  /*   @Roles(
+      TypeRoles.ADMIN,
+      TypeRoles.SELLER,
+      TypeRoles.SUPERVISOR,
+      TypeRoles.SUPERADMIN,
+    )
+    @UseGuards(AuthGuards, RoleGuard) */
   @ApiResponse({
     status: 200,
     description: 'Return all Contracts with pagination',
@@ -179,8 +179,8 @@ export class ContractController {
         createdByUser: { type: 'object', description: 'User who created the contract' },
         status: { type: 'object', description: 'Contract status' },
         extension: { type: 'object', description: 'Extension information if any' },
-        timeline: { 
-          type: 'array', 
+        timeline: {
+          type: 'array',
           description: 'Contract history timeline',
           items: {
             type: 'object',
@@ -188,8 +188,8 @@ export class ContractController {
               _id: { type: 'string', description: 'ID del movimiento' },
               action: { type: 'string', description: 'Tipo de acción realizada' },
               details: { type: 'string', description: 'Detalles del movimiento' },
-              performedBy: { 
-                type: 'object', 
+              performedBy: {
+                type: 'object',
                 description: 'Usuario que realizó el movimiento',
                 properties: {
                   _id: { type: 'string' },
@@ -198,8 +198,8 @@ export class ContractController {
                   email: { type: 'string' }
                 }
               },
-              createdBy: { 
-                type: 'string', 
+              createdBy: {
+                type: 'string',
                 description: 'Información del usuario en formato "nombre apellido - email"',
                 example: 'Juan Pérez - juan.perez@example.com'
               },
@@ -357,8 +357,8 @@ export class ContractController {
   @ApiOperation({
     summary: 'Elimina un movimiento del histórico del contrato (soft delete)',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Movimiento eliminado exitosamente',
     schema: {
       type: 'object',
@@ -409,8 +409,8 @@ export class ContractController {
   @ApiOperation({
     summary: 'Restaura un movimiento eliminado del histórico del contrato',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Movimiento restaurado exitosamente',
     schema: {
       type: 'object',
