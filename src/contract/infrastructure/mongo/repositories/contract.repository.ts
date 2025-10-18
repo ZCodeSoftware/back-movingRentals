@@ -304,6 +304,49 @@ export class ContractRepository implements IContractRepository {
               },
             },
             { $project: { 'performedBy.password': 0, 'performedBy.role': 0 } },
+            {
+              $addFields: {
+                createdBy: {
+                  $cond: {
+                    if: { $ifNull: ['$performedBy', false] },
+                    then: {
+                      $cond: {
+                        if: {
+                          $or: [
+                            { $ne: [{ $ifNull: ['$performedBy.name', ''] }, ''] },
+                            { $ne: [{ $ifNull: ['$performedBy.lastName', ''] }, ''] }
+                          ]
+                        },
+                        then: {
+                          $concat: [
+                            { $trim: { input: { $concat: [
+                              { $ifNull: ['$performedBy.name', ''] },
+                              ' ',
+                              { $ifNull: ['$performedBy.lastName', ''] }
+                            ] } } },
+                            {
+                              $cond: {
+                                if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
+                                then: { $concat: [' - ', '$performedBy.email'] },
+                                else: ''
+                              }
+                            }
+                          ]
+                        },
+                        else: {
+                          $cond: {
+                            if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
+                            then: '$performedBy.email',
+                            else: 'Usuario desconocido'
+                          }
+                        }
+                      }
+                    },
+                    else: 'Usuario desconocido'
+                  }
+                }
+              }
+            }
           ],
         },
       },

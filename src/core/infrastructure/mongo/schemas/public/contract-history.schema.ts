@@ -78,6 +78,26 @@ export class ContractHistory {
 
 export const ContractHistorySchema = SchemaFactory.createForClass(ContractHistory);
 
+// Campo virtual para createdBy en formato "nombre apellido - email"
+ContractHistorySchema.virtual('createdBy').get(function() {
+  if (this.performedBy && typeof this.performedBy === 'object') {
+    const user = this.performedBy as any;
+    const name = user.name || '';
+    const lastName = user.lastName || '';
+    const email = user.email || '';
+    
+    if (name || lastName) {
+      return `${name} ${lastName}`.trim() + (email ? ` - ${email}` : '');
+    }
+    return email || 'Usuario desconocido';
+  }
+  return 'Usuario desconocido';
+});
+
+// Asegurar que los virtuals se incluyan en JSON y Object
+ContractHistorySchema.set('toJSON', { virtuals: true });
+ContractHistorySchema.set('toObject', { virtuals: true });
+
 // Middleware para excluir registros eliminados por defecto
 ContractHistorySchema.pre(/^find/, function (next) {
   // @ts-ignore - this refers to the current mongoose query

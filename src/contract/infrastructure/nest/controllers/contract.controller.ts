@@ -179,7 +179,38 @@ export class ContractController {
         createdByUser: { type: 'object', description: 'User who created the contract' },
         status: { type: 'object', description: 'Contract status' },
         extension: { type: 'object', description: 'Extension information if any' },
-        timeline: { type: 'array', description: 'Contract history timeline' },
+        timeline: { 
+          type: 'array', 
+          description: 'Contract history timeline',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string', description: 'ID del movimiento' },
+              action: { type: 'string', description: 'Tipo de acción realizada' },
+              details: { type: 'string', description: 'Detalles del movimiento' },
+              performedBy: { 
+                type: 'object', 
+                description: 'Usuario que realizó el movimiento',
+                properties: {
+                  _id: { type: 'string' },
+                  name: { type: 'string' },
+                  lastName: { type: 'string' },
+                  email: { type: 'string' }
+                }
+              },
+              createdBy: { 
+                type: 'string', 
+                description: 'Información del usuario en formato "nombre apellido - email"',
+                example: 'Juan Pérez - juan.perez@example.com'
+              },
+              eventType: { type: 'object', description: 'Tipo de evento del catálogo' },
+              eventMetadata: { type: 'object', description: 'Metadatos del evento' },
+              changes: { type: 'array', description: 'Cambios realizados' },
+              createdAt: { type: 'string', format: 'date-time', description: 'Fecha de creación' },
+              updatedAt: { type: 'string', format: 'date-time', description: 'Fecha de actualización' }
+            }
+          }
+        },
         bookingTotals: {
           type: 'object',
           description: 'Calculated totals based on contract history',
