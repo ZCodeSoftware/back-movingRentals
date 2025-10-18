@@ -68,6 +68,8 @@ export class ContractRepository implements IContractRepository {
     session.startTransaction();
 
     try {
+      console.log('[ContractRepository][create] userId recibido:', userId);
+      
       const contractData = {
         booking: contract.booking?.id?.toValue() || contract.booking,
         reservingUser:
@@ -80,11 +82,22 @@ export class ContractRepository implements IContractRepository {
       const createdContract = new this.contractModel(contractData);
       const savedContract = await createdContract.save({ session });
 
+      // Obtener información del usuario para createdBy
+      const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+      console.log('[ContractRepository][create] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+      
+      const createdByValue = userInfo 
+        ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+        : 'Usuario desconocido';
+      
+      console.log('[ContractRepository][create] createdBy calculado:', createdByValue);
+
       const historyEntry = new this.contractHistoryModel({
         contract: savedContract._id,
         performedBy: userId,
         action: ContractAction.CONTRACT_CREATED,
         details: 'El contrato fue creado.',
+        createdBy: createdByValue,
       });
       await historyEntry.save({ session });
 
@@ -243,12 +256,24 @@ export class ContractRepository implements IContractRepository {
       eventSnapshot: fullUpdateData ? { ...fullUpdateData } : undefined
     };
 
+    // Obtener información del usuario para createdBy
+    console.log('[ContractRepository][applyBookingChangesFromExtension] userId recibido:', userId);
+    const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log('[ContractRepository][applyBookingChangesFromExtension] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+    
+    const createdByValue = userInfo 
+      ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+      : 'Usuario desconocido';
+    
+    console.log('[ContractRepository][applyBookingChangesFromExtension] createdBy calculado:', createdByValue);
+
     const historyEntry = new this.contractHistoryModel({
       contract: contract._id,
       performedBy: userId,
       action: ContractAction.BOOKING_MODIFIED,
       changes: [changesPayload],
       details: combinedDetails,
+      createdBy: createdByValue,
     });
     await historyEntry.save({ session: existingSession });
 
@@ -262,10 +287,13 @@ export class ContractRepository implements IContractRepository {
   }
 
   async getTimelineForContract(contractId: string): Promise<ContractHistory[]> {
+    // Incluir movimientos eliminados en el timeline para que el frontend los muestre tachados
     return this.contractHistoryModel
       .find({ contract: contractId })
+      .setOptions({ includeDeleted: true }) // Esto desactiva el middleware que filtra eliminados
       .sort({ createdAt: 'asc' })
       .populate('performedBy', 'name lastName email')
+      .populate('deletedBy', 'name lastName email') // Poblar también deletedBy para tener info completa
       .populate('eventType')
       .exec();
   }
@@ -674,12 +702,25 @@ export class ContractRepository implements IContractRepository {
       // LOG CAMBIOS QUE SE VAN A GUARDAR EN EL MOVIMIENTO
       if (changesToLog.length > 0) {
         console.log('[ContractRepository][update] changes a guardar en historial:', JSON.stringify(changesToLog, null, 2));
+        console.log('[ContractRepository][update] userId recibido:', userId);
+        
+        // Obtener información del usuario para createdBy
+        const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+        console.log('[ContractRepository][update] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+        
+        const createdByValue = userInfo 
+          ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+          : 'Usuario desconocido';
+        
+        console.log('[ContractRepository][update] createdBy calculado:', createdByValue);
+        
         await new this.contractHistoryModel({
           contract: id,
           performedBy: userId,
           action: ContractAction.EXTENSION_UPDATED,
           changes: changesToLog,
           details: `Se actualizaron campos del contrato.`,
+          createdBy: createdByValue,
         }).save({ session });
       }
 
@@ -968,6 +1009,18 @@ export class ContractRepository implements IContractRepository {
     details: string,
     metadata?: Record<string, any>,
   ): Promise<ContractHistory> {
+    console.log('[ContractRepository][createHistoryEvent] userId recibido:', userId);
+    
+    // Obtener información del usuario para createdBy
+    const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log('[ContractRepository][createHistoryEvent] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+    
+    const createdByValue = userInfo 
+      ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+      : 'Usuario desconocido';
+    
+    console.log('[ContractRepository][createHistoryEvent] createdBy calculado:', createdByValue);
+    
     // Permitir que eventType sea un ObjectId string del catálogo
     const eventTypeId = mongoose.Types.ObjectId.isValid(eventType)
       ? new mongoose.Types.ObjectId(eventType)
@@ -990,6 +1043,7 @@ export class ContractRepository implements IContractRepository {
       details: detailToUse,
       eventMetadata: metadata,
       changes: [],
+      createdBy: createdByValue,
     });
 
     const savedHistory = await historyEntry.save();
@@ -1023,6 +1077,8 @@ export class ContractRepository implements IContractRepository {
     userId: string,
     reason?: string
   ): Promise<ContractHistory> {
+    console.log('[ContractRepository][softDeleteHistoryEntry] userId recibido:', userId);
+    
     const historyEntry = await this.contractHistoryModel.findById(historyId);
     
     if (!historyEntry) {
@@ -1041,8 +1097,19 @@ export class ContractRepository implements IContractRepository {
       );
     }
 
+    // Obtener información del usuario que elimina para deletedByInfo
+    const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log('[ContractRepository][softDeleteHistoryEntry] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+    
+    const deletedByInfoValue = userInfo 
+      ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+      : 'Usuario desconocido';
+    
+    console.log('[ContractRepository][softDeleteHistoryEntry] deletedByInfo calculado:', deletedByInfoValue);
+
     historyEntry.isDeleted = true;
     historyEntry.deletedBy = new mongoose.Types.ObjectId(userId) as any;
+    historyEntry.deletedByInfo = deletedByInfoValue;
     historyEntry.deletedAt = new Date();
     historyEntry.deletionReason = reason;
 
