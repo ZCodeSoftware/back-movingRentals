@@ -80,11 +80,22 @@ export class ContractRepository implements IContractRepository {
       const createdContract = new this.contractModel(contractData);
       const savedContract = await createdContract.save({ session });
 
+      // Obtener información del usuario para createdBy
+      const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+      console.log('[ContractRepository][create] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+      
+      const createdByValue = userInfo 
+        ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+        : 'Usuario desconocido';
+      
+
+
       const historyEntry = new this.contractHistoryModel({
         contract: savedContract._id,
         performedBy: userId,
         action: ContractAction.CONTRACT_CREATED,
         details: 'El contrato fue creado.',
+        createdBy: createdByValue,
       });
       await historyEntry.save({ session });
 
@@ -147,7 +158,7 @@ export class ContractRepository implements IContractRepository {
       try {
         oldCartSnapshot = JSON.parse(booking.cart);
       } catch (err) {
-        console.warn('[ContractRepository][applyBookingChangesFromExtension] No se pudo parsear el carrito anterior:', err);
+
       }
     }
 
@@ -243,12 +254,24 @@ export class ContractRepository implements IContractRepository {
       eventSnapshot: fullUpdateData ? { ...fullUpdateData } : undefined
     };
 
+    // Obtener información del usuario para createdBy
+
+    const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log('[ContractRepository][applyBookingChangesFromExtension] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+    
+    const createdByValue = userInfo 
+      ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+      : 'Usuario desconocido';
+    
+
+
     const historyEntry = new this.contractHistoryModel({
       contract: contract._id,
       performedBy: userId,
       action: ContractAction.BOOKING_MODIFIED,
       changes: [changesPayload],
       details: combinedDetails,
+      createdBy: createdByValue,
     });
     await historyEntry.save({ session: existingSession });
 
@@ -262,10 +285,13 @@ export class ContractRepository implements IContractRepository {
   }
 
   async getTimelineForContract(contractId: string): Promise<ContractHistory[]> {
+    // Incluir movimientos eliminados en el timeline para que el frontend los muestre tachados
     return this.contractHistoryModel
       .find({ contract: contractId })
+      .setOptions({ includeDeleted: true }) // Esto desactiva el middleware que filtra eliminados
       .sort({ createdAt: 'asc' })
       .populate('performedBy', 'name lastName email')
+      .populate('deletedBy', 'name lastName email') // Poblar también deletedBy para tener info completa
       .populate('eventType')
       .exec();
   }
@@ -288,6 +314,7 @@ export class ContractRepository implements IContractRepository {
           foreignField: 'contract',
           as: 'timeline',
           pipeline: [
+            // NO filtrar por isDeleted para incluir movimientos eliminados
             { $sort: { createdAt: 1 } },
             {
               $lookup: {
@@ -303,7 +330,92 @@ export class ContractRepository implements IContractRepository {
                 preserveNullAndEmptyArrays: true,
               },
             },
-            { $project: { 'performedBy.password': 0, 'performedBy.role': 0 } },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'deletedBy',
+                foreignField: '_id',
+                as: 'deletedBy',
+              },
+            },
+            {
+              $unwind: {
+                path: '$deletedBy',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $lookup: {
+                from: 'cat_contract_event',
+                localField: 'eventType',
+                foreignField: '_id',
+                as: 'eventType',
+              },
+            },
+            {
+              $unwind: {
+                path: '$eventType',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            { 
+              $project: { 
+                'performedBy.password': 0, 
+                'performedBy.role': 0,
+                'deletedBy.password': 0,
+                'deletedBy.role': 0
+              } 
+            },
+            {
+              $addFields: {
+                // Si createdBy ya existe en el documento, usarlo; si no, calcularlo
+                createdBy: {
+                  $cond: {
+                    if: { $ne: [{ $ifNull: ['$createdBy', null] }, null] },
+                    then: '$createdBy',
+                    else: {
+                      $cond: {
+                        if: { $ifNull: ['$performedBy', false] },
+                        then: {
+                          $cond: {
+                            if: {
+                              $or: [
+                                { $ne: [{ $ifNull: ['$performedBy.name', ''] }, ''] },
+                                { $ne: [{ $ifNull: ['$performedBy.lastName', ''] }, ''] }
+                              ]
+                            },
+                            then: {
+                              $concat: [
+                                { $trim: { input: { $concat: [
+                                  { $ifNull: ['$performedBy.name', ''] },
+                                  ' ',
+                                  { $ifNull: ['$performedBy.lastName', ''] }
+                                ] } } },
+                                {
+                                  $cond: {
+                                    if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
+                                    then: { $concat: [' - ', '$performedBy.email'] },
+                                    else: ''
+                                  }
+                                }
+                              ]
+                            },
+                            else: {
+                              $cond: {
+                                if: { $ne: [{ $ifNull: ['$performedBy.email', ''] }, ''] },
+                                then: '$performedBy.email',
+                                else: 'Usuario desconocido'
+                              }
+                            }
+                          }
+                        },
+                        else: 'Usuario desconocido'
+                      }
+                    }
+                  }
+                }
+              }
+            }
           ],
         },
       },
@@ -432,6 +544,9 @@ export class ContractRepository implements IContractRepository {
     if (filters.status) {
       matchConditions['bookingData.status'] = new mongoose.Types.ObjectId(filters.status);
     }
+    if (filters.isReserve !== undefined) {
+      matchConditions['bookingData.isReserve'] = filters.isReserve === 'true' || filters.isReserve === true;
+    }
     if (filters.reservingUser) {
       // Detectar si es un ObjectId válido o un email/texto
       if (mongoose.Types.ObjectId.isValid(filters.reservingUser)) {
@@ -512,6 +627,48 @@ export class ContractRepository implements IContractRepository {
     if (Object.keys(matchConditions).length > 0) {
       pipeline.push({ $match: matchConditions });
     }
+    
+    // Agregar lookup del timeline para poder calcular isExtended
+    pipeline.push({
+      $lookup: {
+        from: 'contract_history',
+        localField: '_id',
+        foreignField: 'contract',
+        as: 'timeline',
+        pipeline: [
+          // NO filtrar por isDeleted - incluir todas las entradas para que el frontend las muestre
+          { $sort: { createdAt: 1 } },
+          {
+            $lookup: {
+              from: 'cat_contract_event',
+              localField: 'eventType',
+              foreignField: '_id',
+              as: 'eventType',
+            },
+          },
+          {
+            $unwind: {
+              path: '$eventType',
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+          // Solo incluir campos necesarios para reducir el tamaño de la respuesta
+          {
+            $project: {
+              action: 1,
+              'eventType._id': 1,
+              'eventType.name': 1,
+              isDeleted: 1,
+              eventMetadata: 1,
+              createdAt: 1,
+              details: 1,
+              changes: 1,
+            }
+          }
+        ],
+      },
+    });
+    
     pipeline.push({ $sort: { createdAt: -1 } });
     const countPipeline = [...pipeline, { $count: 'total' }];
     const countResult = await this.contractModel
@@ -631,12 +788,57 @@ export class ContractRepository implements IContractRepository {
       // LOG CAMBIOS QUE SE VAN A GUARDAR EN EL MOVIMIENTO
       if (changesToLog.length > 0) {
         console.log('[ContractRepository][update] changes a guardar en historial:', JSON.stringify(changesToLog, null, 2));
+
+        
+        // Obtener información del usuario para createdBy
+        const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+        console.log('[ContractRepository][update] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+        
+        const createdByValue = userInfo 
+          ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+          : 'Usuario desconocido';
+        
+
+        
+        // Preparar eventMetadata si es una extensión con información de pago
+        let eventMetadata = undefined;
+        let eventTypeId = undefined;
+        
+        if (contractUpdateData.extension?.extensionAmount && contractUpdateData.extension?.paymentMethod) {
+
+          
+          // Obtener el eventType del contractData (viene del payload)
+          eventTypeId = (contractData as any).eventType || '68c72448518e24b76294edf4';
+          
+          // Obtener el vehículo del newCart si existe
+          const vehicleId = (contractData as any).newCart?.vehicles?.[0]?.vehicle?._id || 
+                           (contractData as any).newCart?.vehicles?.[0]?.vehicle;
+          
+          // Obtener el concierge del contractData
+          const concierge = (contractData as any).concierge;
+          
+          eventMetadata = {
+            amount: contractUpdateData.extension.extensionAmount,
+            paymentMethod: contractUpdateData.extension.paymentMethod,
+            paymentMedium: (contractData as any).extension?.paymentMedium || 'CUENTA',
+            depositNote: (contractData as any).extension?.depositNote,
+            vehicle: vehicleId,
+            beneficiary: concierge,
+            date: contractUpdateData.extension.newEndDateTime || new Date()
+          };
+          
+          console.log('[ContractRepository][update] eventMetadata creado:', JSON.stringify(eventMetadata, null, 2));
+        }
+
         await new this.contractHistoryModel({
           contract: id,
           performedBy: userId,
           action: ContractAction.EXTENSION_UPDATED,
           changes: changesToLog,
           details: `Se actualizaron campos del contrato.`,
+          createdBy: createdByValue,
+          eventMetadata: eventMetadata,
+          eventType: eventTypeId ? new mongoose.Types.ObjectId(eventTypeId) : undefined,
         }).save({ session });
       }
 
@@ -650,18 +852,45 @@ export class ContractRepository implements IContractRepository {
           .session(session);
         const oldCartData = JSON.parse(booking.cart);
         
-        // Ahora sí aplicar los cambios al booking
-        await this.applyBookingChangesFromExtension(
-          id,
-          newCart,
-          userId,
-          reasonForChange,
-          session,
-          contractData // Nuevo: Se pasa el update completo como snapshot para el historial
-        );
+        // Detectar si es un cambio de vehículo o una extensión
+        const isVehicleChange = await this.isVehicleChangeEvent(contractData);
+        const isExtension = this.isExtensionEvent(contractData);
+
+
+        
+        // Si es una extensión, NO crear BOOKING_MODIFIED porque ya se creó EXTENSION_UPDATED
+        if (!isExtension) {
+          // Solo aplicar cambios al booking si NO es una extensión
+          await this.applyBookingChangesFromExtension(
+            id,
+            newCart,
+            userId,
+            reasonForChange,
+            session,
+            contractData // Nuevo: Se pasa el update completo como snapshot para el historial
+          );
+        } else {
+          // Para extensiones, solo actualizar el carrito sin crear histórico adicional
+          const lastVersion = await this.cartVersionModel
+            .findOne({ booking: booking._id })
+            .sort({ version: -1 })
+            .session(session);
+          const newVersionNumber = lastVersion ? lastVersion.version + 1 : 1;
+
+          const newCartVersion = new this.cartVersionModel({
+            booking: booking._id,
+            version: newVersionNumber,
+            data: newCart,
+          });
+          await newCartVersion.save({ session });
+
+          booking.activeCartVersion = newCartVersion._id;
+          booking.cart = JSON.stringify(newCart);
+          await booking.save({ session });
+        }
 
         // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
-        await this.updateVehicleReservations(oldCartData, newCart, session, id);
+        await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange, isExtension);
       }
 
       // Se actualiza el contrato principal como parte de la transacción.
@@ -707,6 +936,8 @@ export class ContractRepository implements IContractRepository {
     newCart: CartWithVehicles,
     session: mongoose.ClientSession,
     contractId?: string,
+    isVehicleChange?: boolean,
+    isExtension?: boolean,
   ): Promise<void> {
     // Crear mapas de vehículos para comparar
     const oldVehiclesMap = new Map(
@@ -730,6 +961,31 @@ export class ContractRepository implements IContractRepository {
     if (contractId) {
       const contract = await this.contractModel.findById(contractId).session(session);
       bookingId = contract?.booking?.toString();
+    }
+
+    // Si es un cambio de vehículo, necesitamos manejar la lógica especial
+    if (isVehicleChange) {
+
+      
+      // Encontrar el vehículo que fue removido (el actual que se está cambiando)
+      for (const [vehicleId, oldVehicleItem] of oldVehiclesMap) {
+        if (!newVehiclesMap.has(vehicleId)) {
+          // Este es el vehículo que se está liberando
+
+          await this.releaseVehicleReservation(
+            vehicleId,
+            new Date(oldVehicleItem.dates.start),
+            new Date(oldVehicleItem.dates.end),
+            session,
+            bookingId,
+          );
+        }
+      }
+
+      // Los vehículos en newCart ya deberían tener sus reservas creadas
+      // por el proceso normal de actualización del carrito
+
+      return;
     }
 
     // 1. Liberar reservas de vehículos que ya no están en el nuevo carrito
@@ -794,6 +1050,44 @@ export class ContractRepository implements IContractRepository {
   }
 
   /**
+   * Detecta si el evento es un cambio de vehículo
+   */
+  private async isVehicleChangeEvent(contractData: UpdateContractDTO): Promise<boolean> {
+    try {
+      // Verificar si hay eventType en el contractData
+      const eventTypeId = (contractData as any).eventType;
+      
+      if (!eventTypeId) {
+        return false;
+      }
+
+      // Buscar el evento en el catálogo
+      const catEvent = await this.catContractEventModel
+        .findById(eventTypeId)
+        .lean();
+
+      if (!catEvent) {
+        return false;
+      }
+
+      // Verificar si el nombre del evento es "CAMBIO DE VEHICULO"
+      const eventName = (catEvent as any).name;
+      return eventName === 'CAMBIO DE VEHICULO';
+    } catch (error) {
+
+      return false;
+    }
+  }
+
+  /**
+   * Detecta si el movimiento es una extensión
+   */
+  private isExtensionEvent(contractData: UpdateContractDTO): boolean {
+    // Una extensión se detecta por la presencia de extension con newEndDateTime
+    return !!(contractData.extension && contractData.extension.newEndDateTime);
+  }
+
+  /**
    * Libera una reserva específica de un vehículo
    */
   private async releaseVehicleReservation(
@@ -809,7 +1103,7 @@ export class ContractRepository implements IContractRepository {
         .session(session);
       
       if (!vehicle || !vehicle.reservations) {
-        console.warn(`Vehículo ${vehicleId} no encontrado o sin reservas al intentar liberar reserva`);
+
         return;
       }
 
@@ -853,7 +1147,7 @@ export class ContractRepository implements IContractRepository {
 
       console.log(`Reserva liberada para vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ` en fechas ${startDate} - ${endDate}`}`);
     } catch (error) {
-      console.error(`Error liberando reserva para vehículo ${vehicleId}:`, error);
+
       throw error;
     }
   }
@@ -865,6 +1159,18 @@ export class ContractRepository implements IContractRepository {
     details: string,
     metadata?: Record<string, any>,
   ): Promise<ContractHistory> {
+
+    
+    // Obtener información del usuario para createdBy
+    const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log('[ContractRepository][createHistoryEvent] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+    
+    const createdByValue = userInfo 
+      ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+      : 'Usuario desconocido';
+    
+
+    
     // Permitir que eventType sea un ObjectId string del catálogo
     const eventTypeId = mongoose.Types.ObjectId.isValid(eventType)
       ? new mongoose.Types.ObjectId(eventType)
@@ -887,6 +1193,7 @@ export class ContractRepository implements IContractRepository {
       details: detailToUse,
       eventMetadata: metadata,
       changes: [],
+      createdBy: createdByValue,
     });
 
     const savedHistory = await historyEntry.save();
@@ -909,7 +1216,7 @@ export class ContractRepository implements IContractRepository {
         }
       }
     } catch (err) {
-      console.warn('[ContractRepository][createHistoryEvent] No se pudo actualizar booking.metadata:', err?.message || err);
+
     }
 
     return savedHistory;
@@ -920,6 +1227,8 @@ export class ContractRepository implements IContractRepository {
     userId: string,
     reason?: string
   ): Promise<ContractHistory> {
+
+    
     const historyEntry = await this.contractHistoryModel.findById(historyId);
     
     if (!historyEntry) {
@@ -938,8 +1247,19 @@ export class ContractRepository implements IContractRepository {
       );
     }
 
+    // Obtener información del usuario que elimina para deletedByInfo
+    const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log('[ContractRepository][softDeleteHistoryEntry] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
+    
+    const deletedByInfoValue = userInfo 
+      ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+      : 'Usuario desconocido';
+    
+
+
     historyEntry.isDeleted = true;
     historyEntry.deletedBy = new mongoose.Types.ObjectId(userId) as any;
+    historyEntry.deletedByInfo = deletedByInfoValue;
     historyEntry.deletedAt = new Date();
     historyEntry.deletionReason = reason;
 
@@ -979,5 +1299,122 @@ export class ContractRepository implements IContractRepository {
       .populate('deletedBy', 'name lastName email')
       .populate('eventType')
       .exec();
+  }
+
+  /**
+   * TEMPORAL: Obtiene un contrato por número de booking con timeline y movimientos enlazados
+   */
+  async getContractWithMovementsByBookingNumber(bookingNumber: number): Promise<any> {
+    // 1. Buscar el booking por número
+    const booking = await this.bookingModel.findOne({ bookingNumber }).lean();
+    
+    if (!booking) {
+      throw new NotFoundException(`Booking con número ${bookingNumber} no encontrado`);
+    }
+
+    // 2. Buscar el contrato asociado al booking
+    const contract = await this.contractModel
+      .findOne({ booking: booking._id })
+      .populate('booking')
+      .populate('reservingUser')
+      .populate('createdByUser')
+      .populate('status')
+      .populate('extension.paymentMethod')
+      .populate('extension.extensionStatus')
+      .lean();
+
+    if (!contract) {
+      throw new NotFoundException(`Contrato para booking ${bookingNumber} no encontrado`);
+    }
+
+    // 3. Obtener el timeline del contrato (incluyendo eliminados)
+    const timeline = await this.contractHistoryModel
+      .find({ contract: contract._id })
+      .setOptions({ includeDeleted: true })
+      .sort({ createdAt: 'asc' })
+      .populate('performedBy', 'name lastName email')
+      .populate('deletedBy', 'name lastName email')
+      .populate('eventType')
+      .lean();
+
+    // 4. Obtener todos los IDs de histórico para buscar movimientos
+    const historyIds = timeline.map(h => h._id);
+
+    // 5. Buscar movimientos enlazados (incluyendo eliminados)
+    const Movement = this.connection.collection('movement');
+    const movements = await Movement.find({
+      contractHistoryEntry: { $in: historyIds }
+    }).toArray();
+
+    // 6. Crear un mapa de movimientos por historyId
+    const movementsByHistoryId = new Map();
+    movements.forEach(movement => {
+      if (movement.contractHistoryEntry) {
+        movementsByHistoryId.set(
+          movement.contractHistoryEntry.toString(),
+          movement
+        );
+      }
+    });
+
+    // 7. Enriquecer el timeline con los movimientos relacionados
+    const enrichedTimeline = timeline.map(historyEntry => {
+      const movement = movementsByHistoryId.get(historyEntry._id.toString());
+      
+      return {
+        ...historyEntry,
+        relatedMovement: historyEntry.relatedMovement,
+        movementData: movement || null,
+        hasMovement: !!movement,
+        movementLink: movement ? {
+          _id: movement._id,
+          amount: movement.amount,
+          type: movement.type,
+          direction: movement.direction,
+          paymentMethod: movement.paymentMethod,
+          isDeleted: movement.isDeleted || false,
+          deletedAt: movement.deletedAt,
+          deletedBy: movement.deletedBy,
+          deletionReason: movement.deletionReason
+        } : null
+      };
+    });
+
+    // 8. Buscar también movimientos que no tengan histórico enlazado (huérfanos)
+    const orphanMovements = await Movement.find({
+      $or: [
+        { contractHistoryEntry: { $exists: false } },
+        { contractHistoryEntry: null }
+      ]
+    }).toArray();
+
+    // 9. Retornar toda la información
+    return {
+      contract: {
+        _id: contract._id,
+        booking: contract.booking,
+        reservingUser: contract.reservingUser,
+        createdByUser: contract.createdByUser,
+        status: contract.status,
+        extension: contract.extension,
+        createdAt: (contract as any).createdAt,
+        updatedAt: (contract as any).updatedAt
+      },
+      timeline: enrichedTimeline,
+      movements: {
+        linked: movements.filter(m => m.contractHistoryEntry),
+        orphan: orphanMovements,
+        total: movements.length + orphanMovements.length
+      },
+      summary: {
+        totalHistoryEntries: timeline.length,
+        historyWithMovements: enrichedTimeline.filter(h => h.hasMovement).length,
+        historyWithoutMovements: enrichedTimeline.filter(h => !h.hasMovement).length,
+        totalMovements: movements.length,
+        orphanMovements: orphanMovements.length,
+        deletedHistoryEntries: timeline.filter(h => h.isDeleted).length,
+        deletedMovements: movements.filter(m => m.isDeleted).length
+      }
+    };
   }
 }

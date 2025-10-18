@@ -20,6 +20,7 @@ export interface IContractFilters {
   search?: string;
   createdByUser?: string;
   service?: string;
+  isReserve?: boolean | string;
   page?: number;
   limit?: number;
 }
@@ -48,4 +49,7 @@ export interface IContractRepository {
   restoreHistoryEntry(historyId: string): Promise<ContractHistory>;
 
   getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]>;
+
+  // TEMPORAL: Método para debug
+  getContractWithMovementsByBookingNumber(bookingNumber: number): Promise<any>;
 }

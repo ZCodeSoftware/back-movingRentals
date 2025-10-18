@@ -28,9 +28,12 @@ import { ReportEventDTO } from '../../infrastructure/nest/dtos/contract.dto';
 import SymbolsContract from '../../symbols-contract';
 import { ContractMovementLinkService } from './contract-movement-link.service';
 import { TypeCatPaymentMethodAdmin } from '../../../core/domain/enums/type-cat-payment-method-admin';
+import { TypeMovementDirection } from '../../../core/domain/enums/type-movement-direction';
 import { CommissionModel } from '../../../commission/domain/models/commission.model';
 import { ICommissionRepository } from '../../../commission/domain/repositories/commission.interface.repository';
 import SymbolsCommission from '../../../commission/symbols-commission';
+import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
+import SymbolsMovement from '../../../movement/symbols-movement';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -41,9 +44,13 @@ export class ContractService implements IContractService {
     private readonly vehicleRepository: IVehicleRepository,
     @Inject(SymbolsCommission.ICommissionRepository)
     private readonly commissionRepository: ICommissionRepository,
+    @Inject(SymbolsMovement.IMovementService)
+    private readonly movementService: IMovementService,
     private readonly bookingTotalsService: BookingTotalsService,
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
+    @InjectModel(ContractHistory.name)
+    private readonly contractHistoryModel: Model<ContractHistory>,
     private readonly eventEmitter: EventEmitter2,
     private readonly contractMovementLinkService: ContractMovementLinkService,
   ) { }
@@ -125,16 +132,38 @@ export class ContractService implements IContractService {
           } else if (contract && typeof contract === 'object') {
             contractObj = { ...contract };
           }
+          
+          // Verificar si tiene extensión en el timeline
+          let isExtended = false;
+          if (contractObj.timeline && Array.isArray(contractObj.timeline)) {
+            isExtended = contractObj.timeline.some((entry: any) => {
+              // Verificar si el eventType tiene el nombre "EXTENSION DE RENTA"
+              if (entry.eventType && entry.eventType.name) {
+                return entry.eventType.name.toUpperCase().includes('EXTENSION DE RENTA');
+              }
+              // También verificar en el action si es EXTENSION_UPDATED
+              if (entry.action === 'EXTENSION_UPDATED') {
+                return true;
+              }
+              return false;
+            });
+          }
+          
           try {
             if (contractObj.booking && contractObj._id) {
               const totals = await this.getBookingTotals(contractObj._id);
               return {
                 ...contractObj,
                 bookingTotals: totals,
+                isExtended,
               };
             }
           } catch (e) {}
-          return contractObj;
+          
+          return {
+            ...contractObj,
+            isExtended,
+          };
         })
       );
       return { ...result, data: dataWithTotals };
@@ -160,6 +189,77 @@ export class ContractService implements IContractService {
         updateData,
         userId,
       );
+
+      // Si es una extensión con pago, crear movimiento enlazado al EXTENSION_UPDATED
+      console.log('[ContractService] Checking extension payment:', {
+        isExtension: (updateData as any).isExtension,
+        hasExtension: !!updateData.extension,
+        extensionAmount: updateData.extension?.extensionAmount,
+        paymentMethod: updateData.extension?.paymentMethod,
+        eventType: (updateData as any).eventType
+      });
+
+      if ((updateData as any).isExtension && updateData.extension?.extensionAmount && updateData.extension?.paymentMethod) {
+        try {
+          const extensionAmount = updateData.extension.extensionAmount;
+          const paymentMedium = updateData.extension.paymentMedium || 'CUENTA';
+          const concierge = (updateData as any).concierge;
+          const vehicleId = (updateData as any).newCart?.vehicles?.[0]?.vehicle?._id || 
+                           (updateData as any).newCart?.vehicles?.[0]?.vehicle;
+
+          console.log('[ContractService] Creating linked movement for extension');
+
+          // Buscar el EXTENSION_UPDATED que se acaba de crear (ya tiene eventMetadata del repositorio)
+          const extensionUpdatedEntry = await this.contractHistoryModel.findOne({
+            contract: id,
+            action: 'EXTENSION_UPDATED'
+          }).sort({ createdAt: -1 }).limit(1);
+
+          if (!extensionUpdatedEntry) {
+            throw new Error('No se encontró el EXTENSION_UPDATED para enlazar el movimiento');
+          }
+
+          console.log('[ContractService] Found EXTENSION_UPDATED entry:', extensionUpdatedEntry._id);
+
+          // Crear el movimiento enlazado al EXTENSION_UPDATED
+          const extensionDate = updateData.extension.newEndDateTime 
+            ? (typeof updateData.extension.newEndDateTime === 'string' 
+                ? new Date(updateData.extension.newEndDateTime) 
+                : updateData.extension.newEndDateTime)
+            : new Date();
+
+          const movementData = {
+            type: 'EXTENSION DE CONTRATO',
+            direction: TypeMovementDirection.IN,
+            detail: (updateData as any).reasonForChange || 'EXTENSION DE RENTA',
+            amount: extensionAmount,
+            date: extensionDate,
+            paymentMethod: paymentMedium as TypeCatPaymentMethodAdmin,
+            vehicle: vehicleId,
+            beneficiary: concierge,
+            contractHistoryEntry: extensionUpdatedEntry._id
+          };
+
+          console.log('[ContractService] Creating movement with data:', movementData);
+
+          const movement = await this.movementService.create(movementData, userId);
+
+          // Obtener el ID del movimiento
+          const movementId = movement.id?.toValue ? movement.id.toValue() : (movement as any)._id;
+
+          console.log('[ContractService] Movement created with ID:', movementId);
+
+          // Actualizar el EXTENSION_UPDATED con la referencia al movimiento
+          extensionUpdatedEntry.relatedMovement = movementId as any;
+          await extensionUpdatedEntry.save();
+
+          console.log('[ContractService] Movement linked to EXTENSION_UPDATED successfully');
+        } catch (movementError) {
+          console.error('[ContractService] Error creating linked movement for extension:', movementError);
+          console.error('[ContractService] Error stack:', movementError.stack);
+          // No fallar la actualización del contrato si falla el movimiento
+        }
+      }
 
       // Si es una extensión, crear comisión basada en el extensionAmount
       console.log('[ContractService] Checking extension commission creation:', {
@@ -349,21 +449,23 @@ export class ContractService implements IContractService {
    * Determina el tipo de movimiento basándose en el tipo de evento
    */
   private determineMovementType(eventType: string): string {
-    // Mapear tipos de eventos a tipos de movimientos
+    // Para extensiones, siempre usar CONTRACTEXTENSION
+    // El eventType puede ser un ObjectId, así que verificamos si es el ID de extensión
+    if (eventType === '68c72448518e24b76294edf4') {
+      return 'EXTENSION DE CONTRATO';
+    }
+
+    // Mapear tipos de eventos a tipos de movimientos válidos del enum TypeCatTypeMovement
     const eventTypeMap: { [key: string]: string } = {
-      'EXTENSION_PAYMENT': 'EXTENSION',
-      'DAMAGE_PAYMENT': 'DAMAGE',
-      'REFUND': 'REFUND',
-      'PENALTY': 'PENALTY',
-      'COMMISSION': 'COMMISSION',
-      'MAINTENANCE': 'MAINTENANCE',
-      'FUEL': 'FUEL',
-      'CLEANING': 'CLEANING',
-      'OTHER': 'OTHER'
+      'EXTENSION_PAYMENT': 'EXTENSION DE CONTRATO',
+      'MAINTENANCE': 'MANTENIMIENTO',
+      'VEHICLE_MAINTENANCE': 'MANTENIMIENTO VEHICULO',
+      'PAYMENT': 'PAGOS',
+      'LOCAL': 'LOCAL'
     };
 
-    // Si no encuentra el mapeo, usar un tipo genérico
-    return eventTypeMap[eventType] || 'OTHER';
+    // Si no encuentra el mapeo, usar PAGOS como default
+    return eventTypeMap[eventType] || 'PAGOS';
   }
 
   /**
@@ -437,8 +539,8 @@ export class ContractService implements IContractService {
   ): Promise<ContractHistory> {
     try {
       // Intentar eliminar usando el servicio de enlace (elimina histórico y movimiento)
-      const result = await this.contractMovementLinkService.deleteMovementWithHistory(
-        historyId, // En este caso, usamos el historyId para buscar el movimiento relacionado
+      const result = await this.contractMovementLinkService.deleteHistoryWithMovement(
+        historyId,
         userId,
         reason
       );
@@ -458,7 +560,7 @@ export class ContractService implements IContractService {
   async restoreHistoryEntry(historyId: string): Promise<ContractHistory> {
     try {
       // Intentar restaurar usando el servicio de enlace (restaura histórico y movimiento)
-      const result = await this.contractMovementLinkService.restoreMovementWithHistory(historyId);
+      const result = await this.contractMovementLinkService.restoreHistoryWithMovement(historyId);
       
       if (result.historyEntry) {
         console.log(`[ContractService] Restaurado enlace: Histórico ${historyId} y movimiento relacionado`);
@@ -474,5 +576,12 @@ export class ContractService implements IContractService {
 
   async getDeletedHistoryEntries(contractId: string): Promise<ContractHistory[]> {
     return this.contractRepository.getDeletedHistoryEntries(contractId);
+  }
+
+  /**
+   * TEMPORAL: Obtiene un contrato por número de booking con timeline y movimientos enlazados
+   */
+  async getContractWithMovementsByBookingNumber(bookingNumber: number): Promise<any> {
+    return this.contractRepository.getContractWithMovementsByBookingNumber(bookingNumber);
   }
 }

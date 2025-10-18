@@ -49,6 +49,9 @@ export class ContractHistory {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
     performedBy: User;
 
+    @Prop({ type: String })
+    createdBy?: string;
+
     @Prop({ type: [ChangeDetailSchema], default: [] })
     changes: ChangeDetail[];
 
@@ -68,6 +71,9 @@ export class ContractHistory {
 
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false })
     deletedBy?: User;
+
+    @Prop({ type: String })
+    deletedByInfo?: string;
 
     @Prop({ type: Date, required: false })
     deletedAt?: Date;

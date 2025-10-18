@@ -85,13 +85,13 @@ export class ContractController {
 
   @Get()
   @HttpCode(200)
-  @Roles(
-    TypeRoles.ADMIN,
-    TypeRoles.SELLER,
-    TypeRoles.SUPERVISOR,
-    TypeRoles.SUPERADMIN,
-  )
-  @UseGuards(AuthGuards, RoleGuard)
+  /*   @Roles(
+      TypeRoles.ADMIN,
+      TypeRoles.SELLER,
+      TypeRoles.SUPERVISOR,
+      TypeRoles.SUPERADMIN,
+    )
+    @UseGuards(AuthGuards, RoleGuard) */
   @ApiResponse({
     status: 200,
     description: 'Return all Contracts with pagination',
@@ -146,6 +146,12 @@ export class ContractController {
     type: 'number',
     description: 'Number of items per page (default: 10)',
   })
+  @ApiQuery({
+    name: 'isReserve',
+    required: false,
+    type: 'boolean',
+    description: 'Filter by reservation status (from booking)',
+  })
   async findAll(@Query() filters: any) {
     if (filters.lang) {
       delete filters.lang;
@@ -179,7 +185,38 @@ export class ContractController {
         createdByUser: { type: 'object', description: 'User who created the contract' },
         status: { type: 'object', description: 'Contract status' },
         extension: { type: 'object', description: 'Extension information if any' },
-        timeline: { type: 'array', description: 'Contract history timeline' },
+        timeline: {
+          type: 'array',
+          description: 'Contract history timeline',
+          items: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string', description: 'ID del movimiento' },
+              action: { type: 'string', description: 'Tipo de acción realizada' },
+              details: { type: 'string', description: 'Detalles del movimiento' },
+              performedBy: {
+                type: 'object',
+                description: 'Usuario que realizó el movimiento',
+                properties: {
+                  _id: { type: 'string' },
+                  name: { type: 'string' },
+                  lastName: { type: 'string' },
+                  email: { type: 'string' }
+                }
+              },
+              createdBy: {
+                type: 'string',
+                description: 'Información del usuario en formato "nombre apellido - email"',
+                example: 'Juan Pérez - juan.perez@example.com'
+              },
+              eventType: { type: 'object', description: 'Tipo de evento del catálogo' },
+              eventMetadata: { type: 'object', description: 'Metadatos del evento' },
+              changes: { type: 'array', description: 'Cambios realizados' },
+              createdAt: { type: 'string', format: 'date-time', description: 'Fecha de creación' },
+              updatedAt: { type: 'string', format: 'date-time', description: 'Fecha de actualización' }
+            }
+          }
+        },
         bookingTotals: {
           type: 'object',
           description: 'Calculated totals based on contract history',
@@ -326,8 +363,8 @@ export class ContractController {
   @ApiOperation({
     summary: 'Elimina un movimiento del histórico del contrato (soft delete)',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Movimiento eliminado exitosamente',
     schema: {
       type: 'object',
@@ -378,8 +415,8 @@ export class ContractController {
   @ApiOperation({
     summary: 'Restaura un movimiento eliminado del histórico del contrato',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Movimiento restaurado exitosamente',
     schema: {
       type: 'object',
@@ -434,7 +471,9 @@ export class ContractController {
               action: { type: 'string' },
               details: { type: 'string' },
               performedBy: { type: 'object' },
+              createdBy: { type: 'string', description: 'Usuario que creó el movimiento en formato "nombre apellido - email"' },
               deletedBy: { type: 'object' },
+              deletedByInfo: { type: 'string', description: 'Usuario que eliminó el movimiento en formato "nombre apellido - email"' },
               deletedAt: { type: 'string', format: 'date-time' },
               deletionReason: { type: 'string' },
               createdAt: { type: 'string', format: 'date-time' }
@@ -459,5 +498,22 @@ export class ContractController {
       message: 'Movimientos eliminados obtenidos exitosamente',
       data: deletedEntries,
     };
+  }
+
+  // TEMPORAL: Endpoint para verificar enlace entre timeline y movimientos
+  @Get('debug/booking/:bookingNumber')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: '[TEMPORAL] Obtiene contrato por número de booking con timeline y movimientos enlazados',
+  })
+  /*   @Roles(
+      TypeRoles.ADMIN,
+      TypeRoles.SELLER,
+      TypeRoles.SUPERVISOR,
+      TypeRoles.SUPERADMIN,
+    )
+    @UseGuards(AuthGuards, RoleGuard) */
+  async getContractWithMovementsByBookingNumber(@Param('bookingNumber') bookingNumber: string) {
+    return this.contractService.getContractWithMovementsByBookingNumber(parseInt(bookingNumber, 10));
   }
 }

@@ -12,6 +12,7 @@ export class BookingModel extends BaseModel {
   private _totalPaid?: number;
   private _bookingNumber: number;
   private _isValidated: boolean;
+  private _isReserve: boolean;
   private _metadata?: Record<string, any>;
   private _commission?: number;
   private _concierge?: string;
@@ -28,6 +29,7 @@ export class BookingModel extends BaseModel {
       totalPaid: this._totalPaid,
       bookingNumber: this._bookingNumber,
       isValidated: this._isValidated,
+      isReserve: this._isReserve,
       metadata: this._metadata,
       commission: this._commission,
       concierge: this._concierge,
@@ -62,6 +64,11 @@ export class BookingModel extends BaseModel {
     this._isValidated = true;
   }
 
+  confirmReservation(): void {
+    this._isReserve = false;
+    this._totalPaid = this._total;
+  }
+
   cancelBooking(): void {
     // Este método puede ser usado para lógica adicional de cancelación si es necesario
     // Por ahora, la cancelación se maneja principalmente cambiando el estado
@@ -76,6 +83,7 @@ export class BookingModel extends BaseModel {
     newBooking._totalPaid = booking.totalPaid;
     newBooking._paymentMethod = booking.paymentMethod
     newBooking._isValidated = booking.isValidated ?? false;
+    newBooking._isReserve = booking.isReserve ?? false;
     newBooking._metadata = booking.metadata;
     newBooking._commission = booking.commission;
     newBooking._concierge = booking.concierge;
@@ -98,6 +106,7 @@ export class BookingModel extends BaseModel {
       : null;
     newBooking._bookingNumber = booking.bookingNumber;
     newBooking._isValidated = booking.isValidated;
+    newBooking._isReserve = booking.isReserve ?? false;
     newBooking._metadata = booking.metadata;
     newBooking._commission = booking.commission;
     newBooking._concierge = booking.concierge;
