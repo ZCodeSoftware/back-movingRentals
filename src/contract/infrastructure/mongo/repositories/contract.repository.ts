@@ -777,9 +777,11 @@ export class ContractRepository implements IContractRepository {
           .session(session);
         const oldCartData = JSON.parse(booking.cart);
         
-        // Detectar si es un cambio de vehículo
+        // Detectar si es un cambio de vehículo o una extensión
         const isVehicleChange = await this.isVehicleChangeEvent(contractData);
+        const isExtension = this.isExtensionEvent(contractData);
         console.log('[ContractRepository][update] isVehicleChange:', isVehicleChange);
+        console.log('[ContractRepository][update] isExtension:', isExtension);
         
         // Ahora sí aplicar los cambios al booking
         await this.applyBookingChangesFromExtension(
@@ -792,7 +794,7 @@ export class ContractRepository implements IContractRepository {
         );
 
         // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
-        await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange);
+        await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange, isExtension);
       }
 
       // Se actualiza el contrato principal como parte de la transacción.
@@ -839,6 +841,7 @@ export class ContractRepository implements IContractRepository {
     session: mongoose.ClientSession,
     contractId?: string,
     isVehicleChange?: boolean,
+    isExtension?: boolean,
   ): Promise<void> {
     // Crear mapas de vehículos para comparar
     const oldVehiclesMap = new Map(
@@ -978,6 +981,14 @@ export class ContractRepository implements IContractRepository {
       console.error('[ContractRepository] Error detectando cambio de vehículo:', error);
       return false;
     }
+  }
+
+  /**
+   * Detecta si el movimiento es una extensión
+   */
+  private isExtensionEvent(contractData: UpdateContractDTO): boolean {
+    // Una extensión se detecta por la presencia de extension con newEndDateTime
+    return !!(contractData.extension && contractData.extension.newEndDateTime);
   }
 
   /**
