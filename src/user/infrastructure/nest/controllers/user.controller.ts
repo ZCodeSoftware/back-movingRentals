@@ -184,4 +184,30 @@ export class UserController {
   async delete(@Param('id') id: string): Promise<void> {
     await this.userService.delete(id);
   }
+
+  @Post(':id/reset-password')
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Password reset successfully. Returns the new password.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Password reset successfully' },
+        email: { type: 'string', example: 'user@example.com' },
+        newPassword: { type: 'string', example: 'aB3dE5fG' }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin cannot reset superadmin password' })
+  async resetPasswordByAdmin(
+    @Param('id') id: string,
+    @Headers('origin') requestHost: string,
+    @Req() req: IUserRequest,
+  ): Promise<any> {
+    const requestingUserId = req.user._id;
+    return await this.userService.resetPasswordByAdmin(id, requestHost, requestingUserId);
+  }
 }

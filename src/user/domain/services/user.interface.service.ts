@@ -30,5 +30,6 @@ export interface IUserService {
   findById(id: string): Promise<UserModel>;
   update(id: string, user: IUserUpdate): Promise<UserModel>;
   delete(id: string): Promise<void>;
-  forgotPassword(email: string, requestHost: string): Promise<any>
+  forgotPassword(email: string, requestHost: string): Promise<any>;
+  resetPasswordByAdmin(id: string, requestHost: string, requestingUserId: string): Promise<any>;
 }
