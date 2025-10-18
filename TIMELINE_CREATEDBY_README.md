@@ -119,13 +119,32 @@ Los movimientos eliminados también incluyen el campo `createdBy`:
 3. **Consistencia**: Siempre devuelve un string, incluso cuando falta información
 4. **Performance**: No requiere consultas adicionales, se calcula a partir de datos ya poblados
 
+## Campo deletedByInfo
+
+Cuando un movimiento es eliminado (soft delete), se registra automáticamente quién lo eliminó en el campo `deletedByInfo` con el mismo formato:
+
+```json
+{
+  "_id": "history_entry_id",
+  "action": "NOTE_ADDED",
+  "details": "Nota agregada",
+  "createdBy": "María González - maria.gonzalez@example.com",
+  "isDeleted": true,
+  "deletedBy": "admin_user_id",
+  "deletedByInfo": "Admin User - admin@example.com",
+  "deletedAt": "2024-01-16T14:20:00.000Z",
+  "deletionReason": "Movimiento duplicado"
+}
+```
+
 ## Notas Importantes
 
-- El campo `createdBy` es **virtual** y no se almacena en la base de datos
-- Requiere que el campo `performedBy` esté poblado con los datos del usuario (name, lastName, email)
-- Si se usa `.lean()` en las consultas de Mongoose, el campo virtual no estará disponible
-- El campo se incluye automáticamente en todas las respuestas JSON del timeline
+- El campo `createdBy` se **almacena en la base de datos** cuando se crea el movimiento
+- El campo `deletedByInfo` se **almacena en la base de datos** cuando se elimina el movimiento
+- Ambos campos se calculan a partir de la información del usuario en la colección `users`
+- Los campos se incluyen automáticamente en todas las respuestas JSON del timeline
+- Los logs en consola muestran el proceso de cálculo de estos campos para debugging
 
 ## Migración
 
-No se requiere migración de datos ya que es un campo virtual calculado en tiempo de ejecución.
+No se requiere migración de datos para registros existentes. Los nuevos movimientos incluirán automáticamente el campo `createdBy`, y cuando se eliminen movimientos se agregará el campo `deletedByInfo`.

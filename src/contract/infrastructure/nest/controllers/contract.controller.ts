@@ -465,7 +465,9 @@ export class ContractController {
               action: { type: 'string' },
               details: { type: 'string' },
               performedBy: { type: 'object' },
+              createdBy: { type: 'string', description: 'Usuario que creó el movimiento en formato "nombre apellido - email"' },
               deletedBy: { type: 'object' },
+              deletedByInfo: { type: 'string', description: 'Usuario que eliminó el movimiento en formato "nombre apellido - email"' },
               deletedAt: { type: 'string', format: 'date-time' },
               deletionReason: { type: 'string' },
               createdAt: { type: 'string', format: 'date-time' }
