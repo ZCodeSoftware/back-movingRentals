@@ -146,6 +146,12 @@ export class ContractController {
     type: 'number',
     description: 'Number of items per page (default: 10)',
   })
+  @ApiQuery({
+    name: 'isReserve',
+    required: false,
+    type: 'boolean',
+    description: 'Filter by reservation status (from booking)',
+  })
   async findAll(@Query() filters: any) {
     if (filters.lang) {
       delete filters.lang;

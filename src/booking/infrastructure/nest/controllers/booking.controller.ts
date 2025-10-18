@@ -98,6 +98,12 @@ export class BookingController {
     type: 'number',
     description: 'Number of items per page (default: 10)',
   })
+  @ApiQuery({
+    name: 'isReserve',
+    required: false,
+    type: 'boolean',
+    description: 'Filter by reservation status',
+  })
   async findAll(@Query() filters: any) {
     const res = await this.bookingService.findAll(filters);
     return res;
@@ -243,5 +249,22 @@ export class BookingController {
     const { email } = req.user;
     const language = lang ?? 'es';
     return await this.bookingService.cancelBooking(id, email, language);
+  }
+
+  @Put('confirm/:id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Reservation confirmed successfully' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  @ApiResponse({ status: 400, description: 'Booking is not a reservation' })
+  @ApiQuery({ name: 'lang', required: false, type: 'string', description: 'Language for email notifications' })
+  @UseGuards(AuthGuards)
+  async confirmReservation(
+    @Param('id') id: string,
+    @Query('lang') lang: string,
+    @Req() req: IUserRequest,
+  ) {
+    const { email } = req.user;
+    const language = lang ?? 'es';
+    return await this.bookingService.confirmReservation(id, email, language);
   }
 }

@@ -700,6 +700,159 @@ export class BookingService implements IBookingService {
     return updatedBooking;
   }
 
+  async confirmReservation(
+    id: string,
+    email: string,
+    lang: string = 'es',
+  ): Promise<BookingModel> {
+    const booking = await this.bookingRepository.findById(id);
+
+    if (!booking) {
+      throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
+    }
+
+    const bookingData = booking.toJSON();
+
+    // Verificar que la reserva tenga isReserve en true
+    if (!bookingData.isReserve) {
+      throw new BaseErrorException(
+        'This booking is not a reservation',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Obtener el estado APROBADO
+    const approvedStatus = await this.catStatusRepository.getStatusByName(
+      TypeStatus.APPROVED,
+    );
+
+    if (!approvedStatus) {
+      throw new BaseErrorException(
+        'Approved status not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Actualizar el estado a APROBADO
+    booking.addStatus(approvedStatus);
+
+    // Confirmar la reserva (actualiza isReserve a false y totalPaid al total)
+    booking.confirmReservation();
+
+    const updatedBooking = await this.bookingRepository.update(id, booking);
+
+    if (!updatedBooking) {
+      throw new BaseErrorException(
+        'Booking not updated',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Obtener información del usuario para el email
+    const user = await this.bookingRepository.findUserByBookingId(id);
+    const userEmail = user.toJSON().email || email;
+
+    // Emitir evento para enviar emails de confirmación
+    this.eventEmitter.emit('send-booking.confirmed', {
+      booking: updatedBooking,
+      userEmail,
+      lang,
+    });
+
+    // Crear comisiones si corresponde
+    try {
+      const bookingJson = updatedBooking.toJSON();
+      const bookingId = bookingJson._id?.toString?.() ?? '';
+      const bookingNumber = bookingJson.bookingNumber;
+      const bookingTotal = bookingJson.total;
+      const userId = user?.toJSON()._id?.toString();
+
+      // Si tiene concierge, crear comisión sobre el total
+      if (bookingData.concierge) {
+        try {
+          const concierge = await this.vehicleOwnerRepository.findById(
+            bookingData.concierge.toString(),
+          );
+          if (concierge) {
+            const conciergeData = concierge.toJSON();
+            const percentage =
+              bookingData.commission !== undefined &&
+              bookingData.commission !== null
+                ? bookingData.commission
+                : conciergeData.commissionPercentage ?? 15;
+            const amount =
+              Math.round(bookingTotal * (percentage / 100) * 100) / 100;
+
+            await this.commissionRepository.create(
+              CommissionModel.create({
+                booking: bookingId as any,
+                bookingNumber: bookingNumber as any,
+                user: userId as any,
+                vehicleOwner: bookingData.concierge as any,
+                vehicles: [],
+                detail: 'Comisión Concierge',
+                status: 'PENDING',
+                amount: amount as any,
+              } as any),
+            );
+          }
+        } catch (err) {
+          console.warn('Error creating concierge commission:', err);
+        }
+      } else {
+        // Crear comisiones por vehículo
+        const parsedCart = JSON.parse(bookingData.cart || '{}');
+        if (parsedCart?.vehicles && Array.isArray(parsedCart.vehicles)) {
+          const existing = await this.commissionRepository.findByBooking(
+            bookingId,
+          );
+          if (!existing || existing.length === 0) {
+            for (const v of parsedCart.vehicles) {
+              const vehicle = v.vehicle;
+              const vehicleId = vehicle?._id?.toString();
+              let ownerId = (vehicle as any)?.owner?._id;
+              const vehicleTotal = v.total ?? 0;
+
+              if (!ownerId && vehicleId) {
+                try {
+                  const fullVehicle =
+                    await this.vehicleRepository.findById(vehicleId);
+                  ownerId =
+                    (((fullVehicle as any)?.toJSON?.() as any)?.owner as any)
+                      ?._id ?? ownerId;
+                } catch {}
+              }
+
+              if (ownerId && vehicleId && typeof vehicleTotal === 'number') {
+                const percentage =
+                  (vehicle as any)?.owner?.commissionPercentage ?? 0;
+                const amount =
+                  Math.round(vehicleTotal * (percentage / 100) * 100) / 100;
+
+                await this.commissionRepository.create(
+                  CommissionModel.create({
+                    booking: bookingId as any,
+                    bookingNumber: bookingNumber as any,
+                    user: userId as any,
+                    vehicleOwner: ownerId as any,
+                    vehicle: vehicleId as any,
+                    detail: 'Renta',
+                    status: 'PENDING',
+                    amount: amount as any,
+                  } as any),
+                );
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error creating commissions:', e);
+    }
+
+    return updatedBooking;
+  }
+
   private async releaseVehicleReservation(
     vehicleId: string,
     startDate: Date,

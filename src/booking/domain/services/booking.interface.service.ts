@@ -31,4 +31,9 @@ export interface IBookingService {
     email: string,
     lang?: string,
   ): Promise<BookingModel>;
+  confirmReservation(
+    id: string,
+    email: string,
+    lang?: string,
+  ): Promise<BookingModel>;
 }

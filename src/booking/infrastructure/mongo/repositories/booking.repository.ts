@@ -74,7 +74,7 @@ export class BookingRepository implements IBookingRepository {
   }
 
   async findById(id: string): Promise<BookingModel> {
-    const booking = await this.bookingDB.findById(id).populate('paymentMethod');
+    const booking = await this.bookingDB.findById(id).populate('paymentMethod status');
 
     if (!booking)
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
@@ -89,6 +89,7 @@ export class BookingRepository implements IBookingRepository {
       userId,
       startDate,
       endDate,
+      isReserve,
       page = 1,
       limit = 10,
     } = filters;
@@ -98,6 +99,9 @@ export class BookingRepository implements IBookingRepository {
     if (status) query.status = new Types.ObjectId(String(status));
     if (paymentMethod)
       query.paymentMethod = new Types.ObjectId(String(paymentMethod));
+    if (isReserve !== undefined) {
+      query.isReserve = isReserve === 'true' || isReserve === true;
+    }
 
     if (userId) {
       const user = await this.userDB.findById(userId).select('bookings').lean();
@@ -194,6 +198,7 @@ export class BookingRepository implements IBookingRepository {
           total: 1,
           totalPaid: 1,
           bookingNumber: 1,
+          isReserve: 1,
           status: '$statusData',
           paymentMethod: '$paymentMethodData',
           userContact: {

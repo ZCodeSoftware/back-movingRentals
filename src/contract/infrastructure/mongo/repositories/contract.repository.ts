@@ -544,6 +544,9 @@ export class ContractRepository implements IContractRepository {
     if (filters.status) {
       matchConditions['bookingData.status'] = new mongoose.Types.ObjectId(filters.status);
     }
+    if (filters.isReserve !== undefined) {
+      matchConditions['bookingData.isReserve'] = filters.isReserve === 'true' || filters.isReserve === true;
+    }
     if (filters.reservingUser) {
       // Detectar si es un ObjectId válido o un email/texto
       if (mongoose.Types.ObjectId.isValid(filters.reservingUser)) {
