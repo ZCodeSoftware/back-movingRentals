@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
 import { VEHICLE_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
+import { PromotionalPrice } from '../../../../core/infrastructure/mongo/schemas/public/promotional-price.schema';
 import { VehicleModel } from '../../../domain/models/vehicle.model';
 import { IVehicleRepository } from '../../../domain/repositories/vehicle.interface.repository';
 import { UpdatePriceByModelDTO } from '../../nest/dtos/vehicle.dto';
@@ -12,6 +13,7 @@ import { VehicleSchema } from '../schemas/vehicle.schema';
 export class VehicleRepository implements IVehicleRepository {
   constructor(
     @InjectModel('Vehicle') private readonly vehicleDB: Model<VehicleSchema>,
+    @InjectModel(PromotionalPrice.name) private readonly promotionalPriceDB: Model<PromotionalPrice>,
   ) {}
 
   async create(vehicle: VehicleModel): Promise<VehicleModel> {
@@ -81,7 +83,56 @@ export class VehicleRepository implements IVehicleRepository {
       .populate('owner')
       .populate('model');
 
-    return vehicles?.map((vehicle) => VehicleModel.hydrate(vehicle));
+    // Obtener la fecha actual para verificar promociones activas
+    const currentDate = new Date();
+
+    // Obtener todos los precios promocionales activos
+    const activePromotions = await this.promotionalPriceDB
+      .find({
+        startDate: { $lte: currentDate },
+        endDate: { $gte: currentDate },
+        isActive: true,
+      })
+      .lean();
+
+    // Crear un mapa de modelos con sus promociones activas
+    const promotionalPricesMap = new Map(
+      activePromotions.map((promo) => [promo.model.toString(), promo])
+    );
+
+    // Mapear vehículos y agregar información de promoción
+    return vehicles?.map((vehicle) => {
+      const vehicleData = VehicleModel.hydrate(vehicle);
+      const vehicleJson = vehicleData.toJSON();
+      
+      // Verificar si el modelo del vehículo tiene una promoción activa
+      const modelId = vehicleJson.model && typeof vehicleJson.model === 'object' && '_id' in vehicleJson.model
+        ? String(vehicleJson.model._id)
+        : null;
+      
+      const promotion = modelId ? promotionalPricesMap.get(modelId) : null;
+      const hasActivePromotion = !!promotion;
+
+      // Preparar los precios promocionales si existen
+      const promotionalPrices = promotion ? {
+        price: promotion.price,
+        pricePer4: promotion.pricePer4,
+        pricePer8: promotion.pricePer8,
+        pricePer24: promotion.pricePer24,
+        pricePerWeek: promotion.pricePerWeek,
+        pricePerMonth: promotion.pricePerMonth,
+        startDate: promotion.startDate,
+        endDate: promotion.endDate,
+        description: promotion.description,
+      } : null;
+
+      // Agregar los campos de promoción al objeto
+      return {
+        ...vehicleJson,
+        hasActivePromotion,
+        promotionalPrices,
+      } as any;
+    });
   }
 
   async findAll(filters: any): Promise<VehicleModel[]> {
@@ -97,7 +148,57 @@ export class VehicleRepository implements IVehicleRepository {
       .populate('category')
       .populate('owner')
       .populate('model');
-    return vehicles?.map((vehicle) => VehicleModel.hydrate(vehicle));
+
+    // Obtener la fecha actual para verificar promociones activas
+    const currentDate = new Date();
+
+    // Obtener todos los precios promocionales activos
+    const activePromotions = await this.promotionalPriceDB
+      .find({
+        startDate: { $lte: currentDate },
+        endDate: { $gte: currentDate },
+        isActive: true,
+      })
+      .lean();
+
+    // Crear un mapa de modelos con sus promociones activas
+    const promotionalPricesMap = new Map(
+      activePromotions.map((promo) => [promo.model.toString(), promo])
+    );
+
+    // Mapear vehículos y agregar información de promoción
+    return vehicles?.map((vehicle) => {
+      const vehicleData = VehicleModel.hydrate(vehicle);
+      const vehicleJson = vehicleData.toJSON();
+      
+      // Verificar si el modelo del vehículo tiene una promoción activa
+      const modelId = vehicleJson.model && typeof vehicleJson.model === 'object' && '_id' in vehicleJson.model
+        ? String(vehicleJson.model._id)
+        : null;
+      
+      const promotion = modelId ? promotionalPricesMap.get(modelId) : null;
+      const hasActivePromotion = !!promotion;
+
+      // Preparar los precios promocionales si existen
+      const promotionalPrices = promotion ? {
+        price: promotion.price,
+        pricePer4: promotion.pricePer4,
+        pricePer8: promotion.pricePer8,
+        pricePer24: promotion.pricePer24,
+        pricePerWeek: promotion.pricePerWeek,
+        pricePerMonth: promotion.pricePerMonth,
+        startDate: promotion.startDate,
+        endDate: promotion.endDate,
+        description: promotion.description,
+      } : null;
+
+      // Agregar los campos de promoción al objeto
+      return {
+        ...vehicleJson,
+        hasActivePromotion,
+        promotionalPrices,
+      } as any;
+    });
   }
 
   async update(id: string, vehicle: VehicleModel): Promise<VehicleModel> {

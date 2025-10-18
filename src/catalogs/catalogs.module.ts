@@ -102,6 +102,25 @@ import { ContractEventSeed } from './infrastructure/mongo/seed/contract-event.se
     catContractEventService,
     ContractEventSeed
   ],
-  exports: [],
+  exports: [
+    catModelRepository,
+    catModelService,
+    catCategoryRepository,
+    catCategoryService,
+    catStatusRepository,
+    catStatusService,
+    catRoleRepository,
+    catRoleService,
+    catDocumentRepository,
+    catDocumentService,
+    catPriceConditionRepository,
+    catPriceConditionService,
+    catPaymentMethodRepository,
+    catPaymentMethodService,
+    countryRepository,
+    countryService,
+    catContractEventRepository,
+    catContractEventService,
+  ],
 })
 export class CatalogsModule { }

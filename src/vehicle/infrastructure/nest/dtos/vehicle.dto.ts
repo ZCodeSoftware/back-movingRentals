@@ -55,6 +55,16 @@ export class CreateVehicleDTO {
     @IsNumber()
     pricePer24?: number;
 
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePerWeek?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePerMonth?: number;
+
     @ApiProperty()
     @IsNumber()
     @IsNotEmpty()
@@ -123,6 +133,16 @@ export class UpdateVehicleDTO {
     @IsNumber()
     pricePer24?: number;
 
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePerWeek?: number;
+
+    @IsOptional()
+    @ApiPropertyOptional()
+    @IsNumber()
+    pricePerMonth?: number;
+
     @ApiProperty()
     @IsNumber()
     @IsOptional()
@@ -181,4 +201,14 @@ export class UpdatePriceByModelDTO {
     @IsOptional()
     @ApiPropertyOptional()
     pricePer24?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @ApiPropertyOptional()
+    pricePerWeek?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @ApiPropertyOptional()
+    pricePerMonth?: number;
 }

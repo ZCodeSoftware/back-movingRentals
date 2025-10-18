@@ -46,6 +46,12 @@ export class Vehicle {
     @Prop({ required: false })
     pricePer24: number;
 
+    @Prop({ required: false })
+    pricePerWeek: number;
+
+    @Prop({ required: false })
+    pricePerMonth: number;
+
     @Prop()
     capacity: number;
 

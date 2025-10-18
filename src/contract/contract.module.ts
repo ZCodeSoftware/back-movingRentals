@@ -5,6 +5,7 @@ import { cartSchema, catContractEventSchema } from '../catalogs/infrastructure/c
 import { BookingTotalsService } from '../booking/application/services/booking-totals.service';
 import { MovementModule } from '../movement/movement.module';
 import { CommissionModule } from '../commission/commission.module';
+import { PromotionalPrice, PromotionalPriceSchema } from '../core/infrastructure/mongo/schemas/public/promotional-price.schema';
 import { VehicleRepository } from '../vehicle/infrastructure/mongo/repositories/vehicle.repository';
 import SymbolsVehicle from '../vehicle/symbols-vehicle';
 import {
@@ -32,7 +33,8 @@ import { ContractMovementLinkService } from './application/services/contract-mov
       cartVersionSchema,
       cartSchema,
       catContractEventSchema,
-      { name: Movement.name, schema: MovementSchema }
+      { name: Movement.name, schema: MovementSchema },
+      { name: PromotionalPrice.name, schema: PromotionalPriceSchema },
     ]),
     EventEmitterModule.forRoot(),
     MovementModule,

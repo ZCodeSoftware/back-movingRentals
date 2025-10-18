@@ -3,6 +3,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongooseModule } from '@nestjs/mongoose';
 import { branchesSchema } from '../branches/infrastructure/nest/constants/custom-schema';
 import { cartSchema } from '../cart/infrastructure/nest/constants/custom-schema';
+import { PromotionalPrice, PromotionalPriceSchema } from '../core/infrastructure/mongo/schemas/public/promotional-price.schema';
 import { ticketSchema } from '../ticket/infrastructure/nest/constants/custom-schema';
 import { tourSchema } from '../tour/infrastructure/nest/constants/custom-schema';
 import { transferSchema } from '../transfer/infrastructure/nest/constants/custom-schema';
@@ -36,7 +37,21 @@ import { commissionSchema } from '../commission/infrastructure/nest/constants/cu
 
 @Module({
   imports: [
-    MongooseModule.forFeature([bookingSchema, paymentMethodSchema, userSchema, vehicleSchema, catStatusSchema, cartSchema, branchesSchema, tourSchema, transferSchema, ticketSchema, commissionSchema, vehicleOwnerSchema]),
+    MongooseModule.forFeature([
+      bookingSchema,
+      paymentMethodSchema,
+      userSchema,
+      vehicleSchema,
+      catStatusSchema,
+      cartSchema,
+      branchesSchema,
+      tourSchema,
+      transferSchema,
+      ticketSchema,
+      commissionSchema,
+      vehicleOwnerSchema,
+      { name: PromotionalPrice.name, schema: PromotionalPriceSchema },
+    ]),
     EventEmitterModule.forRoot(),
   ],
   controllers: [BookingController],
