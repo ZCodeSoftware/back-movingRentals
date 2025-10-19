@@ -19,7 +19,7 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
   }
 
   private initializeBrevo(): string {
-    this.logger.log('=== CONFIGURACIÓN BREVO ADMIN ===');
+    // this.logger.log('=== CONFIGURACIÓN BREVO ADMIN ===');
 
     const apiKey =
       config().providerEmail?.brevo?.apiKey || process.env.BREVO_API_KEY;
@@ -31,9 +31,9 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
       throw new Error('Brevo API Key requerida para AdminEmailProvider');
     }
 
-    this.logger.log(`✅ Brevo Admin inicializado correctamente`);
-    this.logger.log(`API Key: ${apiKey.substring(0, 12)}...`);
-    this.logger.log('=== FIN CONFIGURACIÓN BREVO ADMIN ===');
+    // this.logger.log(`✅ Brevo Admin inicializado correctamente`);
+    // this.logger.log(`API Key: ${apiKey.substring(0, 12)}...`);
+    // this.logger.log('=== FIN CONFIGURACIÓN BREVO ADMIN ===');
 
     return apiKey;
   }
@@ -46,12 +46,12 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        this.logger.log(
-          `[${context}] 📧 Intento ${attempt}/${this.maxRetries} - Enviando admin email con Brevo...`,
-        );
-        this.logger.log(
-          `[${context}] From: ${emailData.sender.email}, To: ${emailData.to[0].email}, Subject: ${emailData.subject}`,
-        );
+        // this.logger.log(
+        //   `[${context}] 📧 Intento ${attempt}/${this.maxRetries} - Enviando admin email con Brevo...`,
+        // );
+        // this.logger.log(
+        //   `[${context}] From: ${emailData.sender.email}, To: ${emailData.to[0].email}, Subject: ${emailData.subject}`,
+        // );
 
         const startTime = Date.now();
 
@@ -75,12 +75,12 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
           );
         }
 
-        this.logger.log(
-          `[${context}] ✅ Admin email enviado exitosamente en ${endTime - startTime}ms`,
-        );
-        this.logger.log(
-          `[${context}] Message ID: ${responseData.messageId || 'N/A'}`,
-        );
+        // this.logger.log(
+        //   `[${context}] ✅ Admin email enviado exitosamente en ${endTime - startTime}ms`,
+        // );
+        // this.logger.log(
+        //   `[${context}] Message ID: ${responseData.messageId || 'N/A'}`,
+        // );
 
         return responseData;
       } catch (error) {

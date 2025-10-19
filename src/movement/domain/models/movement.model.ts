@@ -14,6 +14,8 @@ export class MovementModel extends BaseModel {
   private _date: Date;
   private _paymentMethod: TypeCatPaymentMethodAdmin;
   private _vehicle: string;
+  private _rentalDays?: number;
+  private _contract?: string;
   private _createdBy: UserModel | string;
   private _beneficiary?: UserModel | VehicleOwnerModel | string;
   private _beneficiaryModel?: 'User' | 'VehicleOwner';
@@ -29,6 +31,8 @@ export class MovementModel extends BaseModel {
       date: this._date,
       paymentMethod: this._paymentMethod,
       vehicle: this._vehicle,
+      rentalDays: this._rentalDays,
+      contract: this._contract,
       createdBy: this._createdBy instanceof UserModel ? this._createdBy.toJSON() : this._createdBy,
       beneficiary: this._beneficiary instanceof UserModel || this._beneficiary instanceof VehicleOwnerModel
         ? this._beneficiary.toJSON()
@@ -46,6 +50,8 @@ export class MovementModel extends BaseModel {
     newMovement._date = movement.date;
     newMovement._paymentMethod = movement.paymentMethod;
     newMovement._vehicle = movement.vehicle;
+    newMovement._rentalDays = movement.rentalDays;
+    newMovement._contract = movement.contract;
     newMovement._createdBy = movement.createdBy;
 
     return newMovement;
@@ -60,6 +66,8 @@ export class MovementModel extends BaseModel {
     newMovement._date = movement.date;
     newMovement._paymentMethod = movement.paymentMethod;
     newMovement._vehicle = movement.vehicle;
+    newMovement._rentalDays = movement.rentalDays;
+    newMovement._contract = movement.contract;
     newMovement._createdBy = movement.createdBy ? UserModel.hydrate(movement.createdBy) : null;
     newMovement._beneficiaryModel = movement.beneficiaryModel;
     if (movement.beneficiary) {

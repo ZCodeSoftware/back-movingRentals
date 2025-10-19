@@ -12,6 +12,7 @@ export default registerAs('config', () => {
       },
       domain: process.env.APP_DOMAIN,
       env: process.env.NODE_ENV,
+      backend_url: process.env.BACKEND_URL,
     },
     auth: {
       jwt: {
