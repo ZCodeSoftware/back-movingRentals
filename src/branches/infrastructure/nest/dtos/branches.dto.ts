@@ -42,6 +42,11 @@ export class CreateCarouselDTO {
   @IsString()
   description?: string;
 
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Descripción opcional del carousel en inglés' })
+  @IsString()
+  descriptionEn?: string;
+
   @IsNotEmpty()
   @ApiProperty({
     description: 'Array de colores en formato hexadecimal',

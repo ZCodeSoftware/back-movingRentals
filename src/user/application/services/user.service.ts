@@ -284,4 +284,55 @@ export class UserService implements IUserService {
       throw new BaseErrorException(error.message, error.statusCode);
     }
   }
+
+  async resetPasswordByAdmin(
+    id: string,
+    requestHost: string,
+    requestingUserId: string,
+  ): Promise<any> {
+    try {
+      // Buscar el usuario objetivo (cuya contraseña se va a restablecer)
+      const targetUser = await this.userRepository.findById(id);
+      if (!targetUser) {
+        throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Buscar el usuario que está haciendo la petición
+      const requestingUser = await this.userRepository.findById(requestingUserId);
+      if (!requestingUser) {
+        throw new BaseErrorException('Requesting user not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Obtener los roles
+      const targetUserRole = targetUser.toJSON().role?.name;
+      const requestingUserRole = requestingUser.toJSON().role?.name;
+
+      // Validar que un ADMIN no pueda restablecer la contraseña de un SUPERADMIN
+      if (requestingUserRole === 'ADMIN' && targetUserRole === 'SUPERADMIN') {
+        throw new BaseErrorException(
+          'Admin users cannot reset superadmin passwords',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      // Generar una nueva contraseña aleatoria
+      const newPassword = generatePassword(8);
+
+      // Actualizar la contraseña del usuario
+      // NOTA: No hasheamos aquí porque el repositorio ya lo hace en el método update
+      const userModel = UserModel.create({
+        password: newPassword,
+      });
+
+      await this.userRepository.update(id, userModel);
+
+      return {
+        message: 'Password reset successfully',
+        email: targetUser.toJSON().email,
+        newPassword: newPassword,
+      };
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
 }

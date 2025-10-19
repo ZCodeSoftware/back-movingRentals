@@ -13,6 +13,8 @@ export class VehicleOwnerSeed implements OnModuleInit {
   ) { }
 
   async onModuleInit() {
+    // Seed commented out
+    /*
     const names = [
       'ALAIN',
       'S/D',
@@ -159,5 +161,6 @@ export class VehicleOwnerSeed implements OnModuleInit {
     }
 
     this.logger.log('VehicleOwner seed completed');
+    */
   }
 }

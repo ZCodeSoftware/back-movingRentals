@@ -32,46 +32,46 @@ export class NotificationEventService implements INotificationEventService {
   }
 
   private logEnvironmentConfig() {
-    this.logger.log('=== CONFIGURACIÓN DE ENTORNO ===');
+    // this.logger.log('=== CONFIGURACIÓN DE ENTORNO ===');
 
     // Variables de entorno comunes para email providers
-    const emailEnvVars = [
-      'SMTP_HOST',
-      'SMTP_PORT',
-      'SMTP_USER',
-      'SMTP_FROM',
-      'SENDGRID_API_KEY',
-      'AWS_SES_ACCESS_KEY_ID',
-      'AWS_SES_SECRET_ACCESS_KEY',
-      'AWS_SES_REGION',
-      'MAILGUN_API_KEY',
-      'MAILGUN_DOMAIN',
-      'RESEND_API_KEY',
-      'EMAIL_SERVICE',
-      'EMAIL_PROVIDER',
-    ];
+    // const emailEnvVars = [
+    //   'SMTP_HOST',
+    //   'SMTP_PORT',
+    //   'SMTP_USER',
+    //   'SMTP_FROM',
+    //   'SENDGRID_API_KEY',
+    //   'AWS_SES_ACCESS_KEY_ID',
+    //   'AWS_SES_SECRET_ACCESS_KEY',
+    //   'AWS_SES_REGION',
+    //   'MAILGUN_API_KEY',
+    //   'MAILGUN_DOMAIN',
+    //   'RESEND_API_KEY',
+    //   'EMAIL_SERVICE',
+    //   'EMAIL_PROVIDER',
+    // ];
 
-    emailEnvVars.forEach((envVar) => {
-      const value = process.env[envVar];
-      if (value) {
-        // Ocultar valores sensibles
-        const maskedValue =
-          envVar.includes('KEY') ||
-          envVar.includes('SECRET') ||
-          envVar.includes('PASSWORD')
-            ? `${value.substring(0, 4)}***${value.substring(value.length - 4)}`
-            : value;
-        this.logger.log(`${envVar}: ${maskedValue}`);
-      } else {
-        this.logger.warn(`${envVar}: NO CONFIGURADA`);
-      }
-    });
+    // emailEnvVars.forEach((envVar) => {
+    //   const value = process.env[envVar];
+    //   if (value) {
+    //     // Ocultar valores sensibles
+    //     const maskedValue =
+    //       envVar.includes('KEY') ||
+    //       envVar.includes('SECRET') ||
+    //       envVar.includes('PASSWORD')
+    //         ? `${value.substring(0, 4)}***${value.substring(value.length - 4)}`
+    //         : value;
+    //     this.logger.log(`${envVar}: ${maskedValue}`);
+    //   } else {
+    //     this.logger.warn(`${envVar}: NO CONFIGURADA`);
+    //   }
+    // });
 
     // Información del sistema
-    this.logger.log(`NODE_ENV: ${process.env.NODE_ENV || 'NO CONFIGURADO'}`);
-    this.logger.log(`Platform: ${process.platform}`);
-    this.logger.log(`Node Version: ${process.version}`);
-    this.logger.log('=== FIN CONFIGURACIÓN ===');
+    // this.logger.log(`NODE_ENV: ${process.env.NODE_ENV || 'NO CONFIGURADO'}`);
+    // this.logger.log(`Platform: ${process.platform}`);
+    // this.logger.log(`Node Version: ${process.version}`);
+    // this.logger.log('=== FIN CONFIGURACIÓN ===');
   }
 
   async reservationUserEmail(email: string, name: string): Promise<any> {

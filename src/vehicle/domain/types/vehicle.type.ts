@@ -7,6 +7,8 @@ export interface ICreateVehicle {
     pricePer4?: number;
     pricePer8?: number;
     pricePer24?: number;
+    pricePerWeek?: number;
+    pricePerMonth?: number;
     minRentalHours: number;
     capacity: number;
     category: string;
@@ -23,6 +25,8 @@ export interface IUpdateVehicle {
     pricePer4?: number;
     pricePer8?: number;
     pricePer24?: number;
+    pricePerWeek?: number;
+    pricePerMonth?: number;
     minRentalHours?: number;
     capacity?: number;
     isActive?: boolean;
@@ -36,4 +40,6 @@ export interface IUpdatePriceByModel {
     pricePer4?: number;
     pricePer8?: number;
     pricePer24?: number;
+    pricePerWeek?: number;
+    pricePerMonth?: number;
 }

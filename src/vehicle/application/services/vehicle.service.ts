@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import * as XLSX from 'xlsx';
 import SymbolsCatalogs from "../../../catalogs/symbols-catalogs";
 import { BaseErrorException } from "../../../core/domain/exceptions/base.error.exception";
 import SymbolsVehicleOwner from "../../../vehicleowner/symbols-vehicleowner";
@@ -93,5 +94,95 @@ export class VehicleService implements IVehicleService {
 
     async delete(id: string): Promise<void> {
         return this.vehicleRepository.softDelete(id);
+    }
+
+    async bulkUpdatePricesFromExcel(file: any): Promise<any> {
+        if (!file) {
+            throw new BadRequestException('No file provided');
+        }
+
+        try {
+            // Leer el archivo Excel desde el buffer
+            const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+            
+            // Obtener la primera hoja
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Convertir a JSON
+            const data: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+            if (!data || data.length === 0) {
+                throw new BadRequestException('Excel file is empty');
+            }
+
+            const results = {
+                processed: 0,
+                updated: 0,
+                notFound: [] as string[],
+                errors: [] as string[],
+            };
+
+            // Obtener todos los vehículos para hacer el mapeo
+            const allVehicles = await this.vehicleRepository.findAll({});
+
+            // Procesar cada fila del Excel
+            for (const row of data) {
+                results.processed++;
+
+                try {
+                    // Mapear las columnas del Excel
+                    const nombre = row['Nombre'] || row['nombre'] || row['NOMBRE'];
+                    const semanal = row['Semanal'] || row['semanal'] || row['SEMANAL'];
+                    const mensual = row['Mensual'] || row['mensual'] || row['MENSUAL'];
+
+                    if (!nombre) {
+                        results.errors.push(`Fila ${results.processed}: Columna 'Nombre' no encontrada`);
+                        continue;
+                    }
+
+                    // Buscar el vehículo por nombre
+                    const vehicle = allVehicles.find(v => {
+                        const vehicleData = v.toJSON();
+                        return vehicleData.name === nombre;
+                    });
+
+                    if (!vehicle) {
+                        results.notFound.push(nombre);
+                        continue;
+                    }
+
+                    // Preparar los datos de actualización
+                    const updateData: any = {};
+                    
+                    if (semanal !== undefined && semanal !== null && semanal !== '') {
+                        updateData.pricePerWeek = Number(semanal);
+                    }
+                    
+                    if (mensual !== undefined && mensual !== null && mensual !== '') {
+                        updateData.pricePerMonth = Number(mensual);
+                    }
+
+                    // Solo actualizar si hay datos para actualizar
+                    if (Object.keys(updateData).length > 0) {
+                        const vehicleId = vehicle.toJSON()._id.toString();
+                        const vehicleModel = VehicleModel.create(updateData);
+                        await this.vehicleRepository.update(vehicleId, vehicleModel);
+                        results.updated++;
+                    }
+
+                } catch (error) {
+                    results.errors.push(`Fila ${results.processed}: ${error.message}`);
+                }
+            }
+
+            return {
+                message: 'Bulk update completed',
+                ...results,
+            };
+
+        } catch (error) {
+            throw new BadRequestException(`Error processing Excel file: ${error.message}`);
+        }
     }
 }

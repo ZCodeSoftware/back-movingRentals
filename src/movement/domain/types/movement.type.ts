@@ -9,5 +9,7 @@ export interface ICreateMovement {
     date: Date;
     paymentMethod: TypeCatPaymentMethodAdmin;
     vehicle?: string;
+    rentalDays?: number;
+    contract?: string;
     beneficiary?: string;
 };

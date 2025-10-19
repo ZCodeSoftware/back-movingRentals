@@ -10,4 +10,5 @@ export interface IVehicleService {
     updateByModel(model: string, prices: IUpdatePriceByModel): Promise<void>;
     updateReservation(vehicleId: string, originalEndDate: Date, newEndDate: Date): Promise<void>;
     delete(id: string): Promise<void>;
+    bulkUpdatePricesFromExcel(file: any): Promise<any>;
 }

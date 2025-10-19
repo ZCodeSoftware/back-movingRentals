@@ -17,6 +17,13 @@ export class Carousel {
     description: string;
 
     @Prop({
+        type: String,
+        required: false,
+        default: ''
+    })
+    descriptionEn: string;
+
+    @Prop({
         type: [String],
         required: true,
     })

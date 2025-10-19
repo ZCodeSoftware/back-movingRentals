@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
-import { ApiBody, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ApiBody, ApiConsumes, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../../../auth/infrastructure/nest/decorators/role.decorator";
 import { AuthGuards } from "../../../../auth/infrastructure/nest/guards/auth.guard";
 import { RoleGuard } from "../../../../auth/infrastructure/nest/guards/role.guard";
@@ -77,5 +78,42 @@ export class VehicleController {
     @UseGuards(AuthGuards, RoleGuard)
     async delete(@Param('id') id: string): Promise<void> {
         await this.vehicleService.delete(id);
+    }
+
+    @Post('bulk-update-prices')
+    @HttpCode(200)
+    /*     @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
+        @UseGuards(AuthGuards, RoleGuard) */
+    @UseInterceptors(FileInterceptor('file'))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: 'Excel file with vehicle prices (columns: Nombre, Semanal, Mensual)',
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Bulk update completed',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string' },
+                processed: { type: 'number' },
+                updated: { type: 'number' },
+                notFound: { type: 'array', items: { type: 'string' } },
+                errors: { type: 'array', items: { type: 'string' } }
+            }
+        }
+    })
+    @ApiResponse({ status: 400, description: 'Invalid file or format' })
+    async bulkUpdatePrices(@UploadedFile() file: any) {
+        return this.vehicleService.bulkUpdatePricesFromExcel(file);
     }
 }

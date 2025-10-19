@@ -8,12 +8,15 @@ import { VehicleOwnerModel } from './vehicleowner.model';
 export class VehicleModel extends BaseModel {
   private _name: string;
   private _tag: string;
+  private _tagEn?: string;
   private _description?: string;
   private _images: string[];
   private _price?: number;
   private _pricePer4?: number;
   private _pricePer8?: number;
   private _pricePer24?: number;
+  private _pricePerWeek?: number;
+  private _pricePerMonth?: number;
   private _capacity: number;
   private _minRentalHours: number;
   private _isActive: boolean = true;
@@ -28,12 +31,15 @@ export class VehicleModel extends BaseModel {
       ...aggregate,
       name: this._name,
       tag: this._tag,
+      tagEn: this._tagEn,
       description: this._description,
       images: this._images,
       price: this._price,
       pricePer4: this._pricePer4,
       pricePer8: this._pricePer8,
       pricePer24: this._pricePer24,
+      pricePerWeek: this._pricePerWeek,
+      pricePerMonth: this._pricePerMonth,
       capacity: this._capacity,
       minRentalHours: this._minRentalHours,
       isActive: this._isActive,
@@ -68,12 +74,15 @@ export class VehicleModel extends BaseModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
     newVehicle._tag = vehicle.tag;
+    newVehicle._tagEn = vehicle.tagEn;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images
     newVehicle._price = vehicle.price;
     newVehicle._pricePer4 = vehicle.pricePer4;
     newVehicle._pricePer8 = vehicle.pricePer8;
     newVehicle._pricePer24 = vehicle.pricePer24;
+    newVehicle._pricePerWeek = vehicle.pricePerWeek;
+    newVehicle._pricePerMonth = vehicle.pricePerMonth;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
     newVehicle._isActive = vehicle.isActive;
@@ -86,6 +95,7 @@ export class VehicleModel extends BaseModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
     newVehicle._tag = vehicle.tag;
+    newVehicle._tagEn = vehicle.tagEn;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
     newVehicle._model = vehicle.model;
@@ -93,6 +103,8 @@ export class VehicleModel extends BaseModel {
     newVehicle._pricePer4 = vehicle.pricePer4;
     newVehicle._pricePer8 = vehicle.pricePer8;
     newVehicle._pricePer24 = vehicle.pricePer24;
+    newVehicle._pricePerWeek = vehicle.pricePerWeek;
+    newVehicle._pricePerMonth = vehicle.pricePerMonth;
     newVehicle._capacity = vehicle.capacity;
     newVehicle._minRentalHours = vehicle.minRentalHours;
     newVehicle._isActive = vehicle.isActive;

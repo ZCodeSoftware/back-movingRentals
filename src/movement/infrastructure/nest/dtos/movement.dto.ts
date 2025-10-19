@@ -62,6 +62,21 @@ export class CreateMovementDTO {
     vehicle?: string;
 
     @IsOptional()
+    @ApiPropertyOptional({
+        description: "Number of rental days",
+        type: Number,
+    })
+    rentalDays?: number;
+
+    @IsOptional()
+    @IsString()
+    @ApiPropertyOptional({
+        description: "Contract associated with the movement",
+        type: String,
+    })
+    contract?: string;
+
+    @IsOptional()
     @IsString()
     @ApiPropertyOptional({
         description: "Beneficiary associated with the movement",

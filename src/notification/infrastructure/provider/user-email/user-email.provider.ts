@@ -24,7 +24,7 @@ export class UserEmailProvider implements IUserEmailAdapter {
   }
 
   private initializeBrevo(): string {
-    this.logger.log('=== CONFIGURACIÓN BREVO ===');
+    // this.logger.log('=== CONFIGURACIÓN BREVO ===');
 
     const apiKey =
       config().providerEmail?.brevo?.apiKey || process.env.BREVO_API_KEY;
@@ -46,11 +46,11 @@ export class UserEmailProvider implements IUserEmailAdapter {
       );
     }
 
-    this.logger.log(`✅ Brevo inicializado correctamente`);
-    this.logger.log(`API Key: ${apiKey.substring(0, 12)}...`);
-    this.logger.log(`Timeout configurado: ${this.timeout}ms`);
-    this.logger.log(`Plan Gratuito: 300 emails/día, 9,000/mes`);
-    this.logger.log('=== FIN CONFIGURACIÓN BREVO ===');
+    // this.logger.log(`✅ Brevo inicializado correctamente`);
+    // this.logger.log(`API Key: ${apiKey.substring(0, 12)}...`);
+    // this.logger.log(`Timeout configurado: ${this.timeout}ms`);
+    // this.logger.log(`Plan Gratuito: 300 emails/día, 9,000/mes`);
+    // this.logger.log('=== FIN CONFIGURACIÓN BREVO ===');
 
     return apiKey;
   }
@@ -63,12 +63,12 @@ export class UserEmailProvider implements IUserEmailAdapter {
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        this.logger.log(
-          `[${context}] 📧 Intento ${attempt}/${this.maxRetries} - Enviando con Brevo...`,
-        );
-        this.logger.log(
-          `[${context}] From: ${emailData.sender.email}, To: ${emailData.to[0].email}, Subject: ${emailData.subject}`,
-        );
+        // this.logger.log(
+        //   `[${context}] 📧 Intento ${attempt}/${this.maxRetries} - Enviando con Brevo...`,
+        // );
+        // this.logger.log(
+        //   `[${context}] From: ${emailData.sender.email}, To: ${emailData.to[0].email}, Subject: ${emailData.subject}`,
+        // );
 
         const startTime = Date.now();
 
@@ -92,15 +92,15 @@ export class UserEmailProvider implements IUserEmailAdapter {
           );
         }
 
-        this.logger.log(
-          `[${context}] ✅ Email enviado exitosamente en ${endTime - startTime}ms`,
-        );
-        this.logger.log(
-          `[${context}] Message ID: ${responseData.messageId || 'N/A'}`,
-        );
-        this.logger.log(
-          `[${context}] Response: ${JSON.stringify(responseData)}`,
-        );
+        // this.logger.log(
+        //   `[${context}] ✅ Email enviado exitosamente en ${endTime - startTime}ms`,
+        // );
+        // this.logger.log(
+        //   `[${context}] Message ID: ${responseData.messageId || 'N/A'}`,
+        // );
+        // this.logger.log(
+        //   `[${context}] Response: ${JSON.stringify(responseData)}`,
+        // );
 
         return responseData;
       } catch (error) {

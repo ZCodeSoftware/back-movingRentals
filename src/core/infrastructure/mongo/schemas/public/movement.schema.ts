@@ -32,6 +32,12 @@ export class Movement {
   @Prop({ required: false, type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' })
   vehicle?: Vehicle;
 
+  @Prop({ required: false, type: Number })
+  rentalDays?: number;
+
+  @Prop({ required: false, type: mongoose.Schema.Types.ObjectId, ref: 'Contract' })
+  contract?: mongoose.Types.ObjectId;
+
   @Prop({ required: true, type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   createdBy: User;
 

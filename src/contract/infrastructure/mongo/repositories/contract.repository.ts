@@ -801,10 +801,15 @@ export class ContractRepository implements IContractRepository {
 
         
         // Preparar eventMetadata si es una extensión con información de pago
+        // IMPORTANTE: Solo crear EXTENSION_UPDATED si el reasonForChange es "EXTENSION DE RENTA"
         let eventMetadata = undefined;
         let eventTypeId = undefined;
+        // Normalizar el reasonForChange para comparación (trim y uppercase)
+        const isExtensionReason = reasonForChange && 
+          typeof reasonForChange === 'string' && 
+          reasonForChange.trim().toUpperCase() === 'EXTENSION DE RENTA';
         
-        if (contractUpdateData.extension?.extensionAmount && contractUpdateData.extension?.paymentMethod) {
+        if (contractUpdateData.extension?.extensionAmount && contractUpdateData.extension?.paymentMethod && isExtensionReason) {
 
           
           // Obtener el eventType del contractData (viene del payload)
@@ -828,18 +833,55 @@ export class ContractRepository implements IContractRepository {
           };
           
           console.log('[ContractRepository][update] eventMetadata creado:', JSON.stringify(eventMetadata, null, 2));
-        }
+        } else if (contractUpdateData.extension?.extensionAmount && !isExtensionReason) {
+                  }
 
-        await new this.contractHistoryModel({
-          contract: id,
-          performedBy: userId,
-          action: ContractAction.EXTENSION_UPDATED,
-          changes: changesToLog,
-          details: `Se actualizaron campos del contrato.`,
-          createdBy: createdByValue,
-          eventMetadata: eventMetadata,
-          eventType: eventTypeId ? new mongoose.Types.ObjectId(eventTypeId) : undefined,
-        }).save({ session });
+        // Solo crear el histórico EXTENSION_UPDATED si es realmente una extensión
+        if (isExtensionReason && eventMetadata) {
+          await new this.contractHistoryModel({
+            contract: id,
+            performedBy: userId,
+            action: ContractAction.EXTENSION_UPDATED,
+            changes: changesToLog,
+            details: `Se actualizaron campos del contrato.`,
+            createdBy: createdByValue,
+            eventMetadata: eventMetadata,
+            eventType: eventTypeId ? new mongoose.Types.ObjectId(eventTypeId) : undefined,
+          }).save({ session });
+        } else if (contractUpdateData.extension?.extensionAmount && !isExtensionReason) {
+          // Si hay datos de extensión pero NO es una extensión real (ej: CRASH, CAMBIO DE VEHICULO, etc.)
+          // Crear un histórico con el eventType correspondiente
+          const eventTypeIdFromPayload = (contractData as any).eventType;
+          
+          // Obtener el vehículo del newCart si existe
+          const vehicleId = (contractData as any).newCart?.vehicles?.[0]?.vehicle?._id || 
+                           (contractData as any).newCart?.vehicles?.[0]?.vehicle;
+          
+          // Obtener el concierge del contractData
+          const concierge = (contractData as any).concierge;
+          
+          // Crear eventMetadata para el evento (no extensión)
+          const nonExtensionMetadata = {
+            amount: contractUpdateData.extension.extensionAmount,
+            paymentMethod: contractUpdateData.extension.paymentMethod,
+            paymentMedium: (contractData as any).extension?.paymentMedium || 'CUENTA',
+            depositNote: (contractData as any).extension?.depositNote,
+            vehicle: vehicleId,
+            beneficiary: concierge,
+            date: contractUpdateData.extension.newEndDateTime || new Date()
+          };
+          
+          await new this.contractHistoryModel({
+            contract: id,
+            performedBy: userId,
+            action: ContractAction.NOTE_ADDED, // Usar NOTE_ADDED para eventos personalizados
+            changes: changesToLog,
+            details: reasonForChange || 'Evento registrado',
+            createdBy: createdByValue,
+            eventMetadata: nonExtensionMetadata,
+            eventType: eventTypeIdFromPayload ? new mongoose.Types.ObjectId(eventTypeIdFromPayload) : undefined,
+          }).save({ session });
+        }
       }
 
       if (newCart) {
