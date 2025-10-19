@@ -5,6 +5,7 @@ import { VehicleModel } from './vehicle.model';
 export class CarouselModel extends BaseModel {
     private _vehicle: VehicleModel;
     private _description?: string;
+    private _descriptionEn?: string;
     private _colors: string[];
 
     public toJSON() {
@@ -13,6 +14,7 @@ export class CarouselModel extends BaseModel {
             ...aggregate,
             vehicle: this._vehicle ? this._vehicle.toJSON() : {},
             description: this._description,
+            descriptionEn: this._descriptionEn,
             colors: this._colors,
         };
     }
@@ -24,6 +26,7 @@ export class CarouselModel extends BaseModel {
     static create(carousel: any): CarouselModel {
         const newCarousel = new CarouselModel(new Identifier(carousel._id));
         newCarousel._description = carousel.description;
+        newCarousel._descriptionEn = carousel.descriptionEn;
         newCarousel._colors = carousel.colors || [];
 
         return newCarousel;
@@ -32,6 +35,7 @@ export class CarouselModel extends BaseModel {
     static hydrate(carousel: any): CarouselModel {
         const newCarousel = new CarouselModel(new Identifier(carousel._id));
         newCarousel._description = carousel.description;
+        newCarousel._descriptionEn = carousel.descriptionEn;
         newCarousel._colors = carousel.colors || [];
         newCarousel._vehicle = carousel.vehicle
             ? VehicleModel.hydrate(carousel.vehicle)

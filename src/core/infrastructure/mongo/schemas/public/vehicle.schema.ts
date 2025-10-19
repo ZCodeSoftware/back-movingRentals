@@ -29,6 +29,9 @@ export class Vehicle {
     tag: string
 
     @Prop({ required: false })
+    tagEn: string;
+
+    @Prop({ required: false })
     description: string;
 
     @Prop({ required: false })

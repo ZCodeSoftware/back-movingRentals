@@ -28,6 +28,11 @@ export class CreateVehicleDTO {
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
+    tagEn?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
     description: string;
 
     @IsString({ each: true })
@@ -102,6 +107,11 @@ export class UpdateVehicleDTO {
     @IsOptional()
     @ApiPropertyOptional()
     tag?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional()
+    tagEn?: string;
 
     @IsString()
     @IsOptional()

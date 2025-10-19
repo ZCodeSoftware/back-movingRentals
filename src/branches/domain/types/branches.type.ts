@@ -9,5 +9,6 @@ export interface ICreateBranches {
 export interface ICreateCarousel {
   vehicleId: string;
   description?: string;
+  descriptionEn?: string;
   colors: string[];
 }

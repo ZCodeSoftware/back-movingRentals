@@ -5,6 +5,7 @@ import { CatCategoryModel } from './cat-category.model';
 export class VehicleModel extends BaseModel {
   private _name: string;
   private _tag?: string;
+  private _tagEn?: string;
   private _specs?: string;
   private _description?: string;
   private _images: string;
@@ -18,6 +19,7 @@ export class VehicleModel extends BaseModel {
       ...aggregate,
       name: this._name,
       tag: this._tag,
+      tagEn: this._tagEn,
       specs: this._specs,
       description: this._description,
       images: this._images,
@@ -35,6 +37,7 @@ export class VehicleModel extends BaseModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
     newVehicle._tag = vehicle.tag;
+    newVehicle._tagEn = vehicle.tagEn;
     newVehicle._specs = vehicle.specs;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
@@ -48,6 +51,7 @@ export class VehicleModel extends BaseModel {
     const newVehicle = new VehicleModel(new Identifier(vehicle._id));
     newVehicle._name = vehicle.name;
     newVehicle._tag = vehicle.tag;
+    newVehicle._tagEn = vehicle.tagEn;
     newVehicle._specs = vehicle.specs;
     newVehicle._description = vehicle.description;
     newVehicle._images = vehicle.images;
