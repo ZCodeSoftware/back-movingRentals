@@ -28,6 +28,32 @@ export class PromotionalPriceService implements IPromotionalPriceService {
             throw new BaseErrorException('Start date must be before end date', 400);
         }
 
+        // Validar que no haya solapamiento con otros intervalos del mismo modelo
+        const existingPromotions = await this.promotionalPriceRepository.findAll({
+            model,
+            isActive: true,
+        });
+
+        const hasOverlap = existingPromotions.some((promo) => {
+            const promoJson = promo.toJSON();
+            const promoStart = new Date(promoJson.startDate);
+            const promoEnd = new Date(promoJson.endDate);
+
+            // Verificar si hay solapamiento
+            return (
+                (startDate >= promoStart && startDate <= promoEnd) ||
+                (endDate >= promoStart && endDate <= promoEnd) ||
+                (startDate <= promoStart && endDate >= promoEnd)
+            );
+        });
+
+        if (hasOverlap) {
+            throw new BaseErrorException(
+                'Date range overlaps with an existing promotional price for this model',
+                400,
+            );
+        }
+
         const promotionalPriceModel = PromotionalPriceModel.create({
             ...rest,
             startDate,
@@ -60,6 +86,10 @@ export class PromotionalPriceService implements IPromotionalPriceService {
     async update(id: string, data: IUpdatePromotionalPrice): Promise<PromotionalPriceModel> {
         const { model, ...rest } = data;
 
+        // Obtener la promoción actual
+        const currentPromo = await this.promotionalPriceRepository.findById(id);
+        const currentJson = currentPromo.toJSON();
+
         // Validar fechas si se proporcionan ambas
         if (data.startDate && data.endDate) {
             const startDate = new Date(data.startDate);
@@ -67,6 +97,44 @@ export class PromotionalPriceService implements IPromotionalPriceService {
 
             if (startDate >= endDate) {
                 throw new BaseErrorException('Start date must be before end date', 400);
+            }
+
+            // Validar que no haya solapamiento con otros intervalos del mismo modelo (excluyendo el actual)
+            const modelId = model || (
+                currentJson.model && 
+                typeof currentJson.model === 'object' && 
+                '_id' in currentJson.model 
+                    ? String(currentJson.model._id) 
+                    : null
+            );
+            if (modelId) {
+                const existingPromotions = await this.promotionalPriceRepository.findAll({
+                    model: modelId,
+                    isActive: true,
+                });
+
+                const hasOverlap = existingPromotions.some((promo) => {
+                    const promoJson = promo.toJSON();
+                    // Excluir la promoción actual de la validación
+                    if (String(promoJson._id) === id) return false;
+
+                    const promoStart = new Date(promoJson.startDate);
+                    const promoEnd = new Date(promoJson.endDate);
+
+                    // Verificar si hay solapamiento
+                    return (
+                        (startDate >= promoStart && startDate <= promoEnd) ||
+                        (endDate >= promoStart && endDate <= promoEnd) ||
+                        (startDate <= promoStart && endDate >= promoEnd)
+                    );
+                });
+
+                if (hasOverlap) {
+                    throw new BaseErrorException(
+                        'Date range overlaps with an existing promotional price for this model',
+                        400,
+                    );
+                }
             }
         }
 
