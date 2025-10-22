@@ -64,4 +64,9 @@ export class CreateBookingDTO {
   @ApiPropertyOptional({ description: 'Commission percentage for the booking' })
   @IsNumber()
   commission?: number;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Indicates if this is a reservation (partial payment)' })
+  @IsBoolean()
+  isReserve?: boolean;
 }

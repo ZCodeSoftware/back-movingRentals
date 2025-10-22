@@ -529,6 +529,24 @@ export class ContractRepository implements IContractRepository {
         localField: 'reservingUser',
         foreignField: '_id',
         as: 'reservingUserData',
+        pipeline: [
+          // Incluir usuarios eliminados - no filtrar por isDeleted
+          {
+            $project: {
+              name: 1,
+              lastName: 1,
+              email: 1,
+              role: 1,
+              cellphone: 1,
+              documentation: 1,
+              isActive: 1,
+              newsletter: 1,
+              cart: 1,
+              address: 1,
+              isDeleted: 1, // Incluir el campo isDeleted para saber si está eliminado
+            }
+          }
+        ]
       },
     });
     pipeline.push({
@@ -593,6 +611,24 @@ export class ContractRepository implements IContractRepository {
               localField: 'createdByUser',
               foreignField: '_id',
               as: 'createdByUserData',
+              pipeline: [
+                // Incluir usuarios eliminados - no filtrar por isDeleted
+                {
+                  $project: {
+                    name: 1,
+                    lastName: 1,
+                    email: 1,
+                    role: 1,
+                    cellphone: 1,
+                    documentation: 1,
+                    isActive: 1,
+                    newsletter: 1,
+                    cart: 1,
+                    address: 1,
+                    isDeleted: 1, // Incluir el campo isDeleted para saber si está eliminado
+                  }
+                }
+              ]
             },
           });
           pipeline.push({
@@ -680,10 +716,32 @@ export class ContractRepository implements IContractRepository {
     const aggregationResult = await this.contractModel
       .aggregate(pipeline)
       .exec();
-    const contracts = await this.contractModel.populate(aggregationResult, [
-      { path: 'booking' },
-      { path: 'reservingUser' },
-      { path: 'createdByUser' },
+    
+    // Mapear los datos de usuario desde el aggregation pipeline
+    const contracts = aggregationResult.map(contract => {
+      // Asignar reservingUser desde reservingUserData si existe
+      if (contract.reservingUserData) {
+        contract.reservingUser = contract.reservingUserData;
+        delete contract.reservingUserData;
+      }
+      
+      // Asignar createdByUser desde createdByUserData si existe
+      if (contract.createdByUserData) {
+        contract.createdByUser = contract.createdByUserData;
+        delete contract.createdByUserData;
+      }
+      
+      // Asignar booking desde bookingData
+      if (contract.bookingData) {
+        contract.booking = contract.bookingData;
+        delete contract.bookingData;
+      }
+      
+      return contract;
+    });
+    
+    // Populate solo los campos que no son usuarios (para evitar el middleware de soft delete)
+    const populatedContracts = await this.contractModel.populate(contracts, [
       { path: 'status' },
       { path: 'extension.paymentMethod' },
       { path: 'extension.extensionStatus' },

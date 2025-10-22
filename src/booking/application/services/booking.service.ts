@@ -211,6 +211,7 @@ export class BookingService implements IBookingService {
       total: body.total ?? total,
       totalPaid: body.totalPaid ?? total,
       isValidated: true,
+      isReserve: body.isReserve ?? false,
       metadata: body.metadata || {},
       commission: body.commission,
       concierge: body.concierge,
