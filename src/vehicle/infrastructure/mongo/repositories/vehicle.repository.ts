@@ -2,8 +2,8 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseErrorException } from '../../../../core/domain/exceptions/base.error.exception';
-import { VEHICLE_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { PromotionalPrice } from '../../../../core/infrastructure/mongo/schemas/public/promotional-price.schema';
+import { VEHICLE_RELATIONS } from '../../../../core/infrastructure/nest/constants/relations.constant';
 import { VehicleModel } from '../../../domain/models/vehicle.model';
 import { IVehicleRepository } from '../../../domain/repositories/vehicle.interface.repository';
 import { UpdatePriceByModelDTO } from '../../nest/dtos/vehicle.dto';
@@ -14,7 +14,7 @@ export class VehicleRepository implements IVehicleRepository {
   constructor(
     @InjectModel('Vehicle') private readonly vehicleDB: Model<VehicleSchema>,
     @InjectModel(PromotionalPrice.name) private readonly promotionalPriceDB: Model<PromotionalPrice>,
-  ) {}
+  ) { }
 
   /**
    * Helper method to enrich vehicles with promotional price information
@@ -42,14 +42,14 @@ export class VehicleRepository implements IVehicleRepository {
     return vehicles?.map((vehicle) => {
       const vehicleData = VehicleModel.hydrate(vehicle);
       const vehicleJson = vehicleData.toJSON();
-      
+
       // Verificar si el modelo del vehículo tiene promociones
       const modelId = vehicleJson.model && typeof vehicleJson.model === 'object' && '_id' in vehicleJson.model
         ? String(vehicleJson.model._id)
         : null;
-      
+
       const allPromotions = modelId ? promotionalPricesMap.get(modelId) || [] : [];
-      
+
       // Verificar si hay alguna promoción activa HOY
       const currentPromotion = allPromotions.find((promo) => {
         const startDate = new Date(promo.startDate);
@@ -60,20 +60,20 @@ export class VehicleRepository implements IVehicleRepository {
       const hasActivePromotion = !!currentPromotion;
 
       // Preparar TODOS los intervalos de precios promocionales (ordenados por fecha)
-      const promotionalPrices = allPromotions.length > 0 
+      const promotionalPrices = allPromotions.length > 0
         ? allPromotions
-            .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-            .map((promo) => ({
-              price: promo.price,
-              pricePer4: promo.pricePer4,
-              pricePer8: promo.pricePer8,
-              pricePer24: promo.pricePer24,
-              pricePerWeek: promo.pricePerWeek,
-              pricePerMonth: promo.pricePerMonth,
-              startDate: promo.startDate,
-              endDate: promo.endDate,
-              description: promo.description,
-            }))
+          .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+          .map((promo) => ({
+            price: promo.price,
+            pricePer4: promo.pricePer4,
+            pricePer8: promo.pricePer8,
+            pricePer24: promo.pricePer24,
+            pricePerWeek: promo.pricePerWeek,
+            pricePerMonth: promo.pricePerMonth,
+            startDate: promo.startDate,
+            endDate: promo.endDate,
+            description: promo.description,
+          }))
         : null;
 
       // Agregar los campos de promoción al objeto
@@ -155,7 +155,7 @@ export class VehicleRepository implements IVehicleRepository {
     return this.enrichVehiclesWithPromotions(vehicles);
   }
 
-  async findAll(filters: any): Promise<VehicleModel[]> {
+  async findAll(filters: any): Promise<any[]> {
     const query = {};
 
     if (filters.name) {
