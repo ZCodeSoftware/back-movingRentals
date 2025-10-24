@@ -210,6 +210,7 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
             <p><strong>Nombre completo:</strong> ${customerFullName}</p>
             <p><strong>Email:</strong> ${customerEmail}</p>
             <p><strong>Teléfono:</strong> ${customerPhone}</p>
+            ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
           </div>
         </div>
 
@@ -299,6 +300,23 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
         </div>`
             : ''
         }
+
+        ${bookingData.requiresDelivery ? `
+        <div class="section">
+          <h2>🚚 Información de Delivery:</h2>
+          <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
+            <p><strong>Servicio de delivery:</strong> Sí</p>
+            <p><strong>Tipo de servicio:</strong> ${
+              bookingData.deliveryType === 'round-trip' 
+                ? 'Ida y vuelta (Round trip)' 
+                : bookingData.oneWayType === 'pickup' 
+                  ? 'Solo recogida (One way - Pickup)' 
+                  : 'Solo entrega (One way - Delivery)'
+            }</p>
+            ${bookingData.deliveryAddress ? `<p><strong>Dirección:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData.deliveryCost ? `<p><strong>Costo del delivery:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
+          </div>
+        </div>` : ''}
 
         <div class="section">
           <h2>💳 Resumen de Pago:</h2>

@@ -791,6 +791,12 @@ export class ContractRepository implements IContractRepository {
       const { newCart, reasonForChange, ...contractUpdateData } = contractData;
       const changesToLog = [];
 
+      // Obtener el booking completo para detectar cambios en el carrito
+      const bookingBeforeUpdate = await this.bookingModel
+        .findById(originalContract.booking)
+        .session(session)
+        .lean();
+
       if (
         contractUpdateData.status &&
         originalContract.status.toString() !== contractUpdateData.status
@@ -842,6 +848,9 @@ export class ContractRepository implements IContractRepository {
           });
         }
       }
+
+      // Variable para guardar el ID del historyEntry creado
+      let createdHistoryEntryId: mongoose.Types.ObjectId | null = null;
 
       // LOG CAMBIOS QUE SE VAN A GUARDAR EN EL MOVIMIENTO
       if (changesToLog.length > 0) {
@@ -896,7 +905,7 @@ export class ContractRepository implements IContractRepository {
 
         // Solo crear el histórico EXTENSION_UPDATED si es realmente una extensión
         if (isExtensionReason && eventMetadata) {
-          await new this.contractHistoryModel({
+          const savedHistory = await new this.contractHistoryModel({
             contract: id,
             performedBy: userId,
             action: ContractAction.EXTENSION_UPDATED,
@@ -906,6 +915,8 @@ export class ContractRepository implements IContractRepository {
             eventMetadata: eventMetadata,
             eventType: eventTypeId ? new mongoose.Types.ObjectId(eventTypeId) : undefined,
           }).save({ session });
+          
+          createdHistoryEntryId = savedHistory._id;
         } else if (contractUpdateData.extension?.extensionAmount && !isExtensionReason) {
           // Si hay datos de extensión pero NO es una extensión real (ej: CRASH, CAMBIO DE VEHICULO, etc.)
           // Crear un histórico con el eventType correspondiente
@@ -929,7 +940,7 @@ export class ContractRepository implements IContractRepository {
             date: contractUpdateData.extension.newEndDateTime || new Date()
           };
           
-          await new this.contractHistoryModel({
+          const savedHistory = await new this.contractHistoryModel({
             contract: id,
             performedBy: userId,
             action: ContractAction.NOTE_ADDED, // Usar NOTE_ADDED para eventos personalizados
@@ -939,6 +950,8 @@ export class ContractRepository implements IContractRepository {
             eventMetadata: nonExtensionMetadata,
             eventType: eventTypeIdFromPayload ? new mongoose.Types.ObjectId(eventTypeIdFromPayload) : undefined,
           }).save({ session });
+          
+          createdHistoryEntryId = savedHistory._id;
         }
       }
 
@@ -991,6 +1004,55 @@ export class ContractRepository implements IContractRepository {
 
         // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
         await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange, isExtension);
+      }
+
+      // Detectar TODOS los cambios (contract + booking/cart)
+      const allChanges = [];
+      
+      // 1. Cambios en campos del contrato
+      if (Object.keys(contractUpdateData).length > 0) {
+        const contractChanges = this.detectChanges(
+          {
+            status: originalContract.status,
+            reservingUser: originalContract.reservingUser,
+            extension: originalContract.extension,
+            concierge: originalContract.concierge,
+            source: originalContract.source,
+          },
+          contractUpdateData
+        );
+        allChanges.push(...contractChanges);
+      }
+
+      // 2. Cambios en el carrito (si hay newCart)
+      if (newCart && bookingBeforeUpdate) {
+        const cartChanges = this.detectCartChanges(
+          bookingBeforeUpdate.cart,
+          newCart
+        );
+        allChanges.push(...cartChanges);
+      }
+
+      // 3. Crear el snapshot SOLO si hay cambios Y si se creó un historyEntry
+      if (allChanges.length > 0 && createdHistoryEntryId) {
+        console.log('[ContractRepository][update] Cambios detectados para snapshot:', JSON.stringify(allChanges, null, 2));
+        
+        const snapshot = {
+          timestamp: new Date(),
+          modifiedBy: new mongoose.Types.ObjectId(userId),
+          changes: allChanges, // Solo los cambios, no el objeto completo
+          reason: reasonForChange || 'Modificación del contrato',
+          historyEntry: createdHistoryEntryId, // Vincular con el historyEntry
+        };
+
+        // Agregar el snapshot al array de snapshots del contrato
+        await this.contractModel.updateOne(
+          { _id: id },
+          { $push: { snapshots: snapshot } },
+          { session }
+        );
+        
+        console.log('[ContractRepository][update] Snapshot creado exitosamente y vinculado con historyEntry:', createdHistoryEntryId);
       }
 
       // Se actualiza el contrato principal como parte de la transacción.
@@ -1147,6 +1209,140 @@ export class ContractRepository implements IContractRepository {
         );
       }
     }
+  }
+
+  /**
+   * Detecta todos los cambios entre dos objetos de manera profunda
+   * Retorna solo los campos que cambiaron con sus valores anteriores y nuevos
+   */
+  private detectChanges(oldObj: any, newObj: any, path: string = ''): any[] {
+    const changes = [];
+
+    // Función helper para comparar valores
+    const areEqual = (val1: any, val2: any): boolean => {
+      if (val1 === val2) return true;
+      if (val1 == null || val2 == null) return false;
+      if (typeof val1 !== typeof val2) return false;
+      
+      // Para ObjectIds de Mongoose
+      if (val1.toString && val2.toString && 
+          val1.constructor.name === 'ObjectId' && val2.constructor.name === 'ObjectId') {
+        return val1.toString() === val2.toString();
+      }
+      
+      // Para fechas
+      if (val1 instanceof Date && val2 instanceof Date) {
+        return val1.getTime() === val2.getTime();
+      }
+      
+      // Para objetos y arrays, comparar como JSON
+      if (typeof val1 === 'object' && typeof val2 === 'object') {
+        return JSON.stringify(val1) === JSON.stringify(val2);
+      }
+      
+      return false;
+    };
+
+    // Si newObj tiene campos que oldObj no tiene o son diferentes
+    for (const key in newObj) {
+      if (newObj.hasOwnProperty(key)) {
+        const currentPath = path ? `${path}.${key}` : key;
+        const oldValue = oldObj ? oldObj[key] : undefined;
+        const newValue = newObj[key];
+
+        if (!areEqual(oldValue, newValue)) {
+          changes.push({
+            field: currentPath,
+            oldValue: oldValue,
+            newValue: newValue,
+          });
+        }
+      }
+    }
+
+    return changes;
+  }
+
+  /**
+   * Detecta cambios en el carrito del booking
+   */
+  private detectCartChanges(oldCart: any, newCart: any): any[] {
+    const changes = [];
+
+    try {
+      const oldCartObj = typeof oldCart === 'string' ? JSON.parse(oldCart) : oldCart;
+      const newCartObj = typeof newCart === 'string' ? JSON.parse(newCart) : newCart;
+
+      // Comparar vehículos
+      const oldVehicles = oldCartObj?.vehicles || [];
+      const newVehicles = newCartObj?.vehicles || [];
+      
+      if (JSON.stringify(oldVehicles) !== JSON.stringify(newVehicles)) {
+        changes.push({
+          field: 'booking.cart.vehicles',
+          oldValue: oldVehicles,
+          newValue: newVehicles,
+        });
+      }
+
+      // Comparar tours
+      const oldTours = oldCartObj?.tours || [];
+      const newTours = newCartObj?.tours || [];
+      
+      if (JSON.stringify(oldTours) !== JSON.stringify(newTours)) {
+        changes.push({
+          field: 'booking.cart.tours',
+          oldValue: oldTours,
+          newValue: newTours,
+        });
+      }
+
+      // Comparar tickets
+      const oldTickets = oldCartObj?.tickets || [];
+      const newTickets = newCartObj?.tickets || [];
+      
+      if (JSON.stringify(oldTickets) !== JSON.stringify(newTickets)) {
+        changes.push({
+          field: 'booking.cart.tickets',
+          oldValue: oldTickets,
+          newValue: newTickets,
+        });
+      }
+
+      // Comparar transfers
+      const oldTransfer = oldCartObj?.transfer || [];
+      const newTransfer = newCartObj?.transfer || [];
+      
+      if (JSON.stringify(oldTransfer) !== JSON.stringify(newTransfer)) {
+        changes.push({
+          field: 'booking.cart.transfer',
+          oldValue: oldTransfer,
+          newValue: newTransfer,
+        });
+      }
+
+      // Comparar totales y otros campos del carrito
+      if (oldCartObj?.total !== newCartObj?.total) {
+        changes.push({
+          field: 'booking.cart.total',
+          oldValue: oldCartObj?.total,
+          newValue: newCartObj?.total,
+        });
+      }
+
+      if (oldCartObj?.subtotal !== newCartObj?.subtotal) {
+        changes.push({
+          field: 'booking.cart.subtotal',
+          oldValue: oldCartObj?.subtotal,
+          newValue: newCartObj?.subtotal,
+        });
+      }
+
+    } catch (error) {
+      console.error('[detectCartChanges] Error al detectar cambios en el carrito:', error);
+    }
+
+    return changes;
   }
 
   /**
@@ -1363,7 +1559,22 @@ export class ContractRepository implements IContractRepository {
     historyEntry.deletedAt = new Date();
     historyEntry.deletionReason = reason;
 
-    return historyEntry.save();
+    const savedHistory = await historyEntry.save();
+
+    // Eliminar el snapshot asociado a este historyEntry
+    try {
+      const contractId = historyEntry.contract;
+      await this.contractModel.updateOne(
+        { _id: contractId },
+        { $pull: { snapshots: { historyEntry: new mongoose.Types.ObjectId(historyId) } } }
+      );
+      console.log(`[softDeleteHistoryEntry] Snapshot asociado al historyEntry ${historyId} eliminado exitosamente`);
+    } catch (error) {
+      console.error(`[softDeleteHistoryEntry] Error al eliminar snapshot asociado:`, error);
+      // No lanzar error para no interrumpir la eliminación del historyEntry
+    }
+
+    return savedHistory;
   }
 
   async restoreHistoryEntry(historyId: string): Promise<ContractHistory> {

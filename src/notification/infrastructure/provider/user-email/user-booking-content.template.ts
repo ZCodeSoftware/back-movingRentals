@@ -291,6 +291,7 @@ export function generateUserBookingConfirmation(
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
           <p><strong>Cliente:</strong> ${customerFullName}</p>
           ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
+          ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
         </div>
         
         ${vehicles.length > 0 ? `
@@ -436,6 +437,32 @@ export function generateUserBookingConfirmation(
             </div>
             <div style="margin-top: 10px; padding: 8px; background-color: #e6f3ff; border-radius: 4px;">
               <p style="margin: 0; font-size: 13px; color: #0066cc;"><strong>Nota:</strong> Los servicios adicionales se pueden solicitar en el momento de la entrega. Los precios están sujetos a cambios.</p>
+            </div>
+          </div>
+        </div>` : ''}
+
+        ${bookingData.requiresDelivery ? `
+        <div class="section">
+          <h2>🚚 Información de Delivery:</h2>
+          <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
+            <p><strong>Servicio de delivery:</strong> Sí</p>
+            <p><strong>Tipo de servicio:</strong> ${
+              bookingData.deliveryType === 'round-trip' 
+                ? 'Ida y vuelta (Round trip)' 
+                : bookingData.oneWayType === 'pickup' 
+                  ? 'Solo recogida (One way - Pickup)' 
+                  : 'Solo entrega (One way - Delivery)'
+            }</p>
+            ${bookingData.deliveryAddress ? `<p><strong>Dirección:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData.deliveryCost ? `<p><strong>Costo del delivery:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
+            <div style="background-color: #fff9c4; padding: 10px; border-radius: 4px; margin-top: 10px;">
+              <p style="margin: 0; font-size: 14px; color: #f57f17;"><strong>📍 Nota:</strong> ${
+                bookingData.deliveryType === 'round-trip' 
+                  ? 'El vehículo será entregado y recogido en la dirección especificada.' 
+                  : bookingData.oneWayType === 'pickup'
+                    ? 'El vehículo será recogido en la dirección especificada. La entrega inicial debe realizarse en la sucursal.'
+                    : 'El vehículo será entregado en la dirección especificada. La devolución debe realizarse en la sucursal.'
+              }</p>
             </div>
           </div>
         </div>` : ''}

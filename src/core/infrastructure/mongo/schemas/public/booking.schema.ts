@@ -48,6 +48,21 @@ export class Booking {
 
   @Prop({ type: Boolean, default: false })
   isReserve: boolean;
+
+  @Prop({ type: Boolean, required: false })
+  requiresDelivery?: boolean;
+
+  @Prop({ type: String, enum: ['one-way', 'round-trip'], required: false })
+  deliveryType?: string;
+
+  @Prop({ type: String, enum: ['pickup', 'delivery'], required: false })
+  oneWayType?: string;
+
+  @Prop({ type: String, required: false })
+  deliveryAddress?: string;
+
+  @Prop({ type: Number, required: false })
+  deliveryCost?: number;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);

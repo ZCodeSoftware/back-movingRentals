@@ -13,6 +13,18 @@ export interface ContractExtension {
   extensionStatus?: any;
 }
 
+export interface ContractSnapshot {
+  timestamp: Date;
+  modifiedBy: any;
+  changes: Array<{
+    field: string;
+    oldValue: any;
+    newValue: any;
+  }>;
+  reason?: string;
+  historyEntry: any; // ObjectId del ContractHistory asociado
+}
+
 export class ContractModel extends BaseModel {
   private _booking: BookingModel;
   private _reservingUser: UserModel;
@@ -22,6 +34,7 @@ export class ContractModel extends BaseModel {
   private _concierge?: VehicleOwnerModel;
   private _source: string;
   private _timeline?: any[];
+  private _snapshots?: ContractSnapshot[];
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -35,6 +48,7 @@ export class ContractModel extends BaseModel {
       concierge: this._concierge ? this._concierge.toJSON() : null,
       source: this._source,
       timeline: this._timeline,
+      snapshots: this._snapshots,
     };
   }
 
@@ -70,6 +84,10 @@ export class ContractModel extends BaseModel {
     return this._timeline;
   }
 
+  get snapshots(): ContractSnapshot[] {
+    return this._snapshots;
+  }
+
   addExtension(extension: ContractExtension): void {
     this._extension = extension;
   }
@@ -103,6 +121,7 @@ export class ContractModel extends BaseModel {
     newContract._concierge = contract.concierge ? VehicleOwnerModel.hydrate(contract.concierge) : null;
     newContract._source = contract.source || 'Web';
     newContract._timeline = contract.timeline || [];
+    newContract._snapshots = contract.snapshots || [];
     newContract._createdAt = contract.createdAt;
     newContract._updatedAt = contract.updatedAt;
 
