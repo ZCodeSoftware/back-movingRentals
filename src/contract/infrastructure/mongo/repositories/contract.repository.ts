@@ -660,6 +660,51 @@ export class ContractRepository implements IContractRepository {
 
       pipeline.push({ $match: { $or: orConditions } });
     }
+    
+    // Filtro por fecha de creación del contrato
+    if (filters.createdAtStart || filters.createdAtEnd) {
+      const createdAtMatch: any = {};
+      if (filters.createdAtStart) {
+        const startDate = new Date(filters.createdAtStart);
+        startDate.setUTCHours(0, 0, 0, 0);
+        createdAtMatch.$gte = startDate;
+      }
+      if (filters.createdAtEnd) {
+        const endDate = new Date(filters.createdAtEnd);
+        endDate.setUTCHours(23, 59, 59, 999);
+        createdAtMatch.$lte = endDate;
+      }
+      matchConditions.createdAt = createdAtMatch;
+    }
+    
+    // Filtro por fecha de reserva (fechas de vehículos en el cart)
+    if (filters.reservationDateStart || filters.reservationDateEnd) {
+      // Necesitamos parsear el cart JSON y buscar en las fechas de los vehículos
+      const dateConditions: any[] = [];
+      
+      if (filters.reservationDateStart) {
+        const startDate = new Date(filters.reservationDateStart);
+        startDate.setUTCHours(0, 0, 0, 0);
+        const startRegex = new RegExp(`\"start\"\\s*:\\s*\"[^\"]*${startDate.toISOString().split('T')[0]}`, 'i');
+        dateConditions.push({ 'bookingData.cart': { $regex: startRegex } });
+      }
+      
+      if (filters.reservationDateEnd) {
+        const endDate = new Date(filters.reservationDateEnd);
+        endDate.setUTCHours(23, 59, 59, 999);
+        const endRegex = new RegExp(`\"end\"\\s*:\\s*\"[^\"]*${endDate.toISOString().split('T')[0]}`, 'i');
+        dateConditions.push({ 'bookingData.cart': { $regex: endRegex } });
+      }
+      
+      if (dateConditions.length > 0) {
+        pipeline.push({ $match: { $and: dateConditions } });
+      }
+    }
+    
+    // Filtro por método de pago
+    if (filters.paymentMethod) {
+      matchConditions['bookingData.paymentMethod'] = new mongoose.Types.ObjectId(filters.paymentMethod);
+    }
     if (Object.keys(matchConditions).length > 0) {
       pipeline.push({ $match: matchConditions });
     }

@@ -152,6 +152,36 @@ export class ContractController {
     type: 'boolean',
     description: 'Filter by reservation status (from booking)',
   })
+  @ApiQuery({
+    name: 'createdAtStart',
+    required: false,
+    type: 'string',
+    description: 'Filter by contract creation date start (ISO 8601 format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'createdAtEnd',
+    required: false,
+    type: 'string',
+    description: 'Filter by contract creation date end (ISO 8601 format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'reservationDateStart',
+    required: false,
+    type: 'string',
+    description: 'Filter by reservation start date (vehicle rental start date) (ISO 8601 format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'reservationDateEnd',
+    required: false,
+    type: 'string',
+    description: 'Filter by reservation end date (vehicle rental end date) (ISO 8601 format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'paymentMethod',
+    required: false,
+    type: 'string',
+    description: 'Filter by payment method ID',
+  })
   async findAll(@Query() filters: any) {
     if (filters.lang) {
       delete filters.lang;

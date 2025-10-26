@@ -70,7 +70,8 @@ export class CartService implements ICartService {
                 vehicle: vehicleModel,
                 dates: i.dates,
                 total: i.total,
-                passengers: i.passengers
+                passengers: i.passengers,
+                delivery: (i as any).delivery // Incluir delivery si viene en el item
             };
         }))
 

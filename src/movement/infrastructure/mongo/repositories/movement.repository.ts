@@ -164,8 +164,64 @@ export class MovementRepository implements IMovementRepository {
 
         // Excluir eliminados por defecto en listados
         const notDeleted = { isDeleted: { $ne: true } };
+
+        // Excluir movimientos relacionados con rentas
+        const rentalRelatedDetails = [
+            'CRASH',
+            'EXTENSION DE RENTA',
+            'RENTA',
+            'DELIVERY',
+            'TRANSFER',
+            'LLANTA PAGADA POR CLIENTE',
+            'CASCO PAGADO POR CLIENTE',
+            'WIFI',
+            'HORAS EXTRAS',
+            'VEHICULO PAGADO POR CLIENTE',
+            'CANDADO',
+            'ASIENTO BICICLETA PAGADO POR CLIENTE',
+            'ESPEJOS PAGADO POR CLIENTE',
+            'CANASTA PAGADA POR CLIENTE',
+            'PROPINA',
+            'REPARACION PAGADA POR CLIENTE',
+            'COMBUSTIBLE PAGADO POR CLIENTE',
+            'COPIA DE LLAVE - CLIENTE',
+            'LOCK - CLIENTE',
+            'TOURS',
+            'RIDE',
+            'LATE PICK UP',
+            'IMPRESIONES A COLOR',
+            'ROBO',
+            'RESCATE VEHICULO',
+            'CANCELACION',
+            'GASTO PARA TOURS',
+            'RESERVA',
+            'RECOLECCION',
+            'TICKET CASA TORTUGA',
+            'CASA TORTUGA',
+            'CANDADO DE BICICLETA PAGADO POR CLIENTE',
+            'BICICLETA PAGADA POR EL CLIENTE',
+            'CANDADO 20MM',
+            'DELIVERY GAS',
+            'DROPOFF/PICKUP',
+            'CAMBIO DE VEHICULO',
+            'TRANSFER PDC',
+            'RESTANTE TRANSFER AEROPUERTO',
+            'TRANSFER TULUM-XCARET',
+            'SOPORTE PARA CELULAR',
+            'TRANSFER TULUM-AEROPUERTO'
+        ];
+
+        // Crear regex para excluir movimientos con detalles relacionados a rentas
+        const notRentalRelated = {
+            detail: {
+                $not: {
+                    $regex: rentalRelatedDetails.join('|'),
+                    $options: 'i'
+                }
+            }
+        };
         const [movements, totalItems] = await Promise.all([
-            this.movementDB.find({ $and: [finalQuery, notDeleted] })
+            this.movementDB.find({ $and: [finalQuery, notDeleted, notRentalRelated] })
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNumber)
@@ -178,7 +234,7 @@ export class MovementRepository implements IMovementRepository {
                     path: 'beneficiary',
                     select: '-password'
                 }),
-            this.movementDB.countDocuments({ $and: [finalQuery, notDeleted] })
+            this.movementDB.countDocuments({ $and: [finalQuery, notDeleted, notRentalRelated] })
         ]);
 
         const totalPages = Math.ceil(totalItems / limitNumber);

@@ -1,6 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Transform } from "class-transformer";
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
+import { Transform, Type } from "class-transformer";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+
+class TranslateDTO {
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional({ description: 'Traducción en inglés' })
+    en?: string;
+
+    @IsString()
+    @IsOptional()
+    @ApiPropertyOptional({ description: 'Traducción en español' })
+    es?: string;
+}
 
 export class CreateTourDTO {
 
@@ -9,10 +21,22 @@ export class CreateTourDTO {
     @ApiProperty()
     name: string
 
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones del nombre' })
+    nameTranslations?: TranslateDTO;
+
     @IsString()
     @IsNotEmpty()
     @ApiProperty()
     description: string;
+
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de la descripción' })
+    descriptionTranslations?: TranslateDTO;
 
     @IsNotEmpty()
     @ApiProperty()
@@ -24,20 +48,44 @@ export class CreateTourDTO {
     @IsString()
     itinerary: string;
 
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones del itinerario' })
+    itineraryTranslations?: TranslateDTO;
+
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     capacity?: string;
+
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de la capacidad' })
+    capacityTranslations?: TranslateDTO;
 
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     estimatedDuration?: string;
 
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de la duración estimada' })
+    estimatedDurationTranslations?: TranslateDTO;
+
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     startDates?: string;
+
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de las fechas de inicio' })
+    startDatesTranslations?: TranslateDTO;
 
     @IsString({ each: true })
     @IsOptional()
@@ -62,10 +110,22 @@ export class UpdateTourDTO {
     @ApiPropertyOptional()
     name?: string
 
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones del nombre' })
+    nameTranslations?: TranslateDTO;
+
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     description?: string;
+
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de la descripción' })
+    descriptionTranslations?: TranslateDTO;
 
     @IsOptional()
     @ApiPropertyOptional()
@@ -77,20 +137,44 @@ export class UpdateTourDTO {
     @IsString()
     itinerary?: string;
 
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones del itinerario' })
+    itineraryTranslations?: TranslateDTO;
+
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     capacity?: string;
+
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de la capacidad' })
+    capacityTranslations?: TranslateDTO;
 
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     estimatedDuration?: string;
 
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de la duración estimada' })
+    estimatedDurationTranslations?: TranslateDTO;
+
     @IsString()
     @IsOptional()
     @ApiPropertyOptional()
     startDates?: string;
+
+    @ValidateNested()
+    @Type(() => TranslateDTO)
+    @IsOptional()
+    @ApiPropertyOptional({ type: TranslateDTO, description: 'Traducciones de las fechas de inicio' })
+    startDatesTranslations?: TranslateDTO;
 
     @IsString({ each: true })
     @IsOptional()

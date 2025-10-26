@@ -251,6 +251,90 @@ export class UserRepository implements IUserRepository {
     }
   }
 
+  async findAllOnlyUsers(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    try {
+      // Obtener el rol USER para incluir solo ese rol
+      const userRole = await this.catRoleRepository.findByName(TypeRoles.USER);
+      
+      const query: any = {
+        role: userRole.toJSON()._id
+      };
+
+      if (filters.search) {
+        const regex = new RegExp(escapeRegex(filters.search), 'i');
+        query.$or = [
+          { email: regex },
+          { name: regex },
+          { lastName: regex },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $concat: ['$name', ' ', '$lastName'] },
+                regex: escapeRegex(filters.search),
+                options: 'i',
+              },
+            },
+          },
+        ];
+      } else {
+        if (filters.email) {
+          query.email = { $regex: escapeRegex(filters.email), $options: 'i' };
+        }
+        if (filters.name) {
+          query.name = { $regex: escapeRegex(filters.name), $options: 'i' };
+        }
+        if (filters.lastName) {
+          query.lastName = { $regex: escapeRegex(filters.lastName), $options: 'i' };
+        }
+      }
+
+      const page =
+        parseInt(filters.page, 10) > 0 ? parseInt(filters.page, 10) : 1;
+      const limit =
+        parseInt(filters.limit, 10) > 0 ? parseInt(filters.limit, 10) : 10;
+      const skip = (page - 1) * limit;
+
+      const totalItems = await this.userModel.countDocuments(query);
+      const users = await this.userModel
+        .find(query)
+        .populate('role')
+        .populate({
+          path: 'address',
+          populate: {
+            path: 'country',
+          },
+        })
+        .skip(skip)
+        .limit(limit);
+
+      const totalPages = Math.ceil(totalItems / limit);
+
+      return {
+        data: users.map((user) => UserModel.hydrate(user)),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
   async findAllNonUsers(filters: any): Promise<{
     data: UserModel[];
     pagination: {

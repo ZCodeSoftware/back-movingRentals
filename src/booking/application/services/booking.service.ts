@@ -205,7 +205,35 @@ export class BookingService implements IBookingService {
       );
     }
 
-    // 6. Crear el booking con los datos del carrito y metadata
+    // 6. Extraer información de delivery del cart
+    let deliveryInfo: any = {};
+    
+    // Buscar delivery en los vehículos del cart
+    if (cartData.vehicles && cartData.vehicles.length > 0) {
+      const vehicleWithDelivery = cartData.vehicles.find(v => v.delivery?.requiresDelivery);
+      if (vehicleWithDelivery && vehicleWithDelivery.delivery) {
+        deliveryInfo = {
+          requiresDelivery: vehicleWithDelivery.delivery.requiresDelivery,
+          deliveryType: vehicleWithDelivery.delivery.deliveryType,
+          oneWayType: vehicleWithDelivery.delivery.oneWayType,
+          deliveryAddress: vehicleWithDelivery.delivery.deliveryAddress,
+          deliveryCost: vehicleWithDelivery.delivery.deliveryCost,
+        };
+      }
+    }
+    
+    // También verificar si hay delivery a nivel de cart (formato antiguo)
+    if (cartData.delivery && cartData.deliveryAddress) {
+      deliveryInfo = {
+        requiresDelivery: cartData.delivery,
+        deliveryType: 'round-trip', // Valor por defecto para formato antiguo
+        oneWayType: null,
+        deliveryAddress: cartData.deliveryAddress,
+        deliveryCost: 0,
+      };
+    }
+
+    // 7. Crear el booking con los datos del carrito, metadata y delivery
     const bookingData = {
       cart: JSON.stringify(cartData),
       total: body.total ?? total,
@@ -215,6 +243,7 @@ export class BookingService implements IBookingService {
       metadata: body.metadata || {},
       commission: body.commission,
       concierge: body.concierge,
+      ...deliveryInfo, // Agregar información de delivery
     };
 
     const bookingModel = BookingModel.create(bookingData);

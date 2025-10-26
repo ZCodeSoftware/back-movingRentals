@@ -11,10 +11,21 @@ interface Passenger {
   adult: number;
   child: number;
 }
+
+interface DeliveryInfo {
+  requiresDelivery: boolean;
+  deliveryType: 'one-way' | 'round-trip';
+  oneWayType: 'pickup' | 'delivery' | null;
+  deliveryAddress: string;
+  deliveryCost: number;
+  distance?: number;
+  exceedsLimit?: boolean;
+}
+
 export class CartModel extends BaseModel {
   private _transfer: { transfer: TransferModel, date: Date, passengers: Passenger, quantity: number }[];
   private _branch: BranchesModel;
-  private _vehicles: { vehicle: VehicleModel, total: number, dates: DatesDTO, passengers: Passenger }[];
+  private _vehicles: { vehicle: VehicleModel, total: number, dates: DatesDTO, passengers: Passenger, delivery?: DeliveryInfo }[];
   private _tours: { tour: TourModel, date: Date, quantity: number, passengers: Passenger }[];
   private _tickets: { ticket: TicketModel, date: Date, quantity: number, passengers: Passenger }[];
   private _delivery?: boolean;
@@ -31,7 +42,7 @@ export class CartModel extends BaseModel {
         passengers: t.passengers,
         quantity: t.quantity
       })) : [],
-      vehicles: this._vehicles ? this._vehicles.map((v) => ({ vehicle: v.vehicle.toJSON(), total: v.total, dates: v.dates, passengers: v.passengers })) : [],
+      vehicles: this._vehicles ? this._vehicles.map((v) => ({ vehicle: v.vehicle.toJSON(), total: v.total, dates: v.dates, passengers: v.passengers, delivery: v.delivery })) : [],
       tours: this._tours ? this._tours.map((t) => ({ tour: t.tour.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [],
       tickets: this._tickets ? this._tickets.map((t) => ({ ticket: t.ticket.toJSON(), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [],
       delivery: this._delivery ?? false,
@@ -51,7 +62,7 @@ export class CartModel extends BaseModel {
     const newCart = new CartModel(new Identifier(cart._id));
     newCart._branch = cart.branch ? BranchesModel.hydrate(cart.branch) : null;
     newCart._transfer = cart.transfer ? cart.transfer.map((t) => ({ transfer: TransferModel.hydrate(t.transfer), date: t.date, passengers: t.passengers, quantity: t.quantity })) : [];
-    newCart._vehicles = cart.vehicles ? cart.vehicles.map((v) => ({ vehicle: VehicleModel.hydrate(v.vehicle), total: v.total, dates: v.dates, passengers: v.passengers })) : [];
+    newCart._vehicles = cart.vehicles ? cart.vehicles.map((v) => ({ vehicle: VehicleModel.hydrate(v.vehicle), total: v.total, dates: v.dates, passengers: v.passengers, delivery: v.delivery })) : [];
     newCart._tours = cart.tours ? cart.tours.map((t) => ({ tour: TourModel.hydrate(t.tour), date: t.date, quantity: t.quantity, passengers: t.passengers })) : [];
     newCart._tickets = cart.tickets ? cart.tickets.map((t) => ({ ticket: TicketModel.hydrate(t.ticket), date: t.date, passengers: t.passengers, quantity: t.quantity })) : [];
     newCart._delivery = typeof cart.delivery === 'boolean' ? cart.delivery : undefined;
