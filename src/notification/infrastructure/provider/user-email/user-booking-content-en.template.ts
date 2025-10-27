@@ -291,6 +291,7 @@ export function generateUserBookingConfirmationEn(
           <p><strong>Booking number:</strong> ${bookingNumber}</p>
           <p><strong>Customer:</strong> ${customerFullName}</p>
           ${branchName !== 'Branch not specified' ? `<p><strong>Reference Branch:</strong> ${branchName}</p>` : ''}
+          ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
         </div>
         
         ${vehicles.length > 0 ? `
@@ -436,6 +437,32 @@ export function generateUserBookingConfirmationEn(
             </div>
             <div style="margin-top: 10px; padding: 8px; background-color: #e6f3ff; border-radius: 4px;">
               <p style="margin: 0; font-size: 13px; color: #0066cc;"><strong>Note:</strong> Additional services can be requested at pickup time. Prices are subject to change.</p>
+            </div>
+          </div>
+        </div>` : ''}
+
+        ${bookingData.requiresDelivery ? `
+        <div class="section">
+          <h2>🚚 Delivery Information:</h2>
+          <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
+            <p><strong>Delivery service:</strong> Yes</p>
+            <p><strong>Service type:</strong> ${
+              bookingData.deliveryType === 'round-trip' 
+                ? 'Round trip' 
+                : bookingData.oneWayType === 'pickup' 
+                  ? 'One way - Pickup only' 
+                  : 'One way - Delivery only'
+            }</p>
+            ${bookingData.deliveryAddress ? `<p><strong>Address:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData.deliveryCost ? `<p><strong>Delivery cost:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
+            <div style="background-color: #fff9c4; padding: 10px; border-radius: 4px; margin-top: 10px;">
+              <p style="margin: 0; font-size: 14px; color: #f57f17;"><strong>📍 Note:</strong> ${
+                bookingData.deliveryType === 'round-trip' 
+                  ? 'The vehicle will be delivered and picked up at the specified address.' 
+                  : bookingData.oneWayType === 'pickup'
+                    ? 'The vehicle will be picked up from the specified address. Initial pickup must be done at the branch.'
+                    : 'The vehicle will be delivered to the specified address. Return must be made at the branch.'
+              }</p>
             </div>
           </div>
         </div>` : ''}

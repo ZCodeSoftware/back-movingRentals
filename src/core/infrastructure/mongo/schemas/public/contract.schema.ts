@@ -28,6 +28,26 @@ export class ContractExtension {
 
 const ContractExtensionSchema = SchemaFactory.createForClass(ContractExtension);
 
+@Schema({ _id: false })
+export class ContractSnapshot {
+  @Prop({ type: Date, required: true })
+  timestamp: Date;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
+  modifiedBy: User;
+
+  @Prop({ type: [mongoose.Schema.Types.Mixed], required: true })
+  changes: any[];
+
+  @Prop({ type: String, required: false })
+  reason?: string;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'ContractHistory', required: true })
+  historyEntry: mongoose.Types.ObjectId;
+}
+
+const ContractSnapshotSchema = SchemaFactory.createForClass(ContractSnapshot);
+
 @Schema({ collection: 'contracts', timestamps: true })
 export class Contract {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true })
@@ -50,6 +70,9 @@ export class Contract {
 
   @Prop({ type: String, enum: ['Web', 'Dashboard'], default: 'Web' })
   source: string;
+
+  @Prop({ type: [ContractSnapshotSchema], default: [] })
+  snapshots?: ContractSnapshot[];
 }
 
 export const ContractSchema = SchemaFactory.createForClass(Contract);

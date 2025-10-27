@@ -21,6 +21,11 @@ export interface IContractFilters {
   createdByUser?: string;
   service?: string;
   isReserve?: boolean | string;
+  createdAtStart?: string;
+  createdAtEnd?: string;
+  reservationDateStart?: string;
+  reservationDateEnd?: string;
+  paymentMethod?: string;
   page?: number;
   limit?: number;
 }

@@ -16,6 +16,11 @@ export class BookingModel extends BaseModel {
   private _metadata?: Record<string, any>;
   private _commission?: number;
   private _concierge?: string;
+  private _requiresDelivery?: boolean;
+  private _deliveryType?: 'one-way' | 'round-trip';
+  private _oneWayType?: 'pickup' | 'delivery';
+  private _deliveryAddress?: string;
+  private _deliveryCost?: number;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -33,6 +38,11 @@ export class BookingModel extends BaseModel {
       metadata: this._metadata,
       commission: this._commission,
       concierge: this._concierge,
+      requiresDelivery: this._requiresDelivery,
+      deliveryType: this._deliveryType,
+      oneWayType: this._oneWayType,
+      deliveryAddress: this._deliveryAddress,
+      deliveryCost: this._deliveryCost,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -87,6 +97,11 @@ export class BookingModel extends BaseModel {
     newBooking._metadata = booking.metadata;
     newBooking._commission = booking.commission;
     newBooking._concierge = booking.concierge;
+    newBooking._requiresDelivery = booking.requiresDelivery;
+    newBooking._deliveryType = booking.deliveryType;
+    newBooking._oneWayType = booking.oneWayType;
+    newBooking._deliveryAddress = booking.deliveryAddress;
+    newBooking._deliveryCost = booking.deliveryCost;
 
     return newBooking;
   }
@@ -110,6 +125,11 @@ export class BookingModel extends BaseModel {
     newBooking._metadata = booking.metadata;
     newBooking._commission = booking.commission;
     newBooking._concierge = booking.concierge;
+    newBooking._requiresDelivery = booking.requiresDelivery;
+    newBooking._deliveryType = booking.deliveryType;
+    newBooking._oneWayType = booking.oneWayType;
+    newBooking._deliveryAddress = booking.deliveryAddress;
+    newBooking._deliveryCost = booking.deliveryCost;
     newBooking._createdAt = booking.createdAt;
     newBooking._updatedAt = booking.updatedAt;
 

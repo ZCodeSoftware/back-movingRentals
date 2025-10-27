@@ -104,11 +104,11 @@ export class VehicleService implements IVehicleService {
         try {
             // Leer el archivo Excel desde el buffer
             const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-            
+
             // Obtener la primera hoja
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            
+
             // Convertir a JSON
             const data: any[] = XLSX.utils.sheet_to_json(worksheet);
 
@@ -125,6 +125,9 @@ export class VehicleService implements IVehicleService {
 
             // Obtener todos los vehículos para hacer el mapeo
             const allVehicles = await this.vehicleRepository.findAll({});
+            
+            // Convertir a objetos planos para facilitar el acceso
+            const vehiclesData = (allVehicles as any[]);
 
             // Procesar cada fila del Excel
             for (const row of data) {
@@ -142,9 +145,8 @@ export class VehicleService implements IVehicleService {
                     }
 
                     // Buscar el vehículo por nombre
-                    const vehicle = allVehicles.find(v => {
-                        const vehicleData = v.toJSON();
-                        return vehicleData.name === nombre;
+                    const vehicle = vehiclesData.find(v => {
+                        return v.name === nombre;
                     });
 
                     if (!vehicle) {
@@ -154,18 +156,18 @@ export class VehicleService implements IVehicleService {
 
                     // Preparar los datos de actualización
                     const updateData: any = {};
-                    
+
                     if (semanal !== undefined && semanal !== null && semanal !== '') {
                         updateData.pricePerWeek = Number(semanal);
                     }
-                    
+
                     if (mensual !== undefined && mensual !== null && mensual !== '') {
                         updateData.pricePerMonth = Number(mensual);
                     }
 
                     // Solo actualizar si hay datos para actualizar
                     if (Object.keys(updateData).length > 0) {
-                        const vehicleId = vehicle.toJSON()._id.toString();
+                        const vehicleId = vehicle._id.toString();
                         const vehicleModel = VehicleModel.create(updateData);
                         await this.vehicleRepository.update(vehicleId, vehicleModel);
                         results.updated++;

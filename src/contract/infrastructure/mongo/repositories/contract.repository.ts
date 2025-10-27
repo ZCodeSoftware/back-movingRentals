@@ -82,7 +82,6 @@ export class ContractRepository implements IContractRepository {
 
       // Obtener información del usuario para createdBy
       const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
-      console.log('[ContractRepository][create] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
       
       const createdByValue = userInfo 
         ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
@@ -255,9 +254,7 @@ export class ContractRepository implements IContractRepository {
     };
 
     // Obtener información del usuario para createdBy
-
     const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
-    console.log('[ContractRepository][applyBookingChangesFromExtension] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
     
     const createdByValue = userInfo 
       ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
@@ -660,6 +657,51 @@ export class ContractRepository implements IContractRepository {
 
       pipeline.push({ $match: { $or: orConditions } });
     }
+    
+    // Filtro por fecha de creación del contrato
+    if (filters.createdAtStart || filters.createdAtEnd) {
+      const createdAtMatch: any = {};
+      if (filters.createdAtStart) {
+        const startDate = new Date(filters.createdAtStart);
+        startDate.setUTCHours(0, 0, 0, 0);
+        createdAtMatch.$gte = startDate;
+      }
+      if (filters.createdAtEnd) {
+        const endDate = new Date(filters.createdAtEnd);
+        endDate.setUTCHours(23, 59, 59, 999);
+        createdAtMatch.$lte = endDate;
+      }
+      matchConditions.createdAt = createdAtMatch;
+    }
+    
+    // Filtro por fecha de reserva (fechas de vehículos en el cart)
+    if (filters.reservationDateStart || filters.reservationDateEnd) {
+      // Necesitamos parsear el cart JSON y buscar en las fechas de los vehículos
+      const dateConditions: any[] = [];
+      
+      if (filters.reservationDateStart) {
+        const startDate = new Date(filters.reservationDateStart);
+        startDate.setUTCHours(0, 0, 0, 0);
+        const startRegex = new RegExp(`\"start\"\\s*:\\s*\"[^\"]*${startDate.toISOString().split('T')[0]}`, 'i');
+        dateConditions.push({ 'bookingData.cart': { $regex: startRegex } });
+      }
+      
+      if (filters.reservationDateEnd) {
+        const endDate = new Date(filters.reservationDateEnd);
+        endDate.setUTCHours(23, 59, 59, 999);
+        const endRegex = new RegExp(`\"end\"\\s*:\\s*\"[^\"]*${endDate.toISOString().split('T')[0]}`, 'i');
+        dateConditions.push({ 'bookingData.cart': { $regex: endRegex } });
+      }
+      
+      if (dateConditions.length > 0) {
+        pipeline.push({ $match: { $and: dateConditions } });
+      }
+    }
+    
+    // Filtro por método de pago
+    if (filters.paymentMethod) {
+      matchConditions['bookingData.paymentMethod'] = new mongoose.Types.ObjectId(filters.paymentMethod);
+    }
     if (Object.keys(matchConditions).length > 0) {
       pipeline.push({ $match: matchConditions });
     }
@@ -785,11 +827,14 @@ export class ContractRepository implements IContractRepository {
         throw new NotFoundException('Contract not found');
       }
 
-      // LOG FULL UPDATE DATA
-      console.log('[ContractRepository][update] contractData recibido:', JSON.stringify(contractData, null, 2));
-
       const { newCart, reasonForChange, ...contractUpdateData } = contractData;
       const changesToLog = [];
+
+      // Obtener el booking completo para detectar cambios en el carrito
+      const bookingBeforeUpdate = await this.bookingModel
+        .findById(originalContract.booking)
+        .session(session)
+        .lean();
 
       if (
         contractUpdateData.status &&
@@ -843,14 +888,12 @@ export class ContractRepository implements IContractRepository {
         }
       }
 
-      // LOG CAMBIOS QUE SE VAN A GUARDAR EN EL MOVIMIENTO
-      if (changesToLog.length > 0) {
-        console.log('[ContractRepository][update] changes a guardar en historial:', JSON.stringify(changesToLog, null, 2));
+      // Variable para guardar el ID del historyEntry creado
+      let createdHistoryEntryId: mongoose.Types.ObjectId | null = null;
 
-        
+      if (changesToLog.length > 0) {
         // Obtener información del usuario para createdBy
         const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
-        console.log('[ContractRepository][update] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
         
         const createdByValue = userInfo 
           ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
@@ -889,14 +932,12 @@ export class ContractRepository implements IContractRepository {
             beneficiary: concierge,
             date: contractUpdateData.extension.newEndDateTime || new Date()
           };
-          
-          console.log('[ContractRepository][update] eventMetadata creado:', JSON.stringify(eventMetadata, null, 2));
         } else if (contractUpdateData.extension?.extensionAmount && !isExtensionReason) {
                   }
 
         // Solo crear el histórico EXTENSION_UPDATED si es realmente una extensión
         if (isExtensionReason && eventMetadata) {
-          await new this.contractHistoryModel({
+          const savedHistory = await new this.contractHistoryModel({
             contract: id,
             performedBy: userId,
             action: ContractAction.EXTENSION_UPDATED,
@@ -906,6 +947,38 @@ export class ContractRepository implements IContractRepository {
             eventMetadata: eventMetadata,
             eventType: eventTypeId ? new mongoose.Types.ObjectId(eventTypeId) : undefined,
           }).save({ session });
+          
+          createdHistoryEntryId = savedHistory._id;
+
+          // NUEVA FUNCIONALIDAD: Si el status es APROBADO, actualizar totalPaid del booking
+          if (contractUpdateData.status) {
+            // Obtener el status para verificar si es APROBADO
+            const CatStatus = this.connection.collection('cat_status');
+            const statusDoc = await CatStatus.findOne({ _id: new mongoose.Types.ObjectId(contractUpdateData.status) });
+            
+            if (statusDoc && statusDoc.name === 'APROBADO') {
+              console.log('[ContractRepository][update] Status es APROBADO - Actualizando totalPaid del booking');
+              
+              // Obtener el booking para actualizar totalPaid
+              const booking = await this.bookingModel
+                .findById(originalContract.booking)
+                .session(session);
+              
+              if (booking && contractUpdateData.extension?.extensionAmount) {
+                const currentTotalPaid = booking.totalPaid || booking.total || 0;
+                const newTotalPaid = currentTotalPaid + contractUpdateData.extension.extensionAmount;
+                
+                booking.totalPaid = newTotalPaid;
+                await booking.save({ session });
+                
+                console.log('[ContractRepository][update] totalPaid actualizado:', {
+                  anterior: currentTotalPaid,
+                  extension: contractUpdateData.extension.extensionAmount,
+                  nuevo: newTotalPaid
+                });
+              }
+            }
+          }
         } else if (contractUpdateData.extension?.extensionAmount && !isExtensionReason) {
           // Si hay datos de extensión pero NO es una extensión real (ej: CRASH, CAMBIO DE VEHICULO, etc.)
           // Crear un histórico con el eventType correspondiente
@@ -929,7 +1002,7 @@ export class ContractRepository implements IContractRepository {
             date: contractUpdateData.extension.newEndDateTime || new Date()
           };
           
-          await new this.contractHistoryModel({
+          const savedHistory = await new this.contractHistoryModel({
             contract: id,
             performedBy: userId,
             action: ContractAction.NOTE_ADDED, // Usar NOTE_ADDED para eventos personalizados
@@ -939,13 +1012,12 @@ export class ContractRepository implements IContractRepository {
             eventMetadata: nonExtensionMetadata,
             eventType: eventTypeIdFromPayload ? new mongoose.Types.ObjectId(eventTypeIdFromPayload) : undefined,
           }).save({ session });
+          
+          createdHistoryEntryId = savedHistory._id;
         }
       }
 
       if (newCart) {
-        // LOG NEW CART Y SNAPSHOT
-        console.log('[ContractRepository][update] newCart recibido:', JSON.stringify(newCart, null, 2));
-        
         // IMPORTANTE: Obtener el carrito anterior ANTES de aplicar los cambios
         const booking = await this.bookingModel
           .findById(originalContract.booking)
@@ -991,6 +1063,69 @@ export class ContractRepository implements IContractRepository {
 
         // Actualizar las reservas de vehículos con el carrito anterior y el nuevo
         await this.updateVehicleReservations(oldCartData, newCart, session, id, isVehicleChange, isExtension);
+      }
+
+      // Detectar TODOS los cambios (contract + booking/cart)
+      const allChanges = [];
+      
+      // 1. Cambios en campos del contrato
+      if (Object.keys(contractUpdateData).length > 0) {
+        const contractChanges = this.detectChanges(
+          {
+            status: originalContract.status,
+            reservingUser: originalContract.reservingUser,
+            extension: originalContract.extension,
+            concierge: originalContract.concierge,
+            source: originalContract.source,
+          },
+          contractUpdateData
+        );
+        allChanges.push(...contractChanges);
+      }
+
+      // 2. Cambios en el carrito (si hay newCart)
+      if (newCart && bookingBeforeUpdate) {
+        const cartChanges = this.detectCartChanges(
+          bookingBeforeUpdate.cart,
+          newCart
+        );
+        allChanges.push(...cartChanges);
+      }
+
+      // 3. Crear el snapshot SOLO si hay cambios Y si se creó un historyEntry
+      console.log('[ContractRepository][update] === VERIFICACIÓN DE SNAPSHOT ===');
+      console.log('[ContractRepository][update] allChanges.length:', allChanges.length);
+      console.log('[ContractRepository][update] createdHistoryEntryId:', createdHistoryEntryId);
+      console.log('[ContractRepository][update] reasonForChange:', reasonForChange);
+      
+      if (allChanges.length > 0 && createdHistoryEntryId) {
+        console.log('[ContractRepository][update] ✅ Condiciones cumplidas - Creando snapshot');
+        console.log('[ContractRepository][update] Cambios detectados para snapshot:', JSON.stringify(allChanges, null, 2));
+        
+        const snapshot = {
+          timestamp: new Date(),
+          modifiedBy: new mongoose.Types.ObjectId(userId),
+          changes: allChanges, // Solo los cambios, no el objeto completo
+          reason: reasonForChange || 'Modificación del contrato',
+          historyEntry: createdHistoryEntryId, // Vincular con el historyEntry
+        };
+
+        // Agregar el snapshot al array de snapshots del contrato
+        await this.contractModel.updateOne(
+          { _id: id },
+          { $push: { snapshots: snapshot } },
+          { session }
+        );
+        
+        console.log('[ContractRepository][update] ✅ Snapshot creado exitosamente y vinculado con historyEntry:', createdHistoryEntryId);
+      } else {
+        console.log('[ContractRepository][update] ❌ NO se creó snapshot');
+        if (allChanges.length === 0) {
+          console.log('[ContractRepository][update] Razón: No hay cambios detectados');
+        }
+        if (!createdHistoryEntryId) {
+          console.log('[ContractRepository][update] Razón: No se creó historyEntry');
+        }
       }
 
       // Se actualiza el contrato principal como parte de la transacción.
@@ -1147,6 +1282,140 @@ export class ContractRepository implements IContractRepository {
         );
       }
     }
+  }
+
+  /**
+   * Detecta todos los cambios entre dos objetos de manera profunda
+   * Retorna solo los campos que cambiaron con sus valores anteriores y nuevos
+   */
+  private detectChanges(oldObj: any, newObj: any, path: string = ''): any[] {
+    const changes = [];
+
+    // Función helper para comparar valores
+    const areEqual = (val1: any, val2: any): boolean => {
+      if (val1 === val2) return true;
+      if (val1 == null || val2 == null) return false;
+      if (typeof val1 !== typeof val2) return false;
+      
+      // Para ObjectIds de Mongoose
+      if (val1.toString && val2.toString && 
+          val1.constructor.name === 'ObjectId' && val2.constructor.name === 'ObjectId') {
+        return val1.toString() === val2.toString();
+      }
+      
+      // Para fechas
+      if (val1 instanceof Date && val2 instanceof Date) {
+        return val1.getTime() === val2.getTime();
+      }
+      
+      // Para objetos y arrays, comparar como JSON
+      if (typeof val1 === 'object' && typeof val2 === 'object') {
+        return JSON.stringify(val1) === JSON.stringify(val2);
+      }
+      
+      return false;
+    };
+
+    // Si newObj tiene campos que oldObj no tiene o son diferentes
+    for (const key in newObj) {
+      if (newObj.hasOwnProperty(key)) {
+        const currentPath = path ? `${path}.${key}` : key;
+        const oldValue = oldObj ? oldObj[key] : undefined;
+        const newValue = newObj[key];
+
+        if (!areEqual(oldValue, newValue)) {
+          changes.push({
+            field: currentPath,
+            oldValue: oldValue,
+            newValue: newValue,
+          });
+        }
+      }
+    }
+
+    return changes;
+  }
+
+  /**
+   * Detecta cambios en el carrito del booking
+   */
+  private detectCartChanges(oldCart: any, newCart: any): any[] {
+    const changes = [];
+
+    try {
+      const oldCartObj = typeof oldCart === 'string' ? JSON.parse(oldCart) : oldCart;
+      const newCartObj = typeof newCart === 'string' ? JSON.parse(newCart) : newCart;
+
+      // Comparar vehículos
+      const oldVehicles = oldCartObj?.vehicles || [];
+      const newVehicles = newCartObj?.vehicles || [];
+      
+      if (JSON.stringify(oldVehicles) !== JSON.stringify(newVehicles)) {
+        changes.push({
+          field: 'booking.cart.vehicles',
+          oldValue: oldVehicles,
+          newValue: newVehicles,
+        });
+      }
+
+      // Comparar tours
+      const oldTours = oldCartObj?.tours || [];
+      const newTours = newCartObj?.tours || [];
+      
+      if (JSON.stringify(oldTours) !== JSON.stringify(newTours)) {
+        changes.push({
+          field: 'booking.cart.tours',
+          oldValue: oldTours,
+          newValue: newTours,
+        });
+      }
+
+      // Comparar tickets
+      const oldTickets = oldCartObj?.tickets || [];
+      const newTickets = newCartObj?.tickets || [];
+      
+      if (JSON.stringify(oldTickets) !== JSON.stringify(newTickets)) {
+        changes.push({
+          field: 'booking.cart.tickets',
+          oldValue: oldTickets,
+          newValue: newTickets,
+        });
+      }
+
+      // Comparar transfers
+      const oldTransfer = oldCartObj?.transfer || [];
+      const newTransfer = newCartObj?.transfer || [];
+      
+      if (JSON.stringify(oldTransfer) !== JSON.stringify(newTransfer)) {
+        changes.push({
+          field: 'booking.cart.transfer',
+          oldValue: oldTransfer,
+          newValue: newTransfer,
+        });
+      }
+
+      // Comparar totales y otros campos del carrito
+      if (oldCartObj?.total !== newCartObj?.total) {
+        changes.push({
+          field: 'booking.cart.total',
+          oldValue: oldCartObj?.total,
+          newValue: newCartObj?.total,
+        });
+      }
+
+      if (oldCartObj?.subtotal !== newCartObj?.subtotal) {
+        changes.push({
+          field: 'booking.cart.subtotal',
+          oldValue: oldCartObj?.subtotal,
+          newValue: newCartObj?.subtotal,
+        });
+      }
+
+    } catch (error) {
+      console.error('[detectCartChanges] Error al detectar cambios en el carrito:', error);
+    }
+
+    return changes;
   }
 
   /**
@@ -1329,7 +1598,8 @@ export class ContractRepository implements IContractRepository {
   ): Promise<ContractHistory> {
 
     
-    const historyEntry = await this.contractHistoryModel.findById(historyId);
+    const historyEntry = await this.contractHistoryModel.findById(historyId)
+      .populate('eventType');
     
     if (!historyEntry) {
       throw new NotFoundException(`Movimiento con ID "${historyId}" no encontrado.`);
@@ -1356,6 +1626,24 @@ export class ContractRepository implements IContractRepository {
       : 'Usuario desconocido';
     
 
+    // NUEVA FUNCIONALIDAD: Restaurar fecha y vehículo si es una EXTENSION DE RENTA o CAMBIO DE VEHICULO
+    const isExtensionRenta = historyEntry.action === ContractAction.EXTENSION_UPDATED ||
+      (historyEntry.eventType && (historyEntry.eventType as any).name === 'EXTENSION DE RENTA');
+    
+    const isCambioVehiculo = historyEntry.eventType && 
+      (historyEntry.eventType as any).name === 'CAMBIO DE VEHICULO';
+
+    if (isExtensionRenta || isCambioVehiculo) {
+      const eventTypeName = isExtensionRenta ? 'EXTENSION DE RENTA' : 'CAMBIO DE VEHICULO';
+      console.log(`[softDeleteHistoryEntry] Detectada ${eventTypeName} - Restaurando estado anterior`);
+      
+      try {
+        await this.restoreCartFromSnapshot(historyEntry, userId, eventTypeName);
+      } catch (error) {
+        console.error(`[softDeleteHistoryEntry] Error al restaurar datos de ${eventTypeName}:`, error);
+        // Continuar con la eliminación aunque falle la restauración
+      }
+    }
 
     historyEntry.isDeleted = true;
     historyEntry.deletedBy = new mongoose.Types.ObjectId(userId) as any;
@@ -1363,7 +1651,326 @@ export class ContractRepository implements IContractRepository {
     historyEntry.deletedAt = new Date();
     historyEntry.deletionReason = reason;
 
-    return historyEntry.save();
+    const savedHistory = await historyEntry.save();
+
+    // Eliminar el snapshot asociado a este historyEntry
+    try {
+      const contractId = historyEntry.contract;
+      await this.contractModel.updateOne(
+        { _id: contractId },
+        { $pull: { snapshots: { historyEntry: new mongoose.Types.ObjectId(historyId) } } }
+      );
+      console.log(`[softDeleteHistoryEntry] Snapshot asociado al historyEntry ${historyId} eliminado exitosamente`);
+    } catch (error) {
+      console.error(`[softDeleteHistoryEntry] Error al eliminar snapshot asociado:`, error);
+      // No lanzar error para no interrumpir la eliminación del historyEntry
+    }
+
+    return savedHistory;
+  }
+
+  /**
+   * Restaura el carrito desde el snapshot cuando se elimina una extensión o cambio de vehículo
+   */
+  private async restoreCartFromSnapshot(
+    historyEntry: ContractHistory,
+    userId: string,
+    eventTypeName: string
+  ): Promise<void> {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      // 1. Obtener el contrato
+      const contract = await this.contractModel
+        .findById(historyEntry.contract)
+        .session(session);
+      
+      if (!contract) {
+        throw new NotFoundException('Contrato no encontrado');
+      }
+
+      // 2. Obtener el booking asociado
+      const booking = await this.bookingModel
+        .findById(contract.booking)
+        .session(session);
+      
+      if (!booking) {
+        throw new NotFoundException('Booking no encontrado');
+      }
+
+      // 3. Buscar el carrito anterior a la extensión
+      let oldCart: any = null;
+      const historyEntryDoc = historyEntry as any; // Cast para acceder a createdAt y _id
+
+      console.log(`[restoreCartFromSnapshot] Buscando carrito anterior para ${eventTypeName}...`);
+      console.log(`[restoreCartFromSnapshot] HistoryEntry ID: ${historyEntryDoc._id}`);
+      console.log(`[restoreCartFromSnapshot] HistoryEntry createdAt:`, historyEntryDoc.createdAt);
+
+      // ESTRATEGIA 1: Buscar en el SNAPSHOT del contrato (más confiable)
+      // El snapshot guarda el oldValue del carrito antes del cambio
+      console.log(`[restoreCartFromSnapshot] ESTRATEGIA 1: Buscando en snapshots del contrato...`);
+      
+      const contractDoc = await this.contractModel
+        .findById(contract._id)
+        .session(session);
+      
+      if (contractDoc && (contractDoc as any).snapshots) {
+        const snapshots = (contractDoc as any).snapshots;
+        
+        // Buscar el snapshot vinculado a este historyEntry
+        const extensionSnapshot = snapshots.find((s: any) => 
+          s.historyEntry && s.historyEntry.toString() === historyEntryDoc._id.toString()
+        );
+        
+        if (extensionSnapshot) {
+          console.log('[restoreExtensionData] Snapshot de extensión encontrado');
+          
+          // Buscar el cambio en booking.cart.vehicles que tiene el oldValue
+          for (const change of extensionSnapshot.changes || []) {
+            if (change.field === 'booking.cart.vehicles' && change.oldValue) {
+              // Reconstruir el carrito con los vehículos anteriores
+              const currentCartObj = JSON.parse(booking.cart);
+              oldCart = {
+                ...currentCartObj,
+                vehicles: change.oldValue
+              };
+              console.log('[restoreExtensionData] Carrito reconstruido desde snapshot de extensión');
+              console.log('[restoreExtensionData] Cart dates:', oldCart?.vehicles?.[0]?.dates);
+              break;
+            }
+          }
+        }
+      }
+
+      // ESTRATEGIA 2: Buscar en CartVersion la versión ANTERIOR a cuando se creó la extensión
+      console.log('[restoreExtensionData] Buscando en CartVersion...');
+      
+      // Obtener todas las versiones del carrito ordenadas por fecha de creación
+      const allCartVersions = await this.cartVersionModel
+        .find({ booking: booking._id })
+        .sort({ createdAt: 1 }) // Ordenar por fecha de creación ascendente
+        .session(session)
+        .lean();
+
+      console.log('[restoreExtensionData] Total cart versions found:', allCartVersions.length);
+
+      if (allCartVersions.length > 0) {
+        // Buscar la versión del carrito que fue creada ANTES del historyEntry de extensión
+        let cartVersionBeforeExtension = null;
+        
+        for (let i = allCartVersions.length - 1; i >= 0; i--) {
+          const cartVersion = allCartVersions[i];
+          const cartCreatedAt = (cartVersion as any).createdAt;
+          
+          console.log(`[restoreExtensionData] Checking cart version ${(cartVersion as any).version}, createdAt:`, cartCreatedAt);
+          
+          // Buscar la versión creada ANTES de la extensión
+          if (cartCreatedAt < historyEntryDoc.createdAt) {
+            cartVersionBeforeExtension = cartVersion;
+            console.log('[restoreExtensionData] Found cart version BEFORE extension:', (cartVersion as any).version);
+            break;
+          }
+        }
+
+        if (cartVersionBeforeExtension) {
+          oldCart = (cartVersionBeforeExtension as any).data;
+          console.log('[restoreExtensionData] Using cart from version:', (cartVersionBeforeExtension as any).version);
+          console.log('[restoreExtensionData] Cart dates:', oldCart?.vehicles?.[0]?.dates);
+        }
+      }
+
+      // ESTRATEGIA 3: Buscar en el historial ANTERIOR a la extensión
+      if (!oldCart) {
+        console.log('[restoreExtensionData] Buscando en historial anterior...');
+        
+        const previousHistory = await this.contractHistoryModel
+          .findOne({
+            contract: historyEntry.contract,
+            createdAt: { $lt: historyEntryDoc.createdAt },
+            isDeleted: false,
+            action: ContractAction.BOOKING_MODIFIED
+          })
+          .sort({ createdAt: -1 })
+          .session(session);
+
+        if (previousHistory && previousHistory.changes) {
+          for (const change of previousHistory.changes) {
+            if (change.field === 'activeCartVersion' && change.cartSnapshot) {
+              oldCart = change.cartSnapshot;
+              console.log('[restoreExtensionData] Carrito encontrado en historial anterior (BOOKING_MODIFIED)');
+              console.log('[restoreExtensionData] Cart dates:', oldCart?.vehicles?.[0]?.dates);
+              break;
+            }
+          }
+        }
+      }
+
+      // ESTRATEGIA 4: Buscar en el snapshot del contrato
+      if (!oldCart) {
+        console.log('[restoreExtensionData] Buscando en snapshots del contrato...');
+        
+        const contractDoc = await this.contractModel
+          .findById(contract._id)
+          .session(session);
+        
+        if (contractDoc && (contractDoc as any).snapshots) {
+          const snapshots = (contractDoc as any).snapshots;
+          
+          // Buscar el snapshot anterior al de la extensión
+          const sortedSnapshots = snapshots
+            .filter((s: any) => s.timestamp < historyEntryDoc.createdAt)
+            .sort((a: any, b: any) => b.timestamp - a.timestamp);
+          
+          if (sortedSnapshots.length > 0) {
+            const previousSnapshot = sortedSnapshots[0];
+            
+            // Buscar cambios en el carrito en ese snapshot
+            for (const change of previousSnapshot.changes || []) {
+              if (change.field === 'booking.cart.vehicles' && change.oldValue) {
+                // Reconstruir el carrito con los vehículos anteriores
+                const currentCartObj = JSON.parse(booking.cart);
+                oldCart = {
+                  ...currentCartObj,
+                  vehicles: change.oldValue
+                };
+                console.log('[restoreExtensionData] Carrito reconstruido desde snapshot del contrato');
+                console.log('[restoreExtensionData] Cart dates:', oldCart?.vehicles?.[0]?.dates);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // FALLBACK: Si no encontramos nada, no podemos restaurar
+      if (!oldCart) {
+        console.error('[restoreExtensionData] No se pudo encontrar el carrito anterior. No se puede restaurar.');
+        throw new Error('No se pudo encontrar el carrito anterior para restaurar la extensión');
+      }
+
+      // Validar que el carrito encontrado realmente tiene fechas diferentes
+      const currentCartObj = JSON.parse(booking.cart);
+      const currentEndDate = currentCartObj?.vehicles?.[0]?.dates?.end;
+      const oldEndDate = oldCart?.vehicles?.[0]?.dates?.end;
+
+      console.log('[restoreExtensionData] Comparando fechas:');
+      console.log('[restoreExtensionData] Fecha actual (extendida):', currentEndDate);
+      console.log('[restoreExtensionData] Fecha a restaurar:', oldEndDate);
+
+      if (currentEndDate === oldEndDate) {
+        console.warn('[restoreExtensionData] ADVERTENCIA: Las fechas son iguales. El carrito encontrado puede no ser el correcto.');
+        console.warn('[restoreExtensionData] Esto indica que no se guardó correctamente el estado anterior.');
+      }
+
+      // 7. Actualizar el booking con el carrito restaurado Y restar el monto de la extensión del totalPaid
+      if (oldCart) {
+        // Crear nueva versión del carrito
+        const lastVersion = await this.cartVersionModel
+          .findOne({ booking: booking._id })
+          .sort({ version: -1 })
+          .session(session);
+        const newVersionNumber = lastVersion ? lastVersion.version + 1 : 1;
+
+        const newCartVersion = new this.cartVersionModel({
+          booking: booking._id,
+          version: newVersionNumber,
+          data: oldCart,
+        });
+        await newCartVersion.save({ session });
+
+        booking.activeCartVersion = newCartVersion._id;
+        booking.cart = JSON.stringify(oldCart);
+
+        // IMPORTANTE: Restar el monto de la extensión del totalPaid
+        // Buscar el monto de la extensión en el eventMetadata del historyEntry
+        const extensionAmount = (historyEntry as any).eventMetadata?.amount || 0;
+        
+        if (extensionAmount > 0 && booking.totalPaid) {
+          const previousTotalPaid = booking.totalPaid;
+          booking.totalPaid = Math.max(0, booking.totalPaid - extensionAmount);
+          
+          console.log('[restoreExtensionData] totalPaid actualizado:', {
+            anterior: previousTotalPaid,
+            extensionRestada: extensionAmount,
+            nuevo: booking.totalPaid
+          });
+        } else if (extensionAmount > 0) {
+          console.warn('[restoreExtensionData] No se pudo restar extensión: totalPaid no existe en el booking');
+        }
+
+        // Guardar el booking con el carrito restaurado
+        const savedBooking = await booking.save({ session });
+        
+        console.log('[restoreExtensionData] Carrito restaurado con fecha anterior');
+        console.log('[restoreExtensionData] Booking guardado - Verificando datos:');
+        console.log('[restoreExtensionData] booking._id:', savedBooking._id);
+        console.log('[restoreExtensionData] booking.cart (primeros 200 chars):', savedBooking.cart.substring(0, 200));
+        console.log('[restoreExtensionData] booking.totalPaid:', savedBooking.totalPaid);
+        
+        // Verificar que el carrito se guardó correctamente leyéndolo de nuevo
+        const verifyBooking = await this.bookingModel
+          .findById(booking._id)
+          .session(session)
+          .lean();
+        
+        if (verifyBooking) {
+          const verifyCart = JSON.parse(verifyBooking.cart);
+          console.log('[restoreExtensionData] VERIFICACIÓN - Carrito leído de DB:', {
+            endDate: verifyCart?.vehicles?.[0]?.dates?.end,
+            totalPaid: verifyBooking.totalPaid
+          });
+        }
+      }
+
+      // 8. Actualizar las reservas de vehículos
+      const currentCart = JSON.parse(booking.cart);
+      if (oldCart && oldCart.vehicles) {
+        await this.updateVehicleReservations(
+          currentCart,
+          oldCart,
+          session,
+          contract._id.toString(),
+          false,
+          false
+        );
+      }
+
+      // 9. Crear un registro en el historial indicando la restauración
+      const userInfo = await this.connection.db.collection('users').findOne({ 
+        _id: new mongoose.Types.ObjectId(userId) 
+      });
+      
+      const createdByValue = userInfo 
+        ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+        : 'Usuario desconocido';
+
+      const restorationHistory = new this.contractHistoryModel({
+        contract: contract._id,
+        performedBy: userId,
+        action: ContractAction.NOTE_ADDED,
+        details: `Restauración automática por eliminación de extensión de renta. Fecha y vehículo restaurados al estado anterior.`,
+        createdBy: createdByValue,
+        changes: [
+          {
+            field: 'restoration',
+            oldValue: 'Estado con extensión',
+            newValue: 'Estado anterior a la extensión',
+            cartSnapshot: oldCart
+          }
+        ]
+      });
+      await restorationHistory.save({ session });
+
+      await session.commitTransaction();
+      console.log('[restoreExtensionData] Datos de extensión restaurados exitosamente');
+    } catch (error) {
+      await session.abortTransaction();
+      console.error('[restoreExtensionData] Error al restaurar datos de extensión:', error);
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   async restoreHistoryEntry(historyId: string): Promise<ContractHistory> {

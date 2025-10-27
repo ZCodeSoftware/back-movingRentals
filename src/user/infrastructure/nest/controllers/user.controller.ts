@@ -81,6 +81,55 @@ export class UserController {
     return await this.userService.findAll(query);
   }
 
+  @Get('only-users')
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SUPERADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiResponse({ status: 200, description: 'Get all users with USER role only' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by name, lastName or email',
+  })
+  @ApiQuery({
+    name: 'email',
+    required: false,
+    type: String,
+    description: 'Filter by email',
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    type: String,
+    description: 'Filter by name',
+  })
+  @ApiQuery({
+    name: 'lastName',
+    required: false,
+    type: String,
+    description: 'Filter by lastName',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10)',
+  })
+  async getAllOnlyUsers(@Query() query: any): Promise<any> {
+    return await this.userService.findAllOnlyUsers(query);
+  }
+
   @Get('non-users')
   @Roles(
     TypeRoles.ADMIN,

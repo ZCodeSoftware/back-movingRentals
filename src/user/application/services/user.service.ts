@@ -153,6 +153,26 @@ export class UserService implements IUserService {
     }
   }
 
+  async findAllOnlyUsers(filters: any): Promise<{
+    data: UserModel[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    try {
+      const users = await this.userRepository.findAllOnlyUsers(filters);
+
+      return users;
+    } catch (error) {
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
   async findAllNonUsers(filters: any): Promise<{
     data: UserModel[];
     pagination: {

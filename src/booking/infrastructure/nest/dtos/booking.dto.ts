@@ -69,4 +69,29 @@ export class CreateBookingDTO {
   @ApiPropertyOptional({ description: 'Indicates if this is a reservation (partial payment)' })
   @IsBoolean()
   isReserve?: boolean;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Indicates if vehicle delivery is required' })
+  @IsBoolean()
+  requiresDelivery?: boolean;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Type of delivery: one-way or round-trip', enum: ['one-way', 'round-trip'] })
+  @IsString()
+  deliveryType?: 'one-way' | 'round-trip';
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'For one-way delivery: pickup (vehicle pickup) or delivery (vehicle drop-off)', enum: ['pickup', 'delivery'] })
+  @IsString()
+  oneWayType?: 'pickup' | 'delivery';
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Delivery address for the vehicle' })
+  @IsString()
+  deliveryAddress?: string;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Cost of the delivery service' })
+  @IsNumber()
+  deliveryCost?: number;
 }

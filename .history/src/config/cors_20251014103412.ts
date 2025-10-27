@@ -21,7 +21,6 @@ const whiteList = [
   'https://moovadventures.mx',
   'https://www.moovadventures.mx',
   'https://nx50gc3r-5173.brs.devtunnels.ms',
-  'https://lbkdpvp7-5173.brs.devtunnels.ms',
   ...whiteListDev,
 ];
 

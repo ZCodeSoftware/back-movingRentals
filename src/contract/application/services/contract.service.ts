@@ -133,10 +133,15 @@ export class ContractService implements IContractService {
             contractObj = { ...contract };
           }
           
-          // Verificar si tiene extensión en el timeline
+          // Verificar si tiene extensión en el timeline (solo contar las NO eliminadas)
           let isExtended = false;
           if (contractObj.timeline && Array.isArray(contractObj.timeline)) {
             isExtended = contractObj.timeline.some((entry: any) => {
+              // Ignorar entradas eliminadas
+              if (entry.isDeleted === true) {
+                return false;
+              }
+              
               // Verificar si el eventType tiene el nombre "EXTENSION DE RENTA"
               if (entry.eventType && entry.eventType.name) {
                 return entry.eventType.name.toUpperCase().includes('EXTENSION DE RENTA');

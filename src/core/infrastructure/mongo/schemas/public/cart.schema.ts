@@ -14,6 +14,16 @@ interface Passenger {
     child: number;
 }
 
+interface DeliveryInfo {
+    requiresDelivery: boolean;
+    deliveryType: 'one-way' | 'round-trip';
+    oneWayType: 'pickup' | 'delivery' | null;
+    deliveryAddress: string;
+    deliveryCost: number;
+    distance?: number;
+    exceedsLimit?: boolean;
+}
+
 @Schema({ collection: 'cart', timestamps: true })
 export class Cart {
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Branches' })
@@ -42,7 +52,19 @@ export class Cart {
                 start: { type: Date },
                 end: { type: Date }
             },
-            passengers: { adults: Number, child: Number }
+            passengers: { adults: Number, child: Number },
+            delivery: {
+                type: {
+                    requiresDelivery: Boolean,
+                    deliveryType: String,
+                    oneWayType: String,
+                    deliveryAddress: String,
+                    deliveryCost: Number,
+                    distance: Number,
+                    exceedsLimit: Boolean
+                },
+                required: false
+            }
         }]
     })
     vehicles: {
@@ -50,6 +72,7 @@ export class Cart {
         total: number,
         dates: DatesDTO
         passengers: Passenger
+        delivery?: DeliveryInfo
     }[];
 
     @Prop({
