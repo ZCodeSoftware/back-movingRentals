@@ -98,6 +98,64 @@ export class ContractRepository implements IContractRepository {
       });
       await historyEntry.save({ session });
 
+      // Verificar si el booking tiene delivery y crear el movimiento correspondiente
+      const bookingId = contractData.booking;
+      const booking = await this.bookingModel.findById(bookingId).session(session);
+      
+      if (booking && booking.requiresDelivery && booking.deliveryCost && booking.deliveryCost > 0) {
+        console.log('[ContractRepository][create] Booking tiene delivery - Creando movimiento de DELIVERY');
+        
+        try {
+          // Obtener información del carrito para el vehículo
+          let vehicleId = null;
+          let concierge = null;
+          
+          if (booking.cart) {
+            const cartData = JSON.parse(booking.cart);
+            if (cartData.vehicles && cartData.vehicles.length > 0) {
+              vehicleId = cartData.vehicles[0].vehicle?._id || cartData.vehicles[0].vehicle;
+            }
+          }
+          
+          // Obtener el concierge del booking si existe
+          if (booking.concierge) {
+            concierge = booking.concierge;
+          }
+          
+          // Buscar el evento de DELIVERY en el catálogo
+          const deliveryEvent = await this.catContractEventModel.findOne({ name: 'DELIVERY' });
+          
+          // Crear el movimiento de delivery enlazado al histórico
+          const deliveryMetadata = {
+            amount: booking.deliveryCost,
+            paymentMethod: 'CUENTA', // Método de pago por defecto para delivery
+            vehicle: vehicleId,
+            beneficiary: concierge,
+            date: new Date(),
+            deliveryType: booking.deliveryType,
+            oneWayType: booking.oneWayType,
+            deliveryAddress: booking.deliveryAddress,
+          };
+          
+          const deliveryHistoryEntry = new this.contractHistoryModel({
+            contract: savedContract._id,
+            performedBy: userId,
+            action: ContractAction.NOTE_ADDED,
+            eventType: deliveryEvent?._id,
+            details: `Servicio de delivery - ${booking.deliveryType === 'round-trip' ? 'Ida y vuelta' : booking.oneWayType === 'pickup' ? 'Solo recogida' : 'Solo entrega'}`,
+            eventMetadata: deliveryMetadata,
+            createdBy: createdByValue,
+          });
+          
+          await deliveryHistoryEntry.save({ session });
+          
+          console.log('[ContractRepository][create] Movimiento de DELIVERY creado exitosamente');
+        } catch (deliveryError) {
+          console.error('[ContractRepository][create] Error al crear movimiento de DELIVERY:', deliveryError);
+          // No fallar la creación del contrato si falla el movimiento de delivery
+        }
+      }
+
       await session.commitTransaction();
 
       await savedContract.populate([
