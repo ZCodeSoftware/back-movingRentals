@@ -3,13 +3,19 @@ import { Identifier } from '../../../core/domain/value-objects/identifier';
 
 export class CatModelModel extends BaseModel {
     private _name: string;
+    private _promotionalPrices?: any[];
 
     public toJSON() {
         const aggregate = this._id ? { _id: this._id.toValue() } : {};
         return {
             ...aggregate,
             name: this._name,
+            promotionalPrices: this._promotionalPrices,
         };
+    }
+
+    addPromotionalPrices(promotionalPrices: any[]) {
+        this._promotionalPrices = promotionalPrices;
     }
 
     private static initializeRole(model: any): CatModelModel {

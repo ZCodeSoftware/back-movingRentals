@@ -1,5 +1,5 @@
 import { HttpModule } from '@nestjs/axios';
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   addressRepository,
@@ -66,6 +66,7 @@ import { ContractEventSeed } from './infrastructure/mongo/seed/contract-event.se
       catStatusSchema,
       catContractEventSchema
     ]),
+    forwardRef(() => require('../promotional-price/promotional-price.module').PromotionalPriceModule),
   ],
   controllers: [
     CatRoleController,

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CatalogsModule } from '../catalogs/catalogs.module';
 import { PromotionalPrice, PromotionalPriceSchema } from '../core/infrastructure/mongo/schemas/public/promotional-price.schema';
@@ -10,7 +10,7 @@ import { promotionalPriceProviders } from './infrastructure/nest/constants/custo
         MongooseModule.forFeature([
             { name: PromotionalPrice.name, schema: PromotionalPriceSchema },
         ]),
-        CatalogsModule,
+        forwardRef(() => CatalogsModule),
     ],
     controllers: [PromotionalPriceController],
     providers: [...promotionalPriceProviders],
