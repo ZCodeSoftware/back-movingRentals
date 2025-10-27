@@ -34,5 +34,8 @@ import { UserController } from './infrastructure/nest/controllers/user.controlle
     addressRepository,
     countryRepository,
   ],
+  exports: [
+    userRepository,
+  ],
 })
 export class UserModule {}
