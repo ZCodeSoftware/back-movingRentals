@@ -16,6 +16,8 @@ import { INotificationEventService } from '../../domain/services/notificacion.ev
 @Injectable()
 export class NotificationEventService implements INotificationEventService {
   private readonly logger = new Logger(NotificationEventService.name);
+  private readonly sentEmails = new Map<string, number>(); // bookingId -> timestamp
+  private readonly DEDUP_WINDOW_MS = 60000; // 1 minuto de ventana de deduplicación
 
   constructor(
     @Inject(SymbolsNotification.IUserEmailAdapter)
@@ -29,6 +31,16 @@ export class NotificationEventService implements INotificationEventService {
   ) {
     // Log inicial de configuración
     this.logEnvironmentConfig();
+    
+    // Limpiar el mapa de emails enviados cada 5 minutos
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, timestamp] of this.sentEmails.entries()) {
+        if (now - timestamp > this.DEDUP_WINDOW_MS) {
+          this.sentEmails.delete(key);
+        }
+      }
+    }, 300000); // 5 minutos
   }
 
   private logEnvironmentConfig() {
@@ -112,8 +124,24 @@ export class NotificationEventService implements INotificationEventService {
     userEmail: string,
     lang: string = 'es',
   ): Promise<any> {
-    const bookingIdForLogs =
-      (booking as any).bookingNumber || (booking as any).id;
+    const bookingData: any = booking.toJSON ? booking.toJSON() : booking;
+    const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
+    const bookingIdForLogs = bookingData.bookingNumber || bookingData.id || bookingId;
+
+    // Verificar si ya se envió un email para esta reserva recientemente
+    const dedupKey = `${bookingId}-${lang}`;
+    const lastSent = this.sentEmails.get(dedupKey);
+    const now = Date.now();
+    
+    if (lastSent && (now - lastSent) < this.DEDUP_WINDOW_MS) {
+      this.logger.warn(
+        `[Reserva #${bookingIdForLogs}] Email duplicado detectado. Ya se envió hace ${Math.round((now - lastSent) / 1000)}s. Ignorando.`,
+      );
+      return { skipped: true, reason: 'duplicate', lastSent };
+    }
+
+    // Registrar este envío
+    this.sentEmails.set(dedupKey, now);
 
     this.logger.log(
       `[Reserva #${bookingIdForLogs}] Proceso de notificación iniciado.`,
