@@ -75,16 +75,9 @@ export class ContractService implements IContractService {
     const contractModel = ContractModel.create(processedContract);
     const createdContract = await this.contractRepository.create(contractModel, userId);
 
-    // Log extendido de debugging para sendEmail
-    if (contract.sendEmail !== false) {
-      this.eventEmitter.emit('send-contract.created', {
-        contract: createdContract,
-        userEmail: createdContract.toJSON().reservingUser?.email,
-        lang: 'es', // Por defecto español, se puede mejorar para detectar idioma del usuario
-      });
-    } else {
-      console.log('[ContractService] NO se dispara mail por sendEmail === false para contrato ID:', createdContract?.toJSON()._id, 'Request user:', userId);
-    }
+    // NOTA: Ya no emitimos el evento send-contract.created porque causa emails duplicados
+    // El email de confirmación ya se envió cuando se creó el booking
+    console.log('[ContractService] Contrato creado. Email de confirmación ya enviado en booking.created');
 
     return createdContract;
   }

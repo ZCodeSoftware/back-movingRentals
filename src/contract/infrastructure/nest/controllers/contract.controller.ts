@@ -168,13 +168,13 @@ export class ContractController {
     name: 'reservationDateStart',
     required: false,
     type: 'string',
-    description: 'Filter by reservation start date (vehicle rental start date) (ISO 8601 format: YYYY-MM-DD)',
+    description: 'Filtro por fecha de inicio de reserva. Si se proporciona solo esta fecha, busca reservas que inicien exactamente en esa fecha. Si se proporciona junto con reservationDateEnd, busca reservas que inicien desde esta fecha (ISO 8601 format: YYYY-MM-DD)',
   })
   @ApiQuery({
     name: 'reservationDateEnd',
     required: false,
     type: 'string',
-    description: 'Filter by reservation end date (vehicle rental end date) (ISO 8601 format: YYYY-MM-DD)',
+    description: 'Filtro por fecha de fin de reserva. Si se proporciona solo esta fecha, busca reservas que inicien exactamente en esa fecha. Si se proporciona junto con reservationDateStart, busca reservas que inicien hasta esta fecha (ISO 8601 format: YYYY-MM-DD). NOTA: Siempre se compara con la fecha de INICIO de la reserva, no con la fecha de finalización.',
   })
   @ApiQuery({
     name: 'paymentMethod',

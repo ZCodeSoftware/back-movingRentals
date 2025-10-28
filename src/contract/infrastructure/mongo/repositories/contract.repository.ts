@@ -732,27 +732,49 @@ export class ContractRepository implements IContractRepository {
       matchConditions.createdAt = createdAtMatch;
     }
     
-    // Filtro por fecha de reserva (fechas de vehículos en el cart)
+    // Filtro por fecha de reserva (solo fecha de inicio del vehículo)
+    // Siempre comparamos con la fecha de inicio de la reserva, no con la finalización
     if (filters.reservationDateStart || filters.reservationDateEnd) {
-      // Necesitamos parsear el cart JSON y buscar en las fechas de los vehículos
+      // Construir las condiciones de filtro usando regex en el cart JSON
       const dateConditions: any[] = [];
       
-      if (filters.reservationDateStart) {
+      if (filters.reservationDateStart && filters.reservationDateEnd) {
+        // Si se proporcionan ambas fechas, filtrar por rango (desde-hasta)
         const startDate = new Date(filters.reservationDateStart);
-        startDate.setUTCHours(0, 0, 0, 0);
-        const startRegex = new RegExp(`\"start\"\\s*:\\s*\"[^\"]*${startDate.toISOString().split('T')[0]}`, 'i');
+        const endDate = new Date(filters.reservationDateEnd);
+        
+        // Crear un array de todas las fechas en el rango
+        const dateRange: string[] = [];
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= endDate) {
+          dateRange.push(currentDate.toISOString().split('T')[0]);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        // Crear regex que busque cualquiera de las fechas en el rango en la fecha de inicio
+        const datePattern = dateRange.join('|');
+        const startRegex = new RegExp(`"vehicles"[^\\]]*"dates"[^}]*"start"\\s*:\\s*"(${datePattern})`, 'i');
+        
+        dateConditions.push({ 'bookingData.cart': { $regex: startRegex } });
+      } else if (filters.reservationDateStart) {
+        // Si solo se proporciona fecha de inicio, buscar esa fecha exacta
+        const startDate = new Date(filters.reservationDateStart);
+        const dateStr = startDate.toISOString().split('T')[0];
+        const startRegex = new RegExp(`"vehicles"[^\\]]*"dates"[^}]*"start"\\s*:\\s*"${dateStr}`, 'i');
+        
+        dateConditions.push({ 'bookingData.cart': { $regex: startRegex } });
+      } else if (filters.reservationDateEnd) {
+        // Si solo se proporciona fecha de fin, buscar esa fecha exacta
+        const endDate = new Date(filters.reservationDateEnd);
+        const dateStr = endDate.toISOString().split('T')[0];
+        const startRegex = new RegExp(`"vehicles"[^\\]]*"dates"[^}]*"start"\\s*:\\s*"${dateStr}`, 'i');
+        
         dateConditions.push({ 'bookingData.cart': { $regex: startRegex } });
       }
       
-      if (filters.reservationDateEnd) {
-        const endDate = new Date(filters.reservationDateEnd);
-        endDate.setUTCHours(23, 59, 59, 999);
-        const endRegex = new RegExp(`\"end\"\\s*:\\s*\"[^\"]*${endDate.toISOString().split('T')[0]}`, 'i');
-        dateConditions.push({ 'bookingData.cart': { $regex: endRegex } });
-      }
-      
       if (dateConditions.length > 0) {
-        pipeline.push({ $match: { $and: dateConditions } });
+        pipeline.push({ $match: { $or: dateConditions } });
       }
     }
     
@@ -1675,6 +1697,120 @@ export class ContractRepository implements IContractRepository {
       );
     }
 
+    // NUEVA FUNCIONALIDAD: Detectar y eliminar automáticamente extensiones hu��rfanas
+    const isCambioVehiculo = historyEntry.eventType && 
+      (historyEntry.eventType as any).name === 'CAMBIO DE VEHICULO';
+
+    const isExtensionRenta = historyEntry.action === ContractAction.EXTENSION_UPDATED ||
+      (historyEntry.eventType && (historyEntry.eventType as any).name === 'EXTENSION DE RENTA');
+
+    // Array para almacenar las extensiones eliminadas automáticamente
+    const extensionesEliminadas: any[] = [];
+
+    if (isCambioVehiculo) {
+      console.log('[softDeleteHistoryEntry] Detectado CAMBIO DE VEHICULO - Buscando extensiones posteriores para eliminar...');
+      
+      // Buscar extensiones posteriores a este cambio de vehículo
+      const historyEntryDoc: any = historyEntry.toObject ? historyEntry.toObject() : historyEntry;
+      const extensionesPosteriores = await this.contractHistoryModel.find({
+        contract: historyEntry.contract,
+        createdAt: { $gt: historyEntryDoc.createdAt },
+        isDeleted: false,
+        $or: [
+          { action: ContractAction.EXTENSION_UPDATED },
+          { 'eventType': await this.catContractEventModel.findOne({ name: 'EXTENSION DE RENTA' }).then(e => e?._id) }
+        ]
+      }).sort({ createdAt: 1 });
+
+      if (extensionesPosteriores.length > 0) {
+        console.log(`[softDeleteHistoryEntry] Se encontraron ${extensionesPosteriores.length} extensiones posteriores - Eliminando automáticamente...`);
+        
+        // Eliminar cada extensión posterior automáticamente
+        for (const extension of extensionesPosteriores) {
+          try {
+            const extensionDoc: any = extension.toObject ? extension.toObject() : extension;
+            const fecha = new Date(extensionDoc.createdAt).toLocaleString('es-MX');
+            const monto = extensionDoc.eventMetadata?.amount || 0;
+            
+            // Marcar como eliminada
+            extension.isDeleted = true;
+            extension.deletedBy = new mongoose.Types.ObjectId(userId) as any;
+            extension.deletedByInfo = `Sistema (eliminación automática por cambio de vehículo)`;
+            extension.deletedAt = new Date();
+            extension.deletionReason = `Eliminada automáticamente al eliminar el cambio de vehículo del ${new Date(historyEntryDoc.createdAt).toLocaleString('es-MX')}`;
+            
+            await extension.save();
+            
+            extensionesEliminadas.push({
+              fecha,
+              monto,
+              id: extensionDoc._id
+            });
+            
+            console.log(`[softDeleteHistoryEntry] Extensión eliminada: ${fecha} por ${monto}`);
+            
+            // Restaurar el carrito de esta extensión también
+            try {
+              await this.restoreCartFromSnapshot(extension, userId, 'EXTENSION DE RENTA');
+            } catch (restoreError) {
+              console.error(`[softDeleteHistoryEntry] Error al restaurar extensión ${extensionDoc._id}:`, restoreError);
+            }
+          } catch (error) {
+            console.error('[softDeleteHistoryEntry] Error al eliminar extensión posterior:', error);
+          }
+        }
+        
+        console.log(`[softDeleteHistoryEntry] ✅ ${extensionesEliminadas.length} extensión(es) eliminada(s) automáticamente`);
+      }
+    }
+
+    if (isExtensionRenta) {
+      console.log('[softDeleteHistoryEntry] Detectada EXTENSION DE RENTA - Buscando cambios de vehículo posteriores para eliminar...');
+      
+      // Buscar cambios de vehículo posteriores a esta extensión
+      const historyEntryDoc: any = historyEntry.toObject ? historyEntry.toObject() : historyEntry;
+      const cambiosPosteriores = await this.contractHistoryModel.find({
+        contract: historyEntry.contract,
+        createdAt: { $gt: historyEntryDoc.createdAt },
+        isDeleted: false,
+        'eventType': await this.catContractEventModel.findOne({ name: 'CAMBIO DE VEHICULO' }).then(e => e?._id)
+      }).sort({ createdAt: 1 });
+
+      if (cambiosPosteriores.length > 0) {
+        console.log(`[softDeleteHistoryEntry] Se encontraron ${cambiosPosteriores.length} cambios de vehículo posteriores - Eliminando automáticamente...`);
+        
+        // Eliminar cada cambio posterior automáticamente
+        for (const cambio of cambiosPosteriores) {
+          try {
+            const cambioDoc: any = cambio.toObject ? cambio.toObject() : cambio;
+            const fecha = new Date(cambioDoc.createdAt).toLocaleString('es-MX');
+            
+            // Marcar como eliminado
+            cambio.isDeleted = true;
+            cambio.deletedBy = new mongoose.Types.ObjectId(userId) as any;
+            cambio.deletedByInfo = `Sistema (eliminación automática por extensión)`;
+            cambio.deletedAt = new Date();
+            cambio.deletionReason = `Eliminado automáticamente al eliminar la extensión del ${new Date(historyEntryDoc.createdAt).toLocaleString('es-MX')}`;
+            
+            await cambio.save();
+            
+            console.log(`[softDeleteHistoryEntry] Cambio de vehículo eliminado: ${fecha}`);
+            
+            // Restaurar el carrito de este cambio también
+            try {
+              await this.restoreCartFromSnapshot(cambio, userId, 'CAMBIO DE VEHICULO');
+            } catch (restoreError) {
+              console.error(`[softDeleteHistoryEntry] Error al restaurar cambio ${cambioDoc._id}:`, restoreError);
+            }
+          } catch (error) {
+            console.error('[softDeleteHistoryEntry] Error al eliminar cambio posterior:', error);
+          }
+        }
+        
+        console.log(`[softDeleteHistoryEntry] ✅ ${cambiosPosteriores.length} cambio(s) de vehículo eliminado(s) automáticamente`);
+      }
+    }
+
     // Obtener información del usuario que elimina para deletedByInfo
     const userInfo = await this.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
     console.log('[ContractRepository][softDeleteHistoryEntry] userInfo encontrado:', JSON.stringify(userInfo, null, 2));
@@ -1684,13 +1820,8 @@ export class ContractRepository implements IContractRepository {
       : 'Usuario desconocido';
     
 
-    // NUEVA FUNCIONALIDAD: Restaurar fecha y vehículo si es una EXTENSION DE RENTA o CAMBIO DE VEHICULO
-    const isExtensionRenta = historyEntry.action === ContractAction.EXTENSION_UPDATED ||
-      (historyEntry.eventType && (historyEntry.eventType as any).name === 'EXTENSION DE RENTA');
-    
-    const isCambioVehiculo = historyEntry.eventType && 
-      (historyEntry.eventType as any).name === 'CAMBIO DE VEHICULO';
-
+    // RESTAURACIÓN: Restaurar fecha y vehículo si es una EXTENSION DE RENTA o CAMBIO DE VEHICULO
+    // (Ya validamos arriba que no hay dependencias posteriores)
     if (isExtensionRenta || isCambioVehiculo) {
       const eventTypeName = isExtensionRenta ? 'EXTENSION DE RENTA' : 'CAMBIO DE VEHICULO';
       console.log(`[softDeleteHistoryEntry] Detectada ${eventTypeName} - Restaurando estado anterior`);
@@ -1707,7 +1838,18 @@ export class ContractRepository implements IContractRepository {
     historyEntry.deletedBy = new mongoose.Types.ObjectId(userId) as any;
     historyEntry.deletedByInfo = deletedByInfoValue;
     historyEntry.deletedAt = new Date();
-    historyEntry.deletionReason = reason;
+    
+    // Agregar información sobre extensiones eliminadas automáticamente al reason
+    let finalReason = reason || '';
+    if (extensionesEliminadas.length > 0) {
+      const detallesExtensiones = extensionesEliminadas.map((ext, index) => 
+        `${index + 1}. Extensión del ${ext.fecha} por ${ext.monto}`
+      ).join('\n');
+      
+      finalReason += `\n\n⚠️ Se eliminaron automáticamente ${extensionesEliminadas.length} extensión(es) posterior(es):\n${detallesExtensiones}`;
+    }
+    
+    historyEntry.deletionReason = finalReason;
 
     const savedHistory = await historyEntry.save();
 

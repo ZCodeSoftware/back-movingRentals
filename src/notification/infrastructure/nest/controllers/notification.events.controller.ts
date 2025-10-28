@@ -86,26 +86,14 @@ export class NotificationEventController {
   }) {
     const { contract, userEmail, lang } = payload;
     try {
-      // Obtener el booking asociado al contrato para enviar el email de confirmación
-      const contractData = contract.toJSON();
-      if (contractData.booking) {
-        // Check if booking is already a BookingModel instance or needs to be converted
-        let bookingModel: BookingModel;
-        if (contractData.booking instanceof BookingModel) {
-          bookingModel = contractData.booking;
-        } else {
-          // If it's a plain object, create a BookingModel from it
-          bookingModel = BookingModel.hydrate(contractData.booking);
-        }
-        
-        await this.notificationEventService.sendBookingCreated(
-          bookingModel,
-          userEmail,
-          lang,
-        );
-      }
+      // NOTA: No enviamos email aquí porque ya se envió cuando se creó el booking
+      // Este evento se mantiene para posibles notificaciones futuras específicas de contratos
+      console.log(`[NotificationEventController] Evento send-contract.created recibido para contrato. Email ya enviado en booking.created`);
+      
+      // Si en el futuro necesitamos enviar un email específico de contrato (diferente al de booking),
+      // podemos implementarlo aquí
     } catch (error) {
-      console.error('Error sending contract creation emails:', error);
+      console.error('Error handling contract creation event:', error);
     }
   }
 }
