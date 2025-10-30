@@ -874,21 +874,68 @@ export class BookingService implements IBookingService {
       });
 
       try {
-        const parsedCart = JSON.parse(updatedBooking.toJSON().cart || '{}');
         const user = await this.bookingRepository.findUserByBookingId(id);
         const userId = user?.toJSON()._id?.toString?.() ?? undefined;
         const bookingJson = updatedBooking.toJSON();
         const bookingId = bookingJson._id?.toString?.() ?? id;
         const bookingNumber = bookingJson.bookingNumber;
+        const conciergeId = bookingJson.concierge;
 
-        if (parsedCart?.vehicles && Array.isArray(parsedCart.vehicles)) {
-          const existing = await this.commissionRepository.findByBooking(bookingId);
-          if (!existing || existing.length === 0) {
+        // Verificar si ya existen comisiones para este booking
+        const existing = await this.commissionRepository.findByBooking(bookingId);
+        if (existing && existing.length > 0) {
+          console.log(`[BookingService] Ya existen ${existing.length} comisiones para el booking ${bookingNumber}, no se crearán nuevas`);
+          return;
+        }
+
+        // Si tiene concierge asignado, crear UNA SOLA comisión sobre el total
+        if (conciergeId) {
+          try {
+            const concierge = await this.vehicleOwnerRepository.findById(conciergeId.toString());
+            if (concierge) {
+              const conciergeData = concierge.toJSON();
+              const percentage = bookingJson.commission !== undefined && bookingJson.commission !== null
+                ? bookingJson.commission
+                : (conciergeData.commissionPercentage ?? 15);
+              
+              // Obtener el booking actualizado para tener el total correcto
+              const currentBooking = await this.bookingRepository.findById(bookingId);
+              const currentBookingData = currentBooking.toJSON();
+              const bookingTotal = currentBookingData.total || 0;
+              
+              console.log(`[BookingService] Creando comisión única para concierge ${conciergeId} sobre total ${bookingTotal} con ${percentage}%`);
+              
+              const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
+
+              await this.commissionRepository.create(
+                CommissionModel.create({
+                  booking: bookingId as any,
+                  bookingNumber: bookingNumber as any,
+                  user: userId as any,
+                  vehicleOwner: conciergeId as any,
+                  vehicles: [], // No hay vehículos específicos, es sobre el total
+                  detail: 'Comisión Concierge',
+                  status: 'PENDING',
+                  amount: amount as any,
+                  source: 'booking' as any,
+                } as any)
+              );
+              console.log(`[BookingService] Comisión única creada: ${amount} MXN (${percentage}% de ${bookingTotal})`);
+            }
+          } catch (err) {
+            console.error('[BookingService] Error creating concierge commission:', err);
+          }
+        } 
+        // Si NO tiene concierge, crear comisiones por vehículo
+        else {
+          const parsedCart = JSON.parse(updatedBooking.toJSON().cart || '{}');
+          if (parsedCart?.vehicles && Array.isArray(parsedCart.vehicles)) {
+            console.log(`[BookingService] No hay concierge, creando comisiones por vehículo`);
             for (const v of parsedCart.vehicles) {
               const vehicle = v.vehicle;
               const vehicleId = vehicle?._id;
               let ownerId = vehicle?.owner?._id;
-              const total = v.total ?? 0;
+              const vehicleTotal = v.total ?? 0;
 
               // Fallback: fetch vehicle to get owner if not present in cart JSON
               if (!ownerId && vehicleId) {
@@ -898,9 +945,9 @@ export class BookingService implements IBookingService {
                 } catch { }
               }
 
-              if (ownerId && vehicleId && typeof total === 'number') {
+              if (ownerId && vehicleId && typeof vehicleTotal === 'number') {
                 const percentage = vehicle?.owner?.commissionPercentage ?? 0;
-                const amount = Math.round((total * (percentage / 100)) * 100) / 100;
+                const amount = Math.round((vehicleTotal * (percentage / 100)) * 100) / 100;
 
                 await this.commissionRepository.create(
                   CommissionModel.create({
@@ -919,6 +966,7 @@ export class BookingService implements IBookingService {
           }
         }
       } catch (e) {
+        console.error('[BookingService] Error creating commissions:', e);
         // ignore commission errors
       }
     }
