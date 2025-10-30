@@ -333,6 +333,7 @@ export function generateUserBookingConfirmation(
                   <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #856404;">⚠️ INFORMACIÓN IMPORTANTE</h5>
                     <p style="margin: 5px 0; font-size: 14px;">• Se requiere depósito de garantía</p>
+                    ${bookingData?.metadata?.depositNote ? `<p style="margin: 5px 0; font-size: 14px; color: #d63031;"><strong>• Depósito registrado: ${bookingData.metadata.depositNote}</strong></p>` : ''}
                     <p style="margin: 5px 0; font-size: 14px;">• Presentar documento de identidad válido</p>
                     <p style="margin: 5px 0; font-size: 14px;">• Casco incluido en la renta</p>
                     <p style="margin: 5px 0; font-size: 14px;">• Candados disponibles</p>
