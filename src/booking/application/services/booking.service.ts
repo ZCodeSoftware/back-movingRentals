@@ -874,13 +874,11 @@ export class BookingService implements IBookingService {
       });
 
       try {
-        const parsedCart = JSON.parse(updatedBooking.toJSON().cart || '{}');
         const user = await this.bookingRepository.findUserByBookingId(id);
         const userId = user?.toJSON()._id?.toString?.() ?? undefined;
         const bookingJson = updatedBooking.toJSON();
         const bookingId = bookingJson._id?.toString?.() ?? id;
         const bookingNumber = bookingJson.bookingNumber;
-        const bookingTotal = bookingJson.total || 0;
         const conciergeId = bookingJson.concierge;
 
         // Verificar si ya existen comisiones para este booking
@@ -892,7 +890,6 @@ export class BookingService implements IBookingService {
 
         // Si tiene concierge asignado, crear UNA SOLA comisión sobre el total
         if (conciergeId) {
-          console.log(`[BookingService] Creando comisión única para concierge ${conciergeId} sobre total ${bookingTotal}`);
           try {
             const concierge = await this.vehicleOwnerRepository.findById(conciergeId.toString());
             if (concierge) {
@@ -900,6 +897,14 @@ export class BookingService implements IBookingService {
               const percentage = bookingJson.commission !== undefined && bookingJson.commission !== null
                 ? bookingJson.commission
                 : (conciergeData.commissionPercentage ?? 15);
+              
+              // Obtener el booking actualizado para tener el total correcto
+              const currentBooking = await this.bookingRepository.findById(bookingId);
+              const currentBookingData = currentBooking.toJSON();
+              const bookingTotal = currentBookingData.total || 0;
+              
+              console.log(`[BookingService] Creando comisión única para concierge ${conciergeId} sobre total ${bookingTotal} con ${percentage}%`);
+              
               const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
 
               await this.commissionRepository.create(
@@ -915,45 +920,48 @@ export class BookingService implements IBookingService {
                   source: 'booking' as any,
                 } as any)
               );
-              console.log(`[BookingService] Comisión única creada: ${amount} MXN (${percentage}%)`);
+              console.log(`[BookingService] Comisión única creada: ${amount} MXN (${percentage}% de ${bookingTotal})`);
             }
           } catch (err) {
             console.error('[BookingService] Error creating concierge commission:', err);
           }
         } 
-        // Si NO tiene concierge, crear comisiones por vehículo (lógica original)
-        else if (parsedCart?.vehicles && Array.isArray(parsedCart.vehicles)) {
-          console.log(`[BookingService] No hay concierge, creando comisiones por vehículo`);
-          for (const v of parsedCart.vehicles) {
-            const vehicle = v.vehicle;
-            const vehicleId = vehicle?._id;
-            let ownerId = vehicle?.owner?._id;
-            const total = v.total ?? 0;
+        // Si NO tiene concierge, crear comisiones por vehículo
+        else {
+          const parsedCart = JSON.parse(updatedBooking.toJSON().cart || '{}');
+          if (parsedCart?.vehicles && Array.isArray(parsedCart.vehicles)) {
+            console.log(`[BookingService] No hay concierge, creando comisiones por vehículo`);
+            for (const v of parsedCart.vehicles) {
+              const vehicle = v.vehicle;
+              const vehicleId = vehicle?._id;
+              let ownerId = vehicle?.owner?._id;
+              const vehicleTotal = v.total ?? 0;
 
-            // Fallback: fetch vehicle to get owner if not present in cart JSON
-            if (!ownerId && vehicleId) {
-              try {
-                const fullVehicle = await this.vehicleRepository.findById(vehicleId);
-                ownerId = (((fullVehicle as any)?.toJSON?.() as any)?.owner as any)?._id ?? ownerId;
-              } catch { }
-            }
+              // Fallback: fetch vehicle to get owner if not present in cart JSON
+              if (!ownerId && vehicleId) {
+                try {
+                  const fullVehicle = await this.vehicleRepository.findById(vehicleId);
+                  ownerId = (((fullVehicle as any)?.toJSON?.() as any)?.owner as any)?._id ?? ownerId;
+                } catch { }
+              }
 
-            if (ownerId && vehicleId && typeof total === 'number') {
-              const percentage = vehicle?.owner?.commissionPercentage ?? 0;
-              const amount = Math.round((total * (percentage / 100)) * 100) / 100;
+              if (ownerId && vehicleId && typeof vehicleTotal === 'number') {
+                const percentage = vehicle?.owner?.commissionPercentage ?? 0;
+                const amount = Math.round((vehicleTotal * (percentage / 100)) * 100) / 100;
 
-              await this.commissionRepository.create(
-                CommissionModel.create({
-                  booking: bookingId as any,
-                  bookingNumber: bookingNumber as any,
-                  user: userId as any,
-                  vehicleOwner: ownerId as any,
-                  vehicle: vehicleId as any,
-                  detail: 'Renta',
-                  status: 'PENDING',
-                  amount: amount as any,
-                } as any)
-              );
+                await this.commissionRepository.create(
+                  CommissionModel.create({
+                    booking: bookingId as any,
+                    bookingNumber: bookingNumber as any,
+                    user: userId as any,
+                    vehicleOwner: ownerId as any,
+                    vehicle: vehicleId as any,
+                    detail: 'Renta',
+                    status: 'PENDING',
+                    amount: amount as any,
+                  } as any)
+                );
+              }
             }
           }
         }
