@@ -333,6 +333,7 @@ export function generateUserBookingConfirmationEn(
                   <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #856404;">⚠️ IMPORTANT INFORMATION</h5>
                     <p style="margin: 5px 0; font-size: 14px;">• Security deposit required</p>
+                    ${bookingData?.metadata?.depositNote ? `<p style="margin: 5px 0; font-size: 14px; color: #d63031;"><strong>• Deposit registered: ${bookingData.metadata.depositNote}</strong></p>` : ''}
                     <p style="margin: 5px 0; font-size: 14px;">• Valid ID document required</p>
                     <p style="margin: 5px 0; font-size: 14px;">• Helmet included in rental</p>
                     <p style="margin: 5px 0; font-size: 14px;">• Locks available</p>

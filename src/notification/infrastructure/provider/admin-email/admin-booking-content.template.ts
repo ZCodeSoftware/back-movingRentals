@@ -233,7 +233,8 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
                 <div class="item-details vehicle-item">
                   <p><strong>Nombre:</strong> ${v.name} (${v.category})</p>
                   ${v.startDate && v.endDate ? `<p><strong>Periodo:</strong> ${formatDate(v.startDate)} - ${formatDate(v.endDate)}</p>` : ''}
-                  <p><strong>Subtotal:</strong> $${v.total.toFixed(2)} MXN</p>
+                  <p><strong>Subtotal:</strong> ${v.total.toFixed(2)} MXN</p>
+                  ${bookingData?.metadata?.depositNote ? `<p style="color: #d63031;"><strong>🔒 Depósito registrado:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
                 </div>`,
             )
             .join('')}
