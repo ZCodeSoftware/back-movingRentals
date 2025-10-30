@@ -273,6 +273,39 @@ export class MovementRepository implements IMovementRepository {
         movement.deletionReason = reason;
 
         const savedMovement = await movement.save();
+
+        // Si el movimiento tiene una entrada relacionada en el histórico del contrato, eliminarla también
+        if (movement.contractHistoryEntry) {
+            try {
+                const ContractHistory = this.movementDB.db.model('ContractHistory');
+                const historyEntry = await ContractHistory.findById(movement.contractHistoryEntry);
+                
+                if (historyEntry && !historyEntry.isDeleted) {
+                    console.log(`[MovementRepository] Eliminando entrada del histórico del contrato relacionada: ${movement.contractHistoryEntry}`);
+                    
+                    // Obtener información del usuario para deletedByInfo
+                    const User = this.movementDB.db.model('User');
+                    const userInfo: any = await User.findById(userId).select('name lastName email').lean();
+                    
+                    const deletedByInfoValue = userInfo 
+                        ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() + (userInfo.email ? ` - ${userInfo.email}` : '')
+                        : 'Usuario desconocido';
+                    
+                    historyEntry.isDeleted = true;
+                    historyEntry.deletedBy = userId;
+                    historyEntry.deletedByInfo = deletedByInfoValue;
+                    historyEntry.deletedAt = new Date();
+                    historyEntry.deletionReason = reason || 'Eliminado automáticamente al eliminar el movimiento relacionado';
+                    
+                    await historyEntry.save();
+                    console.log(`[MovementRepository] Entrada del histórico eliminada exitosamente`);
+                }
+            } catch (error) {
+                console.error('[MovementRepository] Error al eliminar entrada del histórico del contrato:', error);
+                // No lanzar error para no interrumpir la eliminación del movimiento
+            }
+        }
+
         return MovementModel.hydrate(savedMovement);
     }
 
@@ -293,6 +326,31 @@ export class MovementRepository implements IMovementRepository {
         movement.deletionReason = undefined;
 
         const savedMovement = await movement.save();
+
+        // Si el movimiento tiene una entrada relacionada en el histórico del contrato, restaurarla también
+        if (movement.contractHistoryEntry) {
+            try {
+                const ContractHistory = this.movementDB.db.model('ContractHistory');
+                const historyEntry = await ContractHistory.findById(movement.contractHistoryEntry);
+                
+                if (historyEntry && historyEntry.isDeleted) {
+                    console.log(`[MovementRepository] Restaurando entrada del histórico del contrato relacionada: ${movement.contractHistoryEntry}`);
+                    
+                    historyEntry.isDeleted = false;
+                    historyEntry.deletedBy = undefined;
+                    historyEntry.deletedByInfo = undefined;
+                    historyEntry.deletedAt = undefined;
+                    historyEntry.deletionReason = undefined;
+                    
+                    await historyEntry.save();
+                    console.log(`[MovementRepository] Entrada del histórico restaurada exitosamente`);
+                }
+            } catch (error) {
+                console.error('[MovementRepository] Error al restaurar entrada del histórico del contrato:', error);
+                // No lanzar error para no interrumpir la restauración del movimiento
+            }
+        }
+
         return MovementModel.hydrate(savedMovement);
     }
 

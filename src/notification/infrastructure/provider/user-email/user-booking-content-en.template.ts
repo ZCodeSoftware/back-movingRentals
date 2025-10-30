@@ -283,7 +283,7 @@ export function generateUserBookingConfirmationEn(
     </head>
     <body>
       <div class="email-container">
-        <h1>Thank you for your booking! <span class="emoji">🎉</span></h1>
+        <h1 style="color: #4caf50;">Booking Confirmed ✅</h1>
         <p>We are excited to accompany you on your next adventure in Tulum.</p>
 
         <div class="section">

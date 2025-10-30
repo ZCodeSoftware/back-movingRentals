@@ -34,6 +34,8 @@ import { ICommissionRepository } from '../../../commission/domain/repositories/c
 import SymbolsCommission from '../../../commission/symbols-commission';
 import { IMovementService } from '../../../movement/domain/services/movement.interface.service';
 import SymbolsMovement from '../../../movement/symbols-movement';
+import { IVehicleOwnerRepository } from '../../../vehicleowner/domain/repositories/vehicleowner.interface.repository';
+import SymbolsVehicleOwner from '../../../vehicleowner/symbols-vehicleowner';
 
 @Injectable()
 export class ContractService implements IContractService {
@@ -46,6 +48,8 @@ export class ContractService implements IContractService {
     private readonly commissionRepository: ICommissionRepository,
     @Inject(SymbolsMovement.IMovementService)
     private readonly movementService: IMovementService,
+    @Inject(SymbolsVehicleOwner.IVehicleOwnerRepository)
+    private readonly vehicleOwnerRepository: IVehicleOwnerRepository,
     private readonly bookingTotalsService: BookingTotalsService,
     @InjectModel(CatContractEvent.name)
     private readonly catContractEventModel: Model<CatContractEvent>,
@@ -59,8 +63,26 @@ export class ContractService implements IContractService {
     contract: ICreateContract,
     userId: string,
   ): Promise<ContractModel> {
+    // Si no viene concierge, buscar el de "WEB" por defecto
+    let conciergeId = contract.concierge;
+    if (!conciergeId) {
+      try {
+        console.log('[ContractService] No se proporcionó concierge, buscando concierge WEB por defecto...');
+        const webConcierge = await this.vehicleOwnerRepository.findByName('WEB');
+        if (webConcierge) {
+          conciergeId = webConcierge.toJSON()._id?.toString();
+          console.log(`[ContractService] Concierge WEB encontrado: ${conciergeId}`);
+        } else {
+          console.warn('[ContractService] No se encontró concierge WEB en la base de datos');
+        }
+      } catch (error) {
+        console.error('[ContractService] Error buscando concierge WEB:', error.message);
+      }
+    }
+
     const processedContract = {
       ...contract,
+      concierge: conciergeId,
       createdByUser: userId,
       extension: contract.extension
         ? {

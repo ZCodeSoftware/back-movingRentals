@@ -13,6 +13,6 @@ import { VehicleOwnerSeed } from './infrastructure/mongo/seed/vehicle-owner.seed
   imports: [MongooseModule.forFeature([vehicleOwnerSchema])],
   controllers: [VehicleOwnerController],
   providers: [vehicleOwnerService, vehicleOwnerRepository, VehicleOwnerSeed],
-  exports: []
+  exports: [vehicleOwnerRepository]
 })
 export class VehicleOwnerModule { }

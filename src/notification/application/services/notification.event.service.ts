@@ -29,9 +29,6 @@ export class NotificationEventService implements INotificationEventService {
     @Inject(SymbolsBooking.IBookingService)
     private readonly bookingService: IBookingService,
   ) {
-    // Log inicial de configuración
-    this.logEnvironmentConfig();
-    
     // Limpiar el mapa de emails enviados cada 5 minutos
     setInterval(() => {
       const now = Date.now();
@@ -41,49 +38,6 @@ export class NotificationEventService implements INotificationEventService {
         }
       }
     }, 300000); // 5 minutos
-  }
-
-  private logEnvironmentConfig() {
-    // this.logger.log('=== CONFIGURACIÓN DE ENTORNO ===');
-
-    // Variables de entorno comunes para email providers
-    // const emailEnvVars = [
-    //   'SMTP_HOST',
-    //   'SMTP_PORT',
-    //   'SMTP_USER',
-    //   'SMTP_FROM',
-    //   'SENDGRID_API_KEY',
-    //   'AWS_SES_ACCESS_KEY_ID',
-    //   'AWS_SES_SECRET_ACCESS_KEY',
-    //   'AWS_SES_REGION',
-    //   'MAILGUN_API_KEY',
-    //   'MAILGUN_DOMAIN',
-    //   'RESEND_API_KEY',
-    //   'EMAIL_SERVICE',
-    //   'EMAIL_PROVIDER',
-    // ];
-
-    // emailEnvVars.forEach((envVar) => {
-    //   const value = process.env[envVar];
-    //   if (value) {
-    //     // Ocultar valores sensibles
-    //     const maskedValue =
-    //       envVar.includes('KEY') ||
-    //       envVar.includes('SECRET') ||
-    //       envVar.includes('PASSWORD')
-    //         ? `${value.substring(0, 4)}***${value.substring(value.length - 4)}`
-    //         : value;
-    //     this.logger.log(`${envVar}: ${maskedValue}`);
-    //   } else {
-    //     this.logger.warn(`${envVar}: NO CONFIGURADA`);
-    //   }
-    // });
-
-    // Información del sistema
-    // this.logger.log(`NODE_ENV: ${process.env.NODE_ENV || 'NO CONFIGURADO'}`);
-    // this.logger.log(`Platform: ${process.platform}`);
-    // this.logger.log(`Node Version: ${process.version}`);
-    // this.logger.log('=== FIN CONFIGURACIÓN ===');
   }
 
   async reservationUserEmail(email: string, name: string): Promise<any> {
@@ -127,6 +81,15 @@ export class NotificationEventService implements INotificationEventService {
     const bookingData: any = booking.toJSON ? booking.toJSON() : booking;
     const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
     const bookingIdForLogs = bookingData.bookingNumber || bookingData.id || bookingId;
+    const isReserve = bookingData.isReserve || false;
+
+    this.logger.log(`========================================`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] 🚀 INICIO PROCESO DE NOTIFICACIÓN`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Email usuario: ${userEmail}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Idioma: ${lang}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] isReserve: ${isReserve}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Tipo de email: ${isReserve ? 'PENDIENTE (minimalista)' : 'CONFIRMADO (completo)'}`);
+    this.logger.log(`========================================`);
 
     // Verificar si ya se envió un email para esta reserva recientemente
     const dedupKey = `${bookingId}-${lang}`;
@@ -135,7 +98,7 @@ export class NotificationEventService implements INotificationEventService {
     
     if (lastSent && (now - lastSent) < this.DEDUP_WINDOW_MS) {
       this.logger.warn(
-        `[Reserva #${bookingIdForLogs}] Email duplicado detectado. Ya se envió hace ${Math.round((now - lastSent) / 1000)}s. Ignorando.`,
+        `[Reserva #${bookingIdForLogs}] ⚠️ Email duplicado detectado. Ya se envió hace ${Math.round((now - lastSent) / 1000)}s. Ignorando.`,
       );
       return { skipped: true, reason: 'duplicate', lastSent };
     }
@@ -143,51 +106,55 @@ export class NotificationEventService implements INotificationEventService {
     // Registrar este envío
     this.sentEmails.set(dedupKey, now);
 
-    this.logger.log(
-      `[Reserva #${bookingIdForLogs}] Proceso de notificación iniciado.`,
-    );
-    this.logger.log(
-      `[Reserva #${bookingIdForLogs}] Email usuario: ${userEmail}, Idioma: ${lang}`,
-    );
-
     // Log de datos de la reserva (sin datos sensibles)
     try {
-      const bookingData =
+      const bookingDataForLog: any =
         typeof booking.toJSON === 'function' ? booking.toJSON() : booking;
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Datos booking disponibles: ${Object.keys(bookingData).join(', ')}`,
+        `[Reserva #${bookingIdForLogs}] 📦 Datos booking disponibles: ${Object.keys(bookingDataForLog).join(', ')}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] 💰 Total: ${bookingDataForLog.total}, Pagado: ${bookingDataForLog.totalPaid}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] 📋 Estado: ${bookingDataForLog.status?.name || 'N/A'}`,
       );
     } catch (e) {
       this.logger.warn(
-        `[Reserva #${bookingIdForLogs}] No se pudieron extraer keys del booking`,
+        `[Reserva #${bookingIdForLogs}] ⚠️ No se pudieron extraer keys del booking`,
       );
     }
-
-    // Verificar conectividad antes de enviar
-    this.logger.log(
-      `[Reserva #${bookingIdForLogs}] Verificando conectividad de red...`,
-    );
-    await this.checkNetworkConnectivity();
 
     // Obtener información del usuario para el email (fuera del try para que esté disponible para ambos emails)
     let userData = null;
     try {
+      this.logger.log(`[Reserva #${bookingIdForLogs}] 👤 Obteniendo información del usuario...`);
       const bookingData = booking.toJSON();
       const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
       const user = await this.findUserByBookingId(bookingId);
       if (user) {
         userData = user.toJSON();
+        this.logger.log(`[Reserva #${bookingIdForLogs}] ✅ Usuario encontrado: ${userData.name} ${userData.lastName || ''}`);
+      } else {
+        this.logger.warn(`[Reserva #${bookingIdForLogs}] ⚠️ No se encontró usuario`);
       }
     } catch (error) {
-      this.logger.warn(`[Reserva #${bookingIdForLogs}] No se pudo obtener información del usuario: ${error.message}`);
+      this.logger.error(`[Reserva #${bookingIdForLogs}] ❌ Error obteniendo usuario: ${error.message}`);
     }
 
     try {
+      this.logger.log(`========================================`);
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Intentando enviar correo al USUARIO....`,
+        `[Reserva #${bookingIdForLogs}] 📧 ENVIANDO EMAIL AL USUARIO`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Timestamp inicio envío usuario: ${new Date().toISOString()}`,
+        `[Reserva #${bookingIdForLogs}] Destinatario: ${userEmail}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Tipo: ${isReserve ? 'PENDIENTE' : 'CONFIRMADO'}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] ⏰ Inicio: ${new Date().toISOString()}`,
       );
 
       const userResult = await Promise.race([
@@ -196,14 +163,15 @@ export class NotificationEventService implements INotificationEventService {
       ]);
 
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Timestamp fin envío usuario: ${new Date().toISOString()}`,
+        `[Reserva #${bookingIdForLogs}] ⏰ Fin: ${new Date().toISOString()}`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Correo al USUARIO enviado con éxito.`,
+        `[Reserva #${bookingIdForLogs}] ✅ EMAIL AL USUARIO ENVIADO EXITOSAMENTE`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Resultado usuario: ${JSON.stringify(userResult)}`,
+        `[Reserva #${bookingIdForLogs}] 📊 Resultado: ${JSON.stringify(userResult)}`,
       );
+      this.logger.log(`========================================`);
     } catch (userError) {
       this.logger.error(
         `[Reserva #${bookingIdForLogs}] [CRITICAL] Fallo al enviar email al USUARIO.`,
@@ -238,11 +206,15 @@ export class NotificationEventService implements INotificationEventService {
     }
 
     try {
+      this.logger.log(`========================================`);
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Intentando enviar correo al ADMIN...`,
+        `[Reserva #${bookingIdForLogs}] 📧 ENVIANDO EMAIL AL ADMIN`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Timestamp inicio envío admin: ${new Date().toISOString()}`,
+        `[Reserva #${bookingIdForLogs}] Tipo: ${isReserve ? 'PENDIENTE' : 'CONFIRMADO'}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] ⏰ Inicio: ${new Date().toISOString()}`,
       );
 
       const adminResult = await Promise.race([
@@ -251,14 +223,15 @@ export class NotificationEventService implements INotificationEventService {
       ]);
 
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Timestamp fin envío admin: ${new Date().toISOString()}`,
+        `[Reserva #${bookingIdForLogs}] ⏰ Fin: ${new Date().toISOString()}`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Correo al ADMIN enviado con éxito.`,
+        `[Reserva #${bookingIdForLogs}] ✅ EMAIL AL ADMIN ENVIADO EXITOSAMENTE`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Resultado admin: ${JSON.stringify(adminResult)}`,
+        `[Reserva #${bookingIdForLogs}] 📊 Resultado: ${JSON.stringify(adminResult)}`,
       );
+      this.logger.log(`========================================`);
     } catch (adminError) {
       this.logger.error(
         `[Reserva #${bookingIdForLogs}] [NON-CRITICAL] Fallo al enviar email al ADMIN.`,
@@ -279,9 +252,11 @@ export class NotificationEventService implements INotificationEventService {
       );
     }
 
+    this.logger.log(`========================================`);
     this.logger.log(
-      `[Reserva #${bookingIdForLogs}] Proceso de notificación finalizado.`,
+      `[Reserva #${bookingIdForLogs}] ✅ PROCESO DE NOTIFICACIÓN FINALIZADO`,
     );
+    this.logger.log(`========================================`);
   }
 
   async sendUserForgotPassword(
@@ -416,6 +391,124 @@ export class NotificationEventService implements INotificationEventService {
     );
   }
 
+  async sendBookingConfirmed(
+    booking: BookingModel,
+    userEmail: string,
+    lang: string = 'es',
+  ): Promise<any> {
+    const bookingData: any = booking.toJSON ? booking.toJSON() : booking;
+    const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
+    const bookingIdForLogs = bookingData.bookingNumber || bookingData.id || bookingId;
+
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Proceso de notificación de confirmación iniciado (isReserve cambió a false).`,
+    );
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Email usuario: ${userEmail}, Idioma: ${lang}`,
+    );
+
+    // Obtener información del usuario para el email
+    let userData = null;
+    try {
+      const user = await this.findUserByBookingId(bookingId);
+      if (user) {
+        userData = user.toJSON();
+      }
+    } catch (error) {
+      this.logger.warn(`[Reserva #${bookingIdForLogs}] No se pudo obtener información del usuario: ${error.message}`);
+    }
+
+    try {
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Intentando enviar correo de confirmación completo al USUARIO...`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Timestamp inicio confirmación usuario: ${new Date().toISOString()}`,
+      );
+
+      const userResult = await Promise.race([
+        this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang, userData),
+        this.createTimeoutPromise(120000, 'Usuario email timeout'), // 2 minutos
+      ]);
+
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Timestamp fin confirmación usuario: ${new Date().toISOString()}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Correo de confirmación completo enviado con éxito al USUARIO.`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Resultado confirmación usuario: ${JSON.stringify(userResult)}`,
+      );
+    } catch (userError) {
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] [CRITICAL] Fallo al enviar email de confirmación al USUARIO.`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Error type: ${userError.constructor.name}`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Error message: ${userError.message}`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Stack: ${userError.stack}`,
+      );
+
+      console.error(
+        'Objeto de error completo (confirmación usuario):',
+        JSON.stringify(userError, Object.getOwnPropertyNames(userError)),
+      );
+
+      throw new BadRequestException(userError.message);
+    }
+
+    try {
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Intentando enviar correo de confirmación completo al ADMIN...`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Timestamp inicio confirmación admin: ${new Date().toISOString()}`,
+      );
+
+      const adminResult = await Promise.race([
+        this.adminEmailAdapter.sendAdminBookingCreated(booking, userData),
+        this.createTimeoutPromise(60000, 'Admin email timeout'), // 1 minuto
+      ]);
+
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Timestamp fin confirmación admin: ${new Date().toISOString()}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Correo de confirmación completo enviado con éxito al ADMIN.`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Resultado confirmación admin: ${JSON.stringify(adminResult)}`,
+      );
+    } catch (adminError) {
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] [NON-CRITICAL] Fallo al enviar email de confirmación al ADMIN.`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Admin error type: ${adminError.constructor.name}`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Admin error message: ${adminError.message}`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Stack: ${adminError.stack}`,
+      );
+
+      console.error(
+        'Objeto de error completo (confirmación admin):',
+        JSON.stringify(adminError, Object.getOwnPropertyNames(adminError)),
+      );
+    }
+
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Proceso de notificación de confirmación finalizado.`,
+    );
+  }
+
   private createTimeoutPromise(ms: number, message: string): Promise<never> {
     return new Promise((_, reject) => {
       setTimeout(() => {
@@ -430,38 +523,6 @@ export class NotificationEventService implements INotificationEventService {
     } catch (error) {
       this.logger.warn(`No se pudo encontrar usuario para booking ${bookingId}: ${error.message}`);
       return null;
-    }
-  }
-
-  private async checkNetworkConnectivity(): Promise<void> {
-    try {
-      const dns = require('dns');
-      const { promisify } = require('util');
-      const lookup = promisify(dns.lookup);
-
-      // Test conectividad a servicios comunes de email
-      const testHosts = [
-        'smtp.gmail.com',
-        'api.sendgrid.com',
-        'api.mailgun.net',
-        'smtp.resend.com',
-      ];
-
-      for (const host of testHosts) {
-        try {
-          await lookup(host);
-          this.logger.log(`Conectividad OK para: ${host}`);
-          return; // Si al menos uno funciona, consideramos que hay conectividad
-        } catch (e) {
-          this.logger.warn(`Sin conectividad para: ${host}`);
-        }
-      }
-
-      this.logger.error(
-        'No hay conectividad a ningún proveedor de email común',
-      );
-    } catch (error) {
-      this.logger.error('Error al verificar conectividad:', error.message);
     }
   }
 }
