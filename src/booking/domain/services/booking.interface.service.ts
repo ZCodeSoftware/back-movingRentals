@@ -3,7 +3,7 @@ import { BookingModel } from '../models/booking.model';
 import { ICreateBooking } from '../types/booking.type';
 
 export interface IBookingService {
-  create(booking: ICreateBooking, id: string): Promise<BookingModel>;
+  create(booking: ICreateBooking, id: string, lang?: string): Promise<BookingModel>;
   addManualBookingInUser(
     booking: ICreateBooking,
     email: string,

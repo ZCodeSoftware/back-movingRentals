@@ -36,12 +36,27 @@ export class NotificationEventController {
     userEmail: string;
     lang: string;
   }) {
-    const { updatedBooking, userEmail, lang } = payload;
-    await this.notificationEventService.sendBookingCreated(
-      updatedBooking,
-      userEmail,
-      lang,
-    );
+    console.log('[NotificationEventController] 🎯 Evento send-booking.created recibido');
+    console.log('[NotificationEventController] Payload:', {
+      hasBooking: !!payload.updatedBooking,
+      userEmail: payload.userEmail,
+      lang: payload.lang,
+      bookingId: payload.updatedBooking?.toJSON?.()?._id,
+      isReserve: payload.updatedBooking?.toJSON?.()?.isReserve
+    });
+    
+    try {
+      const { updatedBooking, userEmail, lang } = payload;
+      await this.notificationEventService.sendBookingCreated(
+        updatedBooking,
+        userEmail,
+        lang,
+      );
+      console.log('[NotificationEventController] ✅ Email enviado exitosamente');
+    } catch (error) {
+      console.error('[NotificationEventController] ❌ Error enviando email:', error);
+      throw error;
+    }
   }
 
   @OnEvent('send-user.forgot-password')
@@ -75,6 +90,24 @@ export class NotificationEventController {
       );
     } catch (error) {
       console.error('Error sending booking cancellation emails:', error);
+    }
+  }
+
+  @OnEvent('send-booking.confirmed')
+  async sendBookingConfirmed(payload: {
+    booking: BookingModel;
+    userEmail: string;
+    lang: string;
+  }) {
+    const { booking, userEmail, lang } = payload;
+    try {
+      await this.notificationEventService.sendBookingConfirmed(
+        booking,
+        userEmail,
+        lang,
+      );
+    } catch (error) {
+      console.error('Error sending booking confirmation emails:', error);
     }
   }
 

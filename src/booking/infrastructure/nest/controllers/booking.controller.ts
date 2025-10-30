@@ -39,10 +39,15 @@ export class BookingController {
   @ApiResponse({ status: 201, description: 'Booking created' })
   @ApiResponse({ status: 400, description: `Booking shouldn't be created` })
   @ApiBody({ type: CreateBookingDTO, description: 'Data to create a Booking' })
+  @ApiQuery({ name: 'lang', required: false, type: 'string', description: 'Language for email notifications' })
   @UseGuards(AuthGuards)
-  async create(@Body() body: CreateBookingDTO, @Req() req: IUserRequest) {
+  async create(
+    @Body() body: CreateBookingDTO,
+    @Req() req: IUserRequest,
+    @Query('lang') lang: string = 'es',
+  ) {
     const { _id } = req.user;
-    return this.bookingService.create(body, _id);
+    return this.bookingService.create(body, _id, lang);
   }
 
   @Get()

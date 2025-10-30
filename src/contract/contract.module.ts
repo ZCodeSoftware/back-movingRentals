@@ -22,6 +22,7 @@ import {
 import { Movement, MovementSchema } from '../core/infrastructure/mongo/schemas/public/movement.schema';
 import { ContractController } from './infrastructure/nest/controllers/contract.controller';
 import { ContractMovementLinkService } from './application/services/contract-movement-link.service';
+import { VehicleOwnerModule } from '../vehicleowner/vehicle-owner.module';
 
 @Module({
   imports: [
@@ -38,7 +39,8 @@ import { ContractMovementLinkService } from './application/services/contract-mov
     ]),
     EventEmitterModule.forRoot(),
     MovementModule,
-    CommissionModule
+    CommissionModule,
+    VehicleOwnerModule
   ],
   controllers: [ContractController],
   providers: [

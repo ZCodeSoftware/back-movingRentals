@@ -4,6 +4,7 @@ import config from '../../../../config';
 import { IAdminEmailAdapter } from '../../../../notification/domain/adapter/admin-email.interface.adapter';
 import { generateAdminBookingCancellation } from './admin-booking-cancelled.template';
 import { generateAdminBookingNotification } from './admin-booking-content.template';
+import { generateAdminBookingReserveNotification } from './admin-booking-reserve.template';
 import { lowStockReportTemplate } from './low-stock-report.template';
 
 export class AdminEmailProvider implements IAdminEmailAdapter {
@@ -192,16 +193,21 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
   }
 
   async sendAdminBookingCreated(booking: BookingModel, userData?: any): Promise<any> {
+    const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
     const bookingId =
       (booking as any).bookingNumber || (booking as any).id || 'unknown';
     const context = `admin-booking-created-${bookingId}`;
+    const isReserve = bookingData.isReserve || false;
 
     this.logger.log(
-      `[${context}] Iniciando sendAdminBookingCreated para reserva: ${bookingId}`,
+      `[${context}] Iniciando sendAdminBookingCreated para reserva: ${bookingId}, isReserve: ${isReserve}`,
     );
 
     try {
-      const { subject, html } = generateAdminBookingNotification(booking, userData);
+      // Si es una pre-reserva, usar la plantilla de pre-reserva
+      const { subject, html } = isReserve
+        ? generateAdminBookingReserveNotification(booking, userData)
+        : generateAdminBookingNotification(booking, userData);
 
       this.logger.log(`[${context}] Subject generado: ${subject}`);
       this.logger.log(
@@ -219,11 +225,10 @@ export class AdminEmailProvider implements IAdminEmailAdapter {
       );
 
       // Tags específicos para notificaciones de reservas
-      emailData.tags = [
-        'admin-notification',
-        'booking-created',
-        `booking-${bookingId}`,
-      ];
+      const tags = isReserve
+        ? ['admin-notification', 'booking-reserve', `booking-${bookingId}`]
+        : ['admin-notification', 'booking-created', `booking-${bookingId}`];
+      emailData.tags = tags;
 
       return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {

@@ -54,7 +54,7 @@ export class BookingService implements IBookingService {
     private readonly eventEmitter: EventEmitter2,
   ) { }
 
-  async create(booking: ICreateBooking, id: string): Promise<BookingModel> {
+  async create(booking: ICreateBooking, id: string, lang: string = 'es'): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
     const bookingModel = BookingModel.create(res);
 
@@ -81,6 +81,39 @@ export class BookingService implements IBookingService {
     bookingModel.addPaymentMethod(catPaymentMethod);
 
     const bookingSave = await this.bookingRepository.create(bookingModel, id);
+
+    // Obtener el email del usuario para enviar notificación
+    try {
+      const user = await this.bookingRepository.findUserByBookingId(bookingSave.toJSON()._id?.toString());
+      const userEmail = user?.toJSON()?.email;
+
+      if (userEmail) {
+        const bookingJson = bookingSave.toJSON();
+        console.log('[BookingService] 📧 Emitiendo evento send-booking.created (desde create)');
+        console.log('[BookingService] Datos del evento:', {
+          bookingId: bookingJson._id,
+          bookingNumber: bookingJson.bookingNumber,
+          userEmail: userEmail,
+          lang,
+          isReserve: bookingJson.isReserve,
+          total: bookingJson.total,
+          totalPaid: bookingJson.totalPaid
+        });
+
+        this.eventEmitter.emit('send-booking.created', {
+          updatedBooking: bookingSave,
+          userEmail: userEmail,
+          lang,
+        });
+
+        console.log('[BookingService] ✅ Evento send-booking.created emitido (desde create)');
+      } else {
+        console.warn('[BookingService] ⚠️ No se pudo obtener el email del usuario, no se enviará notificación');
+      }
+    } catch (error) {
+      console.error('[BookingService] ❌ Error emitiendo evento de notificación:', error);
+      // No fallar la creación del booking si falla el envío del email
+    }
 
     return bookingSave;
   }
@@ -233,6 +266,24 @@ export class BookingService implements IBookingService {
       };
     }
 
+    // 6.5. Si no viene concierge, buscar el de "WEB" por defecto
+    let conciergeId = body.concierge;
+    if (!conciergeId) {
+      try {
+        console.log('[BookingService] No se proporcionó concierge, buscando concierge WEB por defecto...');
+        // Buscar el vehicleOwner con nombre "WEB"
+        const webConcierge = await this.vehicleOwnerRepository.findByName('WEB');
+        if (webConcierge) {
+          conciergeId = webConcierge.toJSON()._id?.toString();
+          console.log(`[BookingService] Concierge WEB encontrado: ${conciergeId}`);
+        } else {
+          console.warn('[BookingService] No se encontró concierge WEB en la base de datos');
+        }
+      } catch (error) {
+        console.error('[BookingService] Error buscando concierge WEB:', error.message);
+      }
+    }
+
     // 7. Crear el booking con los datos del carrito, metadata y delivery
     const bookingData = {
       cart: JSON.stringify(cartData),
@@ -242,7 +293,7 @@ export class BookingService implements IBookingService {
       isReserve: body.isReserve ?? false,
       metadata: body.metadata || {},
       commission: body.commission,
-      concierge: body.concierge,
+      concierge: conciergeId,
       ...deliveryInfo, // Agregar información de delivery
     };
 
@@ -263,11 +314,25 @@ export class BookingService implements IBookingService {
       userId,
     );
 
+    const bookingJson = bookingSave.toJSON();
+    console.log('[BookingService] 📧 Emitiendo evento send-booking.created');
+    console.log('[BookingService] Datos del evento:', {
+      bookingId: bookingJson._id,
+      bookingNumber: bookingJson.bookingNumber,
+      userEmail: email,
+      lang,
+      isReserve: bookingJson.isReserve,
+      total: bookingJson.total,
+      totalPaid: bookingJson.totalPaid
+    });
+
     this.eventEmitter.emit('send-booking.created', {
       updatedBooking: bookingSave,
       userEmail: email,
       lang,
     });
+
+    console.log('[BookingService] ✅ Evento send-booking.created emitido');
 
     // 9. Crear comisiones si la reserva viene aprobada
     const statusName = status.toJSON().name;
@@ -383,6 +448,69 @@ export class BookingService implements IBookingService {
     }
 
     const currentBookingData = currentBooking.toJSON();
+    
+    // Detectar si se está eliminando el delivery - VERIFICAR AMBAS ESTRUCTURAS
+    // 1. Verificar en los campos del booking
+    const hadDeliveryInBooking = currentBookingData.requiresDelivery && currentBookingData.deliveryCost && currentBookingData.deliveryCost > 0;
+    const hasDeliveryInBooking = (booking as any).requiresDelivery && (booking as any).deliveryCost && (booking as any).deliveryCost > 0;
+    
+    // 2. Verificar en el cart (si viene un cart nuevo)
+    let hadDeliveryInCart = false;
+    let hasDeliveryInCart = false;
+    
+    if ((booking as any).cart) {
+      try {
+        const newCartData = JSON.parse((booking as any).cart);
+        
+        // Verificar formato antiguo (delivery a nivel de cart)
+        hasDeliveryInCart = newCartData.delivery === true;
+        
+        // Verificar formato nuevo (delivery en vehículos)
+        if (!hasDeliveryInCart && newCartData.vehicles && Array.isArray(newCartData.vehicles)) {
+          hasDeliveryInCart = newCartData.vehicles.some((v: any) => 
+            v.delivery && v.delivery.requiresDelivery === true
+          );
+        }
+      } catch (e) {
+        console.error('[BookingService] Error parsing new cart:', e);
+      }
+    }
+    
+    // Verificar delivery en el cart actual
+    if (currentBookingData.cart) {
+      try {
+        const currentCartData = JSON.parse(currentBookingData.cart);
+        
+        // Verificar formato antiguo
+        hadDeliveryInCart = currentCartData.delivery === true;
+        
+        // Verificar formato nuevo
+        if (!hadDeliveryInCart && currentCartData.vehicles && Array.isArray(currentCartData.vehicles)) {
+          hadDeliveryInCart = currentCartData.vehicles.some((v: any) => 
+            v.delivery && v.delivery.requiresDelivery === true
+          );
+        }
+      } catch (e) {
+        console.error('[BookingService] Error parsing current cart:', e);
+      }
+    }
+    
+    // Se está eliminando el delivery si:
+    // - Tenía delivery en booking Y ahora no lo tiene en booking
+    // - O tenía delivery en cart Y ahora no lo tiene en cart
+    const isRemovingDelivery = (hadDeliveryInBooking && !hasDeliveryInBooking) || 
+                                (hadDeliveryInCart && !hasDeliveryInCart);
+    
+    console.log('[BookingService] Delivery check:', {
+      hadDeliveryInBooking,
+      hasDeliveryInBooking,
+      hadDeliveryInCart,
+      hasDeliveryInCart,
+      isRemovingDelivery,
+      currentDeliveryCost: currentBookingData.deliveryCost,
+      newDeliveryCost: (booking as any).deliveryCost
+    });
+    
     const bookingModel = BookingModel.create(res);
 
     const catPaymentMethod =
@@ -434,6 +562,144 @@ export class BookingService implements IBookingService {
     }
 
     const updatedBooking = await this.bookingRepository.update(id, bookingModel);
+
+    // Si se está eliminando el delivery, buscar y eliminar el movimiento de DELIVERY del histórico del contrato
+    if (isRemovingDelivery) {
+      try {
+        console.log('[BookingService] Eliminando movimiento de DELIVERY del histórico del contrato...');
+        
+        // Buscar el contrato asociado a este booking
+        const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+        const contract = await Contract.findOne({ booking: id });
+        
+        if (contract) {
+          console.log(`[BookingService] Contrato encontrado: ${contract._id}`);
+          
+          // Buscar el evento de DELIVERY en el histórico del contrato
+          const ContractHistory = this.bookingRepository['bookingDB'].db.model('ContractHistory');
+          const CatContractEvent = this.bookingRepository['bookingDB'].db.model('CatContractEvent');
+          
+          // Buscar el evento de DELIVERY en el catálogo
+          const deliveryEvent = await CatContractEvent.findOne({ name: 'DELIVERY' });
+          
+          if (deliveryEvent) {
+            // Buscar la entrada del histórico con este evento
+            const deliveryHistoryEntry = await ContractHistory.findOne({
+              contract: contract._id,
+              eventType: deliveryEvent._id,
+              isDeleted: false
+            });
+            
+            if (deliveryHistoryEntry) {
+              console.log(`[BookingService] Entrada de DELIVERY encontrada en el histórico: ${deliveryHistoryEntry._id}`);
+              
+              // Marcar como eliminada
+              deliveryHistoryEntry.isDeleted = true;
+              deliveryHistoryEntry.deletedAt = new Date();
+              deliveryHistoryEntry.deletionReason = 'Eliminado automáticamente al quitar el delivery del booking';
+              
+              await deliveryHistoryEntry.save();
+              
+              // Si tiene un movimiento relacionado, eliminarlo también
+              if (deliveryHistoryEntry.relatedMovement) {
+                const Movement = this.bookingRepository['bookingDB'].db.model('Movement');
+                const movement = await Movement.findById(deliveryHistoryEntry.relatedMovement);
+                
+                if (movement && !movement.isDeleted) {
+                  console.log(`[BookingService] Eliminando movimiento relacionado: ${movement._id}`);
+                  
+                  movement.isDeleted = true;
+                  movement.deletedAt = new Date();
+                  movement.deletionReason = 'Eliminado automáticamente al quitar el delivery del booking';
+                  
+                  await movement.save();
+                  console.log('[BookingService] Movimiento de DELIVERY eliminado exitosamente');
+                }
+              }
+              
+              // Descontar el monto del delivery del totalPaid si corresponde
+              if (currentBookingData.totalPaid && currentBookingData.deliveryCost) {
+                const newTotalPaid = Math.max(0, currentBookingData.totalPaid - currentBookingData.deliveryCost);
+                console.log(`[BookingService] Actualizando totalPaid: ${currentBookingData.totalPaid} - ${currentBookingData.deliveryCost} = ${newTotalPaid}`);
+                
+                // Actualizar el totalPaid del booking
+                await this.bookingRepository['bookingDB'].updateOne(
+                  { _id: id },
+                  { $set: { totalPaid: newTotalPaid } }
+                );
+              }
+              
+              console.log('[BookingService] Entrada de DELIVERY eliminada exitosamente del histórico');
+            } else {
+              console.log('[BookingService] No se encontró entrada de DELIVERY en el histórico');
+            }
+          }
+          
+          // Limpiar los campos de delivery del booking
+          console.log('[BookingService] Limpiando campos de delivery del booking...');
+          await this.bookingRepository['bookingDB'].updateOne(
+            { _id: id },
+            { 
+              $set: { 
+                requiresDelivery: false,
+                deliveryType: null,
+                oneWayType: null,
+                deliveryAddress: null,
+                deliveryCost: 0
+              } 
+            }
+          );
+          console.log('[BookingService] Campos de delivery del booking limpiados');
+          
+          // Limpiar el delivery del cart
+          if (currentBookingData.cart) {
+            try {
+              const currentCartData = JSON.parse(currentBookingData.cart);
+              
+              // Limpiar delivery del formato antiguo (a nivel de cart)
+              if (currentCartData.delivery !== undefined) {
+                currentCartData.delivery = false;
+                currentCartData.deliveryAddress = null;
+              }
+              
+              // Limpiar delivery del formato nuevo (en vehículos)
+              if (currentCartData.vehicles && Array.isArray(currentCartData.vehicles)) {
+                currentCartData.vehicles = currentCartData.vehicles.map((v: any) => {
+                  if (v.delivery) {
+                    return {
+                      ...v,
+                      delivery: {
+                        requiresDelivery: false,
+                        deliveryType: null,
+                        oneWayType: null,
+                        deliveryAddress: null,
+                        deliveryCost: 0
+                      }
+                    };
+                  }
+                  return v;
+                });
+              }
+              
+              // Actualizar el cart en el booking
+              await this.bookingRepository['bookingDB'].updateOne(
+                { _id: id },
+                { $set: { cart: JSON.stringify(currentCartData) } }
+              );
+              
+              console.log('[BookingService] Delivery eliminado del cart exitosamente');
+            } catch (cartError) {
+              console.error('[BookingService] Error limpiando delivery del cart:', cartError);
+            }
+          }
+        } else {
+          console.log('[BookingService] No se encontró contrato asociado al booking');
+        }
+      } catch (error) {
+        console.error('[BookingService] Error eliminando movimiento de DELIVERY:', error);
+        // No fallar la actualización del booking si falla la eliminación del delivery
+      }
+    }
 
     // Actualizar o crear comisiones si hay cambios relevantes
     try {

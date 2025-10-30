@@ -75,6 +75,8 @@ export class ContractRepository implements IContractRepository {
         createdByUser: userId,
         status: contract.status?.id?.toValue() || contract.status,
         extension: contract.extension,
+        concierge: contract.concierge?.id?.toValue() || contract.concierge,
+        source: contract.source,
       };
 
       const createdContract = new this.contractModel(contractData);
@@ -1852,6 +1854,103 @@ export class ContractRepository implements IContractRepository {
     historyEntry.deletionReason = finalReason;
 
     const savedHistory = await historyEntry.save();
+
+    // Si el historyEntry tiene un movimiento relacionado, eliminarlo también
+    if (historyEntry.relatedMovement) {
+      try {
+        const Movement = this.connection.model('Movement');
+        const movement = await Movement.findById(historyEntry.relatedMovement);
+        
+        if (movement && !movement.isDeleted) {
+          console.log(`[ContractRepository] Eliminando movimiento relacionado: ${historyEntry.relatedMovement}`);
+          
+          movement.isDeleted = true;
+          movement.deletedBy = userId;
+          movement.deletedAt = new Date();
+          movement.deletionReason = reason || 'Eliminado automáticamente al eliminar la entrada del histórico del contrato';
+          
+          await movement.save();
+          console.log(`[ContractRepository] Movimiento eliminado exitosamente`);
+        }
+      } catch (error) {
+        console.error('[ContractRepository] Error al eliminar movimiento relacionado:', error);
+        // No lanzar error para no interrumpir la eliminación del historyEntry
+      }
+    }
+
+    // Si es un evento de DELIVERY, actualizar el booking para quitar el delivery
+    const isDeliveryEvent = historyEntry.eventType && 
+      (historyEntry.eventType as any).name === 'DELIVERY';
+    
+    if (isDeliveryEvent) {
+      try {
+        console.log('[ContractRepository] Detectado evento DELIVERY - Actualizando booking...');
+        
+        // Obtener el contrato para acceder al booking
+        const contract = await this.contractModel.findById(historyEntry.contract);
+        
+        if (contract && contract.booking) {
+          const booking = await this.bookingModel.findById(contract.booking);
+          
+          if (booking) {
+            console.log(`[ContractRepository] Booking encontrado: ${booking._id}`);
+            
+            // Obtener el costo del delivery antes de eliminarlo
+            const deliveryCost = booking.deliveryCost || 0;
+            
+            // 1. Actualizar campos del booking
+            booking.requiresDelivery = false;
+            booking.deliveryType = undefined;
+            booking.oneWayType = undefined;
+            booking.deliveryAddress = undefined;
+            booking.deliveryCost = 0;
+            
+            // 2. Descontar el delivery del totalPaid si corresponde
+            if (booking.totalPaid && deliveryCost > 0) {
+              const newTotalPaid = Math.max(0, booking.totalPaid - deliveryCost);
+              booking.totalPaid = newTotalPaid;
+              console.log(`[ContractRepository] totalPaid actualizado: ${booking.totalPaid} - ${deliveryCost} = ${newTotalPaid}`);
+            }
+            
+            // 3. Actualizar el cart para quitar el delivery
+            if (booking.cart) {
+              try {
+                const cartData = JSON.parse(booking.cart);
+                
+                // Quitar delivery a nivel de cart (formato antiguo)
+                if (cartData.delivery !== undefined) {
+                  cartData.delivery = false;
+                  cartData.deliveryAddress = null;
+                }
+                
+                // Quitar delivery de los vehículos (formato nuevo)
+                if (cartData.vehicles && Array.isArray(cartData.vehicles)) {
+                  cartData.vehicles = cartData.vehicles.map((v: any) => {
+                    if (v.delivery) {
+                      // Eliminar el objeto delivery del vehículo
+                      const { delivery, ...vehicleWithoutDelivery } = v;
+                      return vehicleWithoutDelivery;
+                    }
+                    return v;
+                  });
+                }
+                
+                booking.cart = JSON.stringify(cartData);
+                console.log('[ContractRepository] Cart actualizado para quitar delivery');
+              } catch (cartError) {
+                console.error('[ContractRepository] Error al actualizar cart:', cartError);
+              }
+            }
+            
+            await booking.save();
+            console.log('[ContractRepository] Booking actualizado exitosamente');
+          }
+        }
+      } catch (error) {
+        console.error('[ContractRepository] Error al actualizar booking:', error);
+        // No lanzar error para no interrumpir la eliminación del historyEntry
+      }
+    }
 
     // Eliminar el snapshot asociado a este historyEntry
     try {

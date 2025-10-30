@@ -10,6 +10,8 @@ import { generateUserBookingCancellationEn } from './user-booking-cancelled-en.t
 import { generateUserBookingCancellation } from './user-booking-cancelled.template';
 import { generateUserBookingConfirmationEn } from './user-booking-content-en.template';
 import { generateUserBookingConfirmation } from './user-booking-content.template';
+import { generateUserBookingReserve } from './user-booking-reserve.template';
+import { generateUserBookingReserveEn } from './user-booking-reserve-en.template';
 
 export class UserEmailProvider implements IUserEmailAdapter {
   private readonly logger = new Logger(UserEmailProvider.name);
@@ -246,12 +248,14 @@ export class UserEmailProvider implements IUserEmailAdapter {
     lang: string = 'es',
     userData?: any,
   ): Promise<any> {
+    const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
     const bookingId =
       (booking as any).bookingNumber || (booking as any).id || 'unknown';
     const context = `booking-created-${bookingId}`;
+    const isReserve = bookingData.isReserve || false;
 
     this.logger.log(
-      `[${context}] Iniciando sendUserBookingCreated para: ${userEmail}, lang: ${lang}`,
+      `[${context}] Iniciando sendUserBookingCreated para: ${userEmail}, lang: ${lang}, isReserve: ${isReserve}`,
     );
 
     try {
@@ -260,10 +264,20 @@ export class UserEmailProvider implements IUserEmailAdapter {
       this.logger.log(
         `[${context}] Generando contenido del email en idioma: ${lang}`,
       );
-      emailContent =
-        lang === 'es'
-          ? generateUserBookingConfirmation(booking, userEmail, userData)
-          : generateUserBookingConfirmationEn(booking, userEmail, userData);
+      
+      // Si es una pre-reserva, usar las plantillas de reserva
+      if (isReserve) {
+        emailContent =
+          lang === 'es'
+            ? generateUserBookingReserve(booking, userEmail, userData)
+            : generateUserBookingReserveEn(booking, userEmail, userData);
+      } else {
+        // Si es una reserva confirmada, usar las plantillas completas
+        emailContent =
+          lang === 'es'
+            ? generateUserBookingConfirmation(booking, userEmail, userData)
+            : generateUserBookingConfirmationEn(booking, userEmail, userData);
+      }
 
       this.logger.log(`[${context}] Subject: ${emailContent.subject}`);
       this.logger.log(
@@ -278,7 +292,10 @@ export class UserEmailProvider implements IUserEmailAdapter {
       );
 
       // Agregar tags para tracking
-      emailData.tags = ['booking-confirmation', lang, `booking-${bookingId}`];
+      const tags = isReserve 
+        ? ['booking-reserve', lang, `booking-${bookingId}`]
+        : ['booking-confirmation', lang, `booking-${bookingId}`];
+      emailData.tags = tags;
 
       return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
