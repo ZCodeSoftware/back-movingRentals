@@ -21,6 +21,8 @@ export interface IContractService {
       direction: 'IN' | 'OUT';
       date: Date;
       details: string;
+      paymentMethod?: string;
+      paymentMedium?: string;
     }>;
   }>;
 

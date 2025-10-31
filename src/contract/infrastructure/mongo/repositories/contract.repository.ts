@@ -1008,7 +1008,7 @@ export class ContractRepository implements IContractRepository {
           eventMetadata = {
             amount: contractUpdateData.extension.extensionAmount,
             paymentMethod: contractUpdateData.extension.paymentMethod,
-            paymentMedium: (contractData as any).extension?.paymentMedium || 'CUENTA',
+            paymentMedium: contractUpdateData.extension.paymentMedium || (contractData as any).extension?.paymentMedium || 'CUENTA',
             depositNote: (contractData as any).extension?.depositNote,
             vehicle: vehicleId,
             beneficiary: concierge,
@@ -1077,7 +1077,7 @@ export class ContractRepository implements IContractRepository {
           const nonExtensionMetadata = {
             amount: contractUpdateData.extension.extensionAmount,
             paymentMethod: contractUpdateData.extension.paymentMethod,
-            paymentMedium: (contractData as any).extension?.paymentMedium || 'CUENTA',
+            paymentMedium: contractUpdateData.extension.paymentMedium || 'CUENTA',
             depositNote: (contractData as any).extension?.depositNote,
             vehicle: vehicleId,
             beneficiary: concierge,
@@ -2179,6 +2179,36 @@ export class ContractRepository implements IContractRepository {
         await newCartVersion.save({ session });
 
         booking.activeCartVersion = newCartVersion._id;
+        // IMPORTANTE: Verificar si el delivery fue eliminado antes de restaurar
+        // Si hay un evento de DELIVERY eliminado, quitar el delivery del carrito restaurado
+        const deliveryEvent = await this.contractHistoryModel.findOne({
+          contract: contract._id,
+          eventType: await this.catContractEventModel.findOne({ name: 'DELIVERY' }).then(e => e?._id),
+          isDeleted: true
+        }).session(session);
+        
+        if (deliveryEvent) {
+          console.log('[restoreCartFromSnapshot] Delivery fue eliminado - Quitando delivery del carrito restaurado');
+          
+          // Quitar delivery del carrito restaurado
+          if (oldCart.vehicles && Array.isArray(oldCart.vehicles)) {
+            oldCart.vehicles = oldCart.vehicles.map((v: any) => {
+              if (v.delivery) {
+                const { delivery, ...vehicleWithoutDelivery } = v;
+                return vehicleWithoutDelivery;
+              }
+              return v;
+            });
+          }
+          
+          // También actualizar el booking para asegurar que no tenga delivery
+          booking.requiresDelivery = false;
+          booking.deliveryType = undefined;
+          booking.oneWayType = undefined;
+          booking.deliveryAddress = undefined;
+          booking.deliveryCost = 0;
+        }
+        
         booking.cart = JSON.stringify(oldCart);
 
         // IMPORTANTE: Restar el monto de la extensión del totalPaid

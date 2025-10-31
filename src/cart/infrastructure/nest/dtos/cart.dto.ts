@@ -31,6 +31,10 @@ export class TransferDTO {
     @IsNumber()
     @ApiProperty()
     quantity: number;
+
+    @IsNumber()
+    @ApiProperty({ required: false })
+    total?: number;
 }
 export class UpdateCartDTO {
     @IsString()
@@ -54,6 +58,7 @@ export class UpdateCartDTO {
         date: Date;
         quantity: number;
         passengers: TravelersDTO;
+        total?: number;
     }[];
 
     @ApiProperty()
@@ -62,6 +67,7 @@ export class UpdateCartDTO {
         date: Date;
         quantity: number;
         passengers: TravelersDTO;
+        total?: number;
     }[];
 
     @ApiProperty({ required: false, description: 'If true, the vehicle must be delivered to a specific address' })

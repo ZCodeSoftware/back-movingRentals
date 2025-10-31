@@ -13,10 +13,12 @@ export class CartRepository implements ICartRepository {
     ) { }
 
     async update(id: string, data: any): Promise<CartModel> {
+        console.log('[CartRepository] Updating cart with data:', JSON.stringify(data, null, 2));
         const cart = await this.cartDB.findByIdAndUpdate(id, data, { new: true });
 
         if (!cart) throw new BaseErrorException('Cart cannot be updated', 500);
 
+        console.log('[CartRepository] Cart after update:', JSON.stringify(cart, null, 2));
         return CartModel.hydrate(cart);
     }
 

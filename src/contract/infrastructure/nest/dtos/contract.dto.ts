@@ -35,6 +35,11 @@ export class ContractExtensionDTO {
   @IsString()
   paymentMethod?: string;
 
+  @ApiPropertyOptional({ description: 'Payment medium (e.g., $, CUENTA, etc.)', enum: TypeCatPaymentMethodAdmin })
+  @IsOptional()
+  @IsEnum(TypeCatPaymentMethodAdmin)
+  paymentMedium?: TypeCatPaymentMethodAdmin;
+
   @ApiPropertyOptional({ description: 'Amount charged for the extension' })
   @IsOptional()
   @IsNumber()

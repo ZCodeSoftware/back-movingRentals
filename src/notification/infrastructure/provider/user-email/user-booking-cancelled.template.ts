@@ -430,8 +430,13 @@ ${cancellationFee > 0 ? `<p><strong>Tarifa de cancelación:</strong> -$${cancell
 </div>
 <div class="section contact-info">
 <h2><span class="emoji">📞</span> ¿Preguntas sobre tu cancelación?</h2>
-<p>Contáctanos vía WhatsApp: <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">${whatsappNumber}</a></p>
-<p>Estamos aquí para ayudarte si necesitas alguna aclaración sobre esta cancelación o si te gustaría reservar nuevamente en el futuro.</p>
+<div class="item-details" style="background-color: #e3f2fd; border-left-color: #2196f3;">
+<p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">+52 984 141 7024</a></p>
+<p><strong>📧 Email:</strong> <a href="mailto:info@moovadventures.com">info@moovadventures.com</a></p>
+<p><strong>📍 Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
+<p><strong>⏰ Horario:</strong> 9:00 AM - 7:00 PM</p>
+</div>
+<p style="margin-top: 15px;">Estamos aquí para ayudarte si necesitas alguna aclaración sobre esta cancelación o si te gustaría reservar nuevamente en el futuro.</p>
 </div>
 <div class="footer">
 <p>¡Esperamos verte pronto! / We hope to see you again soon!</p>

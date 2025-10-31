@@ -53,14 +53,24 @@ export class CartService implements ICartService {
                 tour: tourModel,
                 date: t.date,
                 passengers: t.passengers,
-                quantity: t.quantity
+                quantity: t.quantity,
+                total: t.total // Incluir total si viene en el item
             };
         }))
 
         const tickets = selectedTickets && await Promise.all(selectedTickets?.map(async (t) => {
             const ticketModel = await this.ticketRepository.findById(t.ticket);
             if (!ticketModel) throw new BaseErrorException('Ticket not found', 404);
-            return { ticket: ticketModel, date: t.date, quantity: t.quantity, passengers: t.passengers };
+            console.log('[CartService] Ticket input:', JSON.stringify(t, null, 2));
+            const result = { 
+                ticket: ticketModel, 
+                date: t.date, 
+                quantity: t.quantity, 
+                passengers: t.passengers,
+                total: t.total // Incluir total si viene en el item
+            };
+            console.log('[CartService] Ticket result:', JSON.stringify(result, null, 2));
+            return result;
         }))
 
         const vehicles = selectedItems && await Promise.all(selectedItems?.map(async (i) => {
@@ -77,7 +87,16 @@ export class CartService implements ICartService {
 
         const transfers = transfer && await Promise.all(transfer?.map(async (t) => {
             const transferModel = await this.transferRepository.findById(t.transfer);
-            return { transfer: transferModel, date: t.date, passengers: t.passengers, quantity: t.quantity };
+            console.log('[CartService] Transfer input:', JSON.stringify(t, null, 2));
+            const result = { 
+                transfer: transferModel, 
+                date: t.date, 
+                passengers: t.passengers, 
+                quantity: t.quantity,
+                total: t.total // Incluir total si viene en el item
+            };
+            console.log('[CartService] Transfer result:', JSON.stringify(result, null, 2));
+            return result;
         }))
 
         // Validate delivery vs address constraint

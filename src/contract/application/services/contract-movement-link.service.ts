@@ -227,9 +227,9 @@ export class ContractMovementLinkService {
 
     console.log('[ContractMovementLinkService] History entry created:', (historyEntry as any)._id);
 
-    // 2. Obtener el valor del enum de paymentMethod desde eventMetadata
-    // El paymentMethod en el histórico se guarda en eventMetadata.paymentMedium
-    const paymentMethodValue = eventData.metadata?.paymentMedium || 'CUENTA';
+    // 2. Obtener el valor del paymentMethod
+    // Prioridad: eventData.paymentMethod > metadata.paymentMedium > 'CUENTA'
+    const paymentMethodValue = eventData.paymentMethod || eventData.metadata?.paymentMedium || 'CUENTA';
     
     console.log('[ContractMovementLinkService] Payment method value:', paymentMethodValue);
 
@@ -240,7 +240,7 @@ export class ContractMovementLinkService {
       detail: eventData.details,
       amount: eventData.amount,
       date: eventData.date || new Date(),
-      paymentMethod: paymentMethodValue, // Usar el valor del enum, no el ObjectId
+      paymentMethod: paymentMethodValue,
       vehicle: eventData.vehicle,
       beneficiary: eventData.beneficiary,
       contractHistoryEntry: (historyEntry as any)._id

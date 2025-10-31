@@ -34,14 +34,16 @@ export class Cart {
             transfer: { type: mongoose.Schema.Types.ObjectId, ref: 'Transfer' },
             date: Date,
             passengers: { adults: Number, child: Number },
-            quantity: Number
+            quantity: Number,
+            total: Number
         }]
     })
     transfer: {
         transfer: Transfer,
         date: Date,
         passengers: Passenger,
-        quantity: number
+        quantity: number,
+        total?: number
     }[];
 
     @Prop({
@@ -80,14 +82,16 @@ export class Cart {
             tour: { type: mongoose.Schema.Types.ObjectId, ref: 'Tour' },
             date: Date,
             quantity: Number,
-            passengers: { adults: Number, child: Number }
+            passengers: { adults: Number, child: Number },
+            total: Number
         }]
     })
     tours: {
         tour: Tour,
         date: Date,
-        quantity: number
-        passengers: Passenger
+        quantity: number,
+        passengers: Passenger,
+        total?: number
     }[];
 
     @Prop({
@@ -95,14 +99,16 @@ export class Cart {
             ticket: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
             date: Date,
             quantity: Number,
-            passengers: { adults: Number, child: Number }
+            passengers: { adults: Number, child: Number },
+            total: Number
         }]
     })
     tickets: {
         ticket: Ticket,
-        date: Date
-        quantity: number
-        passengers: Passenger
+        date: Date,
+        quantity: number,
+        passengers: Passenger,
+        total?: number
     }[];
 
     @Prop({ type: Boolean, required: false, default: false })

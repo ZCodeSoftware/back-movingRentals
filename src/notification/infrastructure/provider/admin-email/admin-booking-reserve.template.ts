@@ -74,6 +74,22 @@ function formatDate(dateString?: string): string {
   }
 }
 
+function formatDateTime(dateString?: string): string {
+  if (!dateString) return 'Fecha y hora no especificadas';
+  try {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch (e) {
+    return dateString;
+  }
+}
+
 /**
  * Genera el correo de notificación para el administrador sobre una PRE-RESERVA.
  * @param booking El objeto de la reserva.
@@ -233,20 +249,20 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
                 const startDate = v.startDate ? new Date(v.startDate) : null;
                 const endDate = v.endDate ? new Date(v.endDate) : null;
                 const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                return `<li>${v.name} (${v.category}) - ${days > 0 ? `${days} día${days !== 1 ? 's' : ''}` : 'Fechas por confirmar'} - ${v.total.toFixed(2)} MXN</li>`;
+                return `<li>${v.name} (${v.category}) - ${days > 0 ? `${days} día${days !== 1 ? 's' : ''}` : 'Fechas por confirmar'}${v.startDate && v.endDate ? ` - Inicio: ${formatDateTime(v.startDate)} / Fin: ${formatDateTime(v.endDate)}` : ''} - ${v.total.toFixed(2)} MXN</li>`;
               }).join('')}
             </ul>
           ` : ''}
           ${transfers.length > 0 ? `
             <p><strong>Transfers:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${transfers.map(t => `<li>${t.name} (${t.category}) - ${formatDate(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
+              ${transfers.map(t => `<li>${t.name} (${t.category}) - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
           ${tours.length > 0 ? `
             <p><strong>Tours:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tours.map(t => `<li>${t.name} (${t.category}) - ${formatDate(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
+              ${tours.map(t => `<li>${t.name} (${t.category}) - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
           ${tickets.length > 0 ? `
@@ -279,16 +295,7 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
           </div>
         </div>
 
-        <div class="section">
-          <h2>✅ Próximos Pasos</h2>
-          <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
-            <p><strong>1.</strong> Contactar al cliente para confirmar disponibilidad</p>
-            <p><strong>2.</strong> Coordinar el pago del saldo pendiente: <strong>${saldoPendiente.toFixed(2)} MXN</strong></p>
-            <p><strong>3.</strong> Una vez confirmado el pago, aprobar la reserva en el sistema</p>
-            <p><strong>4.</strong> El cliente recibirá automáticamente un email con todos los detalles completos</p>
-          </div>
-        </div>
-
+        
         <div class="footer">
           <p>Este es un correo de notificación automático.</p>
           <p><strong>Sistema de Reservas - MoovAdventures</strong></p>

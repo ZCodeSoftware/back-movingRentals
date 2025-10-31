@@ -274,19 +274,19 @@ export function generateUserBookingReserveEn(
           ${transfers.length > 0 ? `
             <p><strong>Transfers:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${transfers.map(t => `<li>${t.name} - ${formatDate(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
+              ${transfers.map(t => `<li>${t.name} - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
           ${tours.length > 0 ? `
             <p><strong>Tours:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tours.map(t => `<li>${t.name} - ${formatDate(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
+              ${tours.map(t => `<li>${t.name} - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
           ${tickets.length > 0 ? `
             <p><strong>Tickets:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tickets.map(ti => `<li>${ti.name} - ${formatDate(ti.date)} - ${ti.price.toFixed(2)} MXN</li>`).join('')}
+              ${tickets.map(ti => `<li>${ti.name} - ${formatDateTime(ti.date)} - ${ti.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
         </div>
@@ -295,7 +295,7 @@ export function generateUserBookingReserveEn(
           <h2>💰 Payment Information</h2>
           <div class="item-details" style="background-color: #fff9e6; border-left-color: #f39c12;">
             <p><strong>Total reservation:</strong> <span style="font-size: 18px;">${totalReserva.toFixed(2)} MXN</span></p>
-            <p><strong>Deposit paid:</strong> ${totalPagado.toFixed(2)} MXN</p>
+            <p><strong>Deposit paid (credit/debit):</strong> ${totalPagado.toFixed(2)} MXN</p>
             <p><strong>Balance due:</strong> <span style="color: #e74c3c; font-size: 18px; font-weight: bold;">${(totalReserva - totalPagado).toFixed(2)} MXN</span></p>
             <p><strong>Payment method:</strong> ${bookingData?.paymentMethod?.name || 'To be defined'}</p>
             ${bookingData?.metadata?.paymentMedium ? `<p><strong>Payment medium:</strong> ${bookingData.metadata.paymentMedium}</p>` : ''}

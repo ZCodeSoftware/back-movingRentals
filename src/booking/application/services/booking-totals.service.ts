@@ -10,6 +10,8 @@ export interface BookingTotals {
     direction: 'IN' | 'OUT';
     date: Date;
     details: string;
+    paymentMethod?: string;
+    paymentMedium?: string;
   }>;
 }
 
@@ -74,7 +76,9 @@ export class BookingTotalsService {
               amount: amount,
               direction: direction,
               date: historyEntry.createdAt || new Date(),
-              details: historyEntry.details || ''
+              details: historyEntry.details || '',
+              paymentMethod: historyEntry.eventMetadata?.paymentMethod,
+              paymentMedium: historyEntry.eventMetadata?.paymentMedium
             });
           }
         }
@@ -98,7 +102,9 @@ export class BookingTotalsService {
                     amount: extensionAmount,
                     direction: 'IN',
                     date: historyEntry.createdAt || new Date(),
-                    details: 'Extensión de contrato'
+                    details: 'Extensión de contrato',
+                    paymentMethod: change.newValue?.paymentMethod,
+                    paymentMedium: change.newValue?.paymentMedium
                   });
                 }
               }
