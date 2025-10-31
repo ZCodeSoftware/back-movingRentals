@@ -289,7 +289,6 @@ export function generateUserBookingConfirmation(
         <div class="section">
           <h2>📝 Detalles generales de tu reserva:</h2>
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
-          <p><strong>Cliente:</strong> ${customerFullName}</p>
           ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
           ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
         </div>
@@ -316,7 +315,6 @@ export function generateUserBookingConfirmation(
                     </div>
                     <div>
                       <p><strong>Días:</strong> ${days} día${days !== 1 ? 's' : ''}</p>
-                      <p><strong>Precio por día:</strong> ${pricePerDay.toFixed(2)} MXN</p>
                       <p><strong>Total:</strong> ${v.total.toFixed(2)} MXN</p>
                     </div>
                   </div>
@@ -326,7 +324,6 @@ export function generateUserBookingConfirmation(
                     <h5 style="margin: 0 0 8px 0; color: #2c3e50;">📅 FECHAS Y HORARIOS</h5>
                     <p style="margin: 5px 0;"><strong>Fecha y hora de inicio:</strong> ${formatDateTime(v.startDate)}</p>
                     <p style="margin: 5px 0;"><strong>Fecha y hora de fin:</strong> ${formatDateTime(v.endDate)}</p>
-                    <p style="margin: 5px 0;"><strong>Periodo:</strong> ${formatDateTimeRange(v.startDate, v.endDate)}</p>
                   </div>
                   ` : ''}
                   
@@ -361,9 +358,9 @@ export function generateUserBookingConfirmation(
                 <div class="item-details transfer-item">
                   <p><strong>Servicio:</strong> ${t.name}</p>
                   <p><strong>Categoría:</strong> ${t.category}</p>
-                  <p><strong>Fecha:</strong> ${formatDate(t.date)}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
-                  <p><strong>Precio:</strong> $${t.price.toFixed(2)} MXN</p>
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>
               `
         )
@@ -379,9 +376,9 @@ export function generateUserBookingConfirmation(
                 <div class="item-details tour-item">
                   <p><strong>Nombre:</strong> ${t.name}</p>
                   <p><strong>Categoría:</strong> ${t.category}</p>
-                  <p><strong>Fecha:</strong> ${formatDate(t.date)}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
-                  <p><strong>Precio:</strong> $${t.price.toFixed(2)} MXN</p>
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>
               `
         )
@@ -397,9 +394,9 @@ export function generateUserBookingConfirmation(
                 <div class="item-details ticket-item">
                   <p><strong>Nombre:</strong> ${ti.name}</p>
                   <p><strong>Categoría:</strong> ${ti.category}</p>
-                  <p><strong>Fecha:</strong> ${formatDate(ti.date)}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(ti.date)}</p>
                   ${ti.quantity > 1 ? `<p><strong>Cantidad:</strong> ${ti.quantity}</p>` : ''}
-                  <p><strong>Precio:</strong> $${ti.price.toFixed(2)} MXN</p>
+                  <p><strong>Precio:</strong> ${ti.price.toFixed(2)} MXN</p>
                 </div>
               `
         )
@@ -471,11 +468,9 @@ export function generateUserBookingConfirmation(
         <div class="section payment-summary">
           <h2>💳 Resumen de pago:</h2>
           <p><strong>Total de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
-          <p><strong>Total pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
+          <p><strong>Total pagado (crédito/débito):</strong> ${totalPagado.toFixed(2)} MXN</p>
           <p><strong>Saldo pendiente:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
           <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'No especificado'}</p>
-          <p><strong>Medio de pago (administrativo):</strong> ${bookingData?.metadata?.paymentMedium || bookingData?.paymentMedium || 'No especificado'}</p>
-          ${bookingData?.metadata?.depositNote ? `<p><strong>Nota de depósito:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
           ${saldoPendiente > 0 ? `
           <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
             <p style="margin: 0; font-size: 14px; color: #856404;"><strong>💰 Método de pago del saldo:</strong> Efectivo, tarjeta de crédito/débito en sucursal</p>
@@ -498,7 +493,12 @@ export function generateUserBookingConfirmation(
 
         <div class="section contact-info">
           <h2><span class="emoji">📞</span> Dudas?</h2>
-          <p>Contáctanos por WhatsApp: <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">${whatsappNumber}</a></p>
+          <div class="item-details" style="background-color: #e3f2fd; border-left-color: #2196f3;">
+            <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">+52 984 141 7024</a></p>
+            <p><strong>📧 Email:</strong> <a href="mailto:info@moovadventures.com">info@moovadventures.com</a></p>
+            <p><strong>📍 Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
+            <p><strong>⏰ Horario:</strong> 9:00 AM - 7:00 PM</p>
+          </div>
         </div>
 
         <div class="footer">

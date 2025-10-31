@@ -228,69 +228,11 @@ export class ContractService implements IContractService {
         isExtensionReason: isExtensionReason
       });
 
-      if ((updateData as any).isExtension && updateData.extension?.extensionAmount && updateData.extension?.paymentMethod && isExtensionReason) {
-        try {
-          const extensionAmount = updateData.extension.extensionAmount;
-          const paymentMedium = updateData.extension.paymentMedium || 'CUENTA';
-          const concierge = (updateData as any).concierge;
-          const vehicleId = (updateData as any).newCart?.vehicles?.[0]?.vehicle?._id || 
-                           (updateData as any).newCart?.vehicles?.[0]?.vehicle;
-
-          console.log('[ContractService] Creating linked movement for extension');
-
-          // Buscar el EXTENSION_UPDATED que se acaba de crear (ya tiene eventMetadata del repositorio)
-          const extensionUpdatedEntry = await this.contractHistoryModel.findOne({
-            contract: id,
-            action: 'EXTENSION_UPDATED'
-          }).sort({ createdAt: -1 }).limit(1);
-
-          if (!extensionUpdatedEntry) {
-            throw new Error('No se encontró el EXTENSION_UPDATED para enlazar el movimiento');
-          }
-
-          console.log('[ContractService] Found EXTENSION_UPDATED entry:', extensionUpdatedEntry._id);
-
-          // Crear el movimiento enlazado al EXTENSION_UPDATED
-          const extensionDate = updateData.extension.newEndDateTime 
-            ? (typeof updateData.extension.newEndDateTime === 'string' 
-                ? new Date(updateData.extension.newEndDateTime) 
-                : updateData.extension.newEndDateTime)
-            : new Date();
-
-          const movementData = {
-            type: 'EXTENSION DE CONTRATO',
-            direction: TypeMovementDirection.IN,
-            detail: (updateData as any).reasonForChange || 'EXTENSION DE RENTA',
-            amount: extensionAmount,
-            date: extensionDate,
-            paymentMethod: paymentMedium as TypeCatPaymentMethodAdmin,
-            vehicle: vehicleId,
-            beneficiary: concierge,
-            contractHistoryEntry: extensionUpdatedEntry._id
-          };
-
-          console.log('[ContractService] Creating movement with data:', movementData);
-
-          const movement = await this.movementService.create(movementData, userId);
-
-          // Obtener el ID del movimiento
-          const movementId = movement.id?.toValue ? movement.id.toValue() : (movement as any)._id;
-
-          console.log('[ContractService] Movement created with ID:', movementId);
-
-          // Actualizar el EXTENSION_UPDATED con la referencia al movimiento
-          extensionUpdatedEntry.relatedMovement = movementId as any;
-          await extensionUpdatedEntry.save();
-
-          console.log('[ContractService] Movement linked to EXTENSION_UPDATED successfully');
-        } catch (movementError) {
-          console.error('[ContractService] Error creating linked movement for extension:', movementError);
-          console.error('[ContractService] Error stack:', movementError.stack);
-          // No fallar la actualización del contrato si falla el movimiento
-        }
-      } else if ((updateData as any).isExtension && updateData.extension?.extensionAmount && !isExtensionReason) {
+      // NOTA: La creación de movimientos para extensiones ya se maneja en el repositorio
+      // a través del eventMetadata, por lo que no es necesario crear movimientos aquí
+      if ((updateData as any).isExtension && updateData.extension?.extensionAmount && !isExtensionReason) {
         console.log('[ContractService] Extension data provided but reasonForChange is not "EXTENSION DE RENTA":', reasonForChange);
-        console.log('[ContractService] Skipping extension movement creation. This should be handled as a different event type.');
+        console.log('[ContractService] This is handled as an adjustment event in the repository.');
       }
 
       // Si es una extensión, crear comisión basada en el extensionAmount
@@ -547,6 +489,8 @@ export class ContractService implements IContractService {
       direction: 'IN' | 'OUT';
       date: Date;
       details: string;
+      paymentMethod?: string;
+      paymentMedium?: string;
     }>;
   }> {
     const contract = await this.contractRepository.findById(contractId);

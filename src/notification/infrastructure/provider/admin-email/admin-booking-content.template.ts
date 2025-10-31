@@ -74,6 +74,22 @@ function formatDate(dateString?: string): string {
   }
 }
 
+function formatDateTime(dateString?: string): string {
+  if (!dateString) return 'Fecha y hora no especificadas';
+  try {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch (e) {
+    return dateString;
+  }
+}
+
 /**
  * Genera el correo de notificación para el administrador con un formato completo y robusto.
  * @param booking El objeto de la reserva.
@@ -232,7 +248,10 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
               (v) => `
                 <div class="item-details vehicle-item">
                   <p><strong>Nombre:</strong> ${v.name} (${v.category})</p>
-                  ${v.startDate && v.endDate ? `<p><strong>Periodo:</strong> ${formatDate(v.startDate)} - ${formatDate(v.endDate)}</p>` : ''}
+                  ${v.startDate && v.endDate ? `
+                    <p><strong>Inicio:</strong> ${formatDateTime(v.startDate)}</p>
+                    <p><strong>Fin:</strong> ${formatDateTime(v.endDate)}</p>
+                  ` : ''}
                   <p><strong>Subtotal:</strong> ${v.total.toFixed(2)} MXN</p>
                   ${bookingData?.metadata?.depositNote ? `<p style="color: #d63031;"><strong>🔒 Depósito registrado:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
                 </div>`,
@@ -252,9 +271,9 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
               (t) => `
                 <div class="item-details transfer-item">
                   <p><strong>Servicio:</strong> ${t.name} (${t.category})</p>
-                  <p><strong>Fecha:</strong> ${formatDate(t.date)}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
-                  <p><strong>Precio:</strong> $${t.price.toFixed(2)} MXN</p>
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>`,
             )
             .join('')}
@@ -272,9 +291,9 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
               (t) => `
                 <div class="item-details tour-item">
                   <p><strong>Nombre:</strong> ${t.name} (${t.category})</p>
-                  <p><strong>Fecha:</strong> ${formatDate(t.date)}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
-                  <p><strong>Precio:</strong> $${t.price.toFixed(2)} MXN</p>
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>`,
             )
             .join('')}
