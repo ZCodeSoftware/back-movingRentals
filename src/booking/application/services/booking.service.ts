@@ -833,8 +833,9 @@ export class BookingService implements IBookingService {
           TypeStatus.APPROVED
         );
       } else {
+        // Para otros métodos de pago (Transferencia, etc.), usar paid para determinar el estado
         status = await this.catStatusRepository.getStatusByName(
-          TypeStatus.PENDING
+          paid ? TypeStatus.APPROVED : TypeStatus.PENDING
         );
       }
     }
