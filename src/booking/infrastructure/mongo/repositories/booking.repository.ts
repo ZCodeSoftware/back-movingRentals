@@ -317,8 +317,16 @@ export class BookingRepository implements IBookingRepository {
       }),
     );
 
+    // Extraer solo los IDs de las relaciones para la actualización
+    const updateData = { ...filteredUpdateObject };
+    BOOKING_RELATIONS.forEach(relation => {
+      if (updateData[relation] && typeof updateData[relation] === 'object' && '_id' in updateData[relation]) {
+        updateData[relation] = updateData[relation]._id;
+      }
+    });
+
     const updatedBooking = await this.bookingDB
-      .findByIdAndUpdate(id, filteredUpdateObject, {
+      .findByIdAndUpdate(id, updateData, {
         new: true,
         omitUndefined: true,
       })
