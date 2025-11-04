@@ -322,6 +322,9 @@ export class CommissionRepository implements ICommissionRepository {
       throw new BaseErrorException('No valid fields to update', HttpStatus.BAD_REQUEST);
     }
 
+    // IMPORTANTE: Al editar manualmente, marcar como manual para que nunca se recalcule automáticamente
+    updateData.isManual = true;
+
     const updated = await this.commissionDB.findByIdAndUpdate(
       id,
       { $set: updateData },
@@ -332,7 +335,7 @@ export class CommissionRepository implements ICommissionRepository {
       throw new BaseErrorException('Commission not found', HttpStatus.NOT_FOUND);
     }
 
-    console.log(`[CommissionRepository] Commission ${id} updated:`, updateData);
+    console.log(`[CommissionRepository] Commission ${id} updated manually (marked as isManual: true):`, updateData);
     return CommissionModel.hydrate(updated);
   }
 
@@ -345,14 +348,23 @@ export class CommissionRepository implements ICommissionRepository {
   }
 
   async updateByBookingNumber(bookingNumber: number, updates: Partial<any>): Promise<CommissionModel[]> {
-    // Buscar comisiones que sean de booking (o que no tengan source definido para retrocompatibilidad)
-    const commissions = await this.commissionDB.find({ 
-      bookingNumber,
-      $or: [
-        { source: 'booking' },
-        { source: { $exists: false } }
-      ]
-    });
+  // Buscar comisiones que sean de booking (o que no tengan source definido para retrocompatibilidad)
+  // Y que NO sean manuales (isManual: false o no existe)
+  const commissions = await this.commissionDB.find({
+  bookingNumber,
+  $or: [
+  { source: 'booking' },
+  { source: { $exists: false } }
+  ],
+  $and: [
+  {
+  $or: [
+  { isManual: false },
+  { isManual: { $exists: false } }
+  ]
+  }
+  ]
+  });
     
     if (!commissions || commissions.length === 0) {
       console.log(`No commissions found for booking number: ${bookingNumber}`);

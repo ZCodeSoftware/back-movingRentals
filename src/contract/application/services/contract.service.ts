@@ -299,6 +299,7 @@ export class ContractService implements IContractService {
             });
 
             // Crear la comisión con source: 'extension'
+            // Si se usó commissionTotal, marcar como manual
             const commissionCreated = await this.commissionRepository.create(
               CommissionModel.create({
                 booking: bookingData._id as any,
@@ -311,6 +312,7 @@ export class ContractService implements IContractService {
                 amount: commissionAmount as any,
                 source: 'extension' as any,
                 commissionPercentage: commissionPercentage,
+                isManual: calculationMethod === 'fixed', // Marcar como manual si se usó monto fijo
               } as any)
             );
 
