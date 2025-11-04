@@ -17,6 +17,7 @@ export interface ICommissionRepository {
   findByBookingNumber(bookingNumber: number): Promise<CommissionModel[]>;
   updateByBookingNumber(bookingNumber: number, updates: Partial<CommissionModel>): Promise<CommissionModel[]>;
   markAsPaid(id: string): Promise<CommissionModel>;
+  updateById(id: string, updates: Partial<{ amount: number; commissionPercentage: number }>): Promise<CommissionModel>;
   deleteById(id: string): Promise<void>;
   deleteByBookingNumberAndSource(bookingNumber: number, source: 'booking' | 'extension'): Promise<number>;
   getBookingIdByCommissionId(commissionId: string): Promise<string | null>;

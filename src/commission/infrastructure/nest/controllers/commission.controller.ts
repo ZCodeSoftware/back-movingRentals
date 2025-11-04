@@ -1,5 +1,6 @@
-import { Controller, Get, HttpCode, Inject, Put, Query, UseGuards, Param, Delete } from '@nestjs/common';
-import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, HttpCode, Inject, Put, Query, UseGuards, Param, Delete, Patch, Body } from '@nestjs/common';
+import { ApiQuery, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { UpdateCommissionDTO } from '../dtos/commission.dto';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
 import { RoleGuard } from '../../../../auth/infrastructure/nest/guards/role.guard';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
@@ -56,6 +57,18 @@ export class CommissionController {
       page, 
       limit 
     });
+  }
+
+  @Patch(':id')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Commission updated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - No valid fields to update' })
+  @ApiResponse({ status: 404, description: 'Commission not found' })
+  @ApiBody({ type: UpdateCommissionDTO })
+  @Roles(TypeRoles.ADMIN, TypeRoles.SUPERVISOR, TypeRoles.SUPERADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  async update(@Param('id') id: string, @Body() updateDto: UpdateCommissionDTO) {
+    return this.service.update(id, updateDto);
   }
 
   @Put(':id/pay')

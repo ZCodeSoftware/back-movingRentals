@@ -63,6 +63,9 @@ export class Booking {
 
   @Prop({ type: Number, required: false })
   deliveryCost?: number;
+
+  @Prop({ type: Number, required: false })
+  deliveryDistance?: number;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);

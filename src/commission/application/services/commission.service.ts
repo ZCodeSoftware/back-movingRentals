@@ -39,6 +39,10 @@ export class CommissionService implements ICommissionService {
     return this.repository.markAsPaid(id);
   }
 
+  async update(id: string, updates: Partial<{ amount: number; commissionPercentage: number }>): Promise<CommissionModel> {
+    return this.repository.updateById(id, updates);
+  }
+
   async deleteById(id: string): Promise<void> {
     // Obtener los detalles de la comisión antes de eliminarla
     const commissionDetails = await this.repository.getCommissionDetailsById(id);

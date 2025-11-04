@@ -1,219 +1,234 @@
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 
 interface CartCategory {
-    name: string;
+  name: string;
 }
 
 interface CartVehicleDetail {
-    _id: string;
-    name: string;
-    price: number;
-    category: CartCategory;
+  _id: string;
+  name: string;
+  price: number;
+  category: CartCategory;
 }
 
 interface CartItemVehicle {
-    vehicle: CartVehicleDetail;
-    total: number;
-    dates?: { start: string; end: string };
+  vehicle: CartVehicleDetail;
+  total: number;
+  dates?: { start: string; end: string };
 }
 
 interface CartTransferDetail {
-    _id: string;
-    name: string;
-    price: number;
-    category: CartCategory;
+  _id: string;
+  name: string;
+  price: number;
+  category: CartCategory;
 }
 interface CartItemTransfer {
-    transfer: CartTransferDetail;
-    date: string;
-    quantity: number;
+  transfer: CartTransferDetail;
+  date: string;
+  airline: string;
+  flightNumber: string;
+  quantity: number;
 }
 
 interface CartTourDetail {
-    _id: string;
-    name: string;
-    price: number;
-    category: CartCategory;
+  _id: string;
+  name: string;
+  price: number;
+  category: CartCategory;
 }
 interface CartItemTour {
-    tour: CartTourDetail;
-    date: string;
-    quantity: number;
+  tour: CartTourDetail;
+  date: string;
+  quantity: number;
 }
 
 interface CartTicketDetail {
-    _id: string;
-    name: string;
-    totalPrice: number;
-    category: CartCategory;
+  _id: string;
+  name: string;
+  totalPrice: number;
+  category: CartCategory;
 }
 interface CartItemTicket {
-    ticket: CartTicketDetail;
-    date: string;
-    quantity: number;
+  ticket: CartTicketDetail;
+  date: string;
+  quantity: number;
 }
 
 interface ParsedCart {
-    branch?: { name: string };
-    vehicles?: CartItemVehicle[];
-    transfer?: CartItemTransfer[];
-    tours?: CartItemTour[];
-    tickets?: CartItemTicket[];
+  branch?: { name: string };
+  vehicles?: CartItemVehicle[];
+  transfer?: CartItemTransfer[];
+  tours?: CartItemTour[];
+  tickets?: CartItemTicket[];
 }
 
 function formatDateToEnglish(dateString?: string): string {
-    if (!dateString) return 'Date not specified';
-    try {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
-    } catch (e) {
-        return dateString;
-    }
+  if (!dateString) return 'Date not specified';
+  try {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch (e) {
+    return dateString;
+  }
 }
 
 function formatDateTimeToEnglish(dateString?: string): string {
-    if (!dateString) return 'Date and time not specified';
-    try {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
-    } catch (e) {
-        return dateString;
-    }
+  if (!dateString) return 'Date and time not specified';
+  try {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch (e) {
+    return dateString;
+  }
 }
 
-function formatDateTimeRangeToEnglish(startDate?: string, endDate?: string): string {
-    if (!startDate || !endDate) return 'Dates not specified';
-    try {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        
-        const dateStr = start.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
-        
-        const startTime = start.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
-        
-        const endTime = end.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
-        
-        // If same day, show: "August 30, 2025, from 10:00 AM to 6:00 PM"
-        if (start.toDateString() === end.toDateString()) {
-            return `${dateStr}, from ${startTime} to ${endTime}`;
-        } else {
-            // If different days, show complete dates
-            const endDateStr = end.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            });
-            return `From ${dateStr} at ${startTime} to ${endDateStr} at ${endTime}`;
-        }
-    } catch (e) {
-        return `${startDate} - ${endDate}`;
-    }
-}
+function formatDateTimeRangeToEnglish(
+  startDate?: string,
+  endDate?: string,
+): string {
+  if (!startDate || !endDate) return 'Dates not specified';
+  try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
+    const dateStr = start.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const startTime = start.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    const endTime = end.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    // If same day, show: "August 30, 2025, from 10:00 AM to 6:00 PM"
+    if (start.toDateString() === end.toDateString()) {
+      return `${dateStr}, from ${startTime} to ${endTime}`;
+    } else {
+      // If different days, show complete dates
+      const endDateStr = end.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      return `From ${dateStr} at ${startTime} to ${endDateStr} at ${endTime}`;
+    }
+  } catch (e) {
+    return `${startDate} - ${endDate}`;
+  }
+}
 
 export function generateUserBookingConfirmationEn(
-    booking: BookingModel,
-    userEmail?: string,
-    userData?: any
+  booking: BookingModel,
+  userEmail?: string,
+  userData?: any,
 ): { subject: string; html: string } {
-    const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
-    const cartString = bookingData.cart;
+  const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
+  const cartString = bookingData.cart;
 
-    let cart: ParsedCart = {};
-    const bookingNumber = bookingData.bookingNumber || 'N/A';
-    const totalReserva = bookingData.total || 0;
-    const totalPagado = bookingData.totalPaid || 0;
+  let cart: ParsedCart = {};
+  const bookingNumber = bookingData.bookingNumber || 'N/A';
+  const totalReserva = bookingData.total || 0;
+  const totalPagado = bookingData.totalPaid || 0;
 
-    // Get user information
-    const customerName = userData?.name || bookingData.user?.name || 'Customer';
-    const customerLastName = userData?.lastName || bookingData.user?.lastName || '';
-    const customerFullName = `${customerName} ${customerLastName}`.trim();
+  // Get user information
+  const customerName = userData?.name || bookingData.user?.name || 'Customer';
+  const customerLastName =
+    userData?.lastName || bookingData.user?.lastName || '';
+  const customerFullName = `${customerName} ${customerLastName}`.trim();
 
-    const errorSubject = `Issue with your booking #${bookingNumber} at MoovAdventures`;
-    const errorHtml = `
+  const errorSubject = `Issue with your booking #${bookingNumber} at MoovAdventures`;
+  const errorHtml = `
     <p>Hello,</p>
     <p>We encountered an issue while trying to generate the full details for your booking #${bookingNumber}.</p>
     <p>Please contact us directly to verify the status and details of your booking.</p>
     <p>We apologize for any inconvenience.</p>
     <p>The MoovAdventures Team</p>`;
 
-    if (!cartString || typeof cartString !== 'string') {
-        console.error(`Error: booking.cart is not a valid JSON string for booking #${bookingNumber}.`);
-        return { subject: errorSubject, html: errorHtml };
-    }
+  if (!cartString || typeof cartString !== 'string') {
+    console.error(
+      `Error: booking.cart is not a valid JSON string for booking #${bookingNumber}.`,
+    );
+    return { subject: errorSubject, html: errorHtml };
+  }
 
-    try {
-        cart = JSON.parse(cartString);
-    } catch (error) {
-        console.error(`Error parsing booking.cart for booking #${bookingNumber}:`, error);
-        return { subject: errorSubject, html: errorHtml };
-    }
+  try {
+    cart = JSON.parse(cartString);
+  } catch (error) {
+    console.error(
+      `Error parsing booking.cart for booking #${bookingNumber}:`,
+      error,
+    );
+    return { subject: errorSubject, html: errorHtml };
+  }
 
-    const branchName = cart.branch?.name || 'Branch not specified';
+  const branchName = cart.branch?.name || 'Branch not specified';
 
-    const vehicles = cart.vehicles?.map((v: CartItemVehicle) => ({
-        name: v.vehicle.name,
-        category: v.vehicle.category.name,
-        total: v.total,
-        startDate: v.dates?.start,
-        endDate: v.dates?.end,
+  const vehicles =
+    cart.vehicles?.map((v: CartItemVehicle) => ({
+      name: v.vehicle.name,
+      category: v.vehicle.category.name,
+      total: v.total,
+      startDate: v.dates?.start,
+      endDate: v.dates?.end,
     })) || [];
 
-    const transfers = cart.transfer?.map((t: CartItemTransfer) => ({
-        name: t.transfer.name,
-        category: t.transfer.category.name,
-        price: t.transfer.price,
-        date: t.date,
-        quantity: t.quantity,
+  const transfers =
+    cart.transfer?.map((t: CartItemTransfer) => ({
+      name: t.transfer.name,
+      category: t.transfer.category.name,
+      price: t.transfer.price,
+      date: t.date,
+      quantity: t.quantity,
+      airline: t.airline,
+      flightNumber: t.flightNumber,
     })) || [];
 
-    const tours = cart.tours?.map((t: CartItemTour) => ({
-        name: t.tour.name,
-        category: t.tour.category.name,
-        price: t.tour.price,
-        date: t.date,
-        quantity: t.quantity,
+  const tours =
+    cart.tours?.map((t: CartItemTour) => ({
+      name: t.tour.name,
+      category: t.tour.category.name,
+      price: t.tour.price,
+      date: t.date,
+      quantity: t.quantity,
     })) || [];
 
-    const tickets = cart.tickets?.map((ti: CartItemTicket) => ({
-        name: ti.ticket.name,
-        category: ti.ticket.category.name,
-        price: ti.ticket.totalPrice,
-        date: ti.date,
-        quantity: ti.quantity,
+  const tickets =
+    cart.tickets?.map((ti: CartItemTicket) => ({
+      name: ti.ticket.name,
+      category: ti.ticket.category.name,
+      price: ti.ticket.totalPrice,
+      date: ti.date,
+      quantity: ti.quantity,
     })) || [];
 
+  const saldoPendiente = totalReserva - totalPagado;
 
-    const saldoPendiente = totalReserva - totalPagado;
+  const googleMapsUrl = `https://www.google.com/maps/search/MoovAdventures+Tulum/@20.2053617,-87.4710442,15z`;
+  const whatsappNumber = '+529841417024';
+  const whatsappLink = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
 
-    const googleMapsUrl = `https://www.google.com/maps/search/MoovAdventures+Tulum/@20.2053617,-87.4710442,15z`;
-    const whatsappNumber = "+529841417024";
-    const whatsappLink = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
+  const subject = `Your booking #${bookingNumber} at MoovAdventures is confirmed! 🚀`;
 
-    const subject = `Your booking #${bookingNumber} at MoovAdventures is confirmed! 🚀`;
-
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -293,18 +308,25 @@ export function generateUserBookingConfirmationEn(
           ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
         </div>
         
-        ${vehicles.length > 0 ? `
+        ${
+          vehicles.length > 0
+            ? `
         <div class="section">
-          <h3>�� Vehicle${vehicles.length > 1 ? 's' : ''} booked:</h3>
+          <h3>Vehicle${vehicles.length > 1 ? 's' : ''} booked:</h3>
           ${vehicles
-                .map(
-                    (v) => {
-                      const startDate = v.startDate ? new Date(v.startDate) : null;
-                      const endDate = v.endDate ? new Date(v.endDate) : null;
-                      const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                      const pricePerDay = days > 0 ? (v.total / days) : 0;
-                      
-                      return `
+            .map((v) => {
+              const startDate = v.startDate ? new Date(v.startDate) : null;
+              const endDate = v.endDate ? new Date(v.endDate) : null;
+              const days =
+                startDate && endDate
+                  ? Math.ceil(
+                      (endDate.getTime() - startDate.getTime()) /
+                        (1000 * 60 * 60 * 24),
+                    )
+                  : 0;
+              const pricePerDay = days > 0 ? v.total / days : 0;
+
+              return `
                 <div class="item-details vehicle-item">
                   <h4 style="margin: 0 0 10px 0; color: #2c3e50;">📋 RENTAL DETAILS</h4>
                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
@@ -319,13 +341,17 @@ export function generateUserBookingConfirmationEn(
                     </div>
                   </div>
                   
-                  ${v.startDate && v.endDate ? `
+                  ${
+                    v.startDate && v.endDate
+                      ? `
                   <div style="background-color: #e8f4fd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #2c3e50;">📅 DATES & TIMES</h5>
                     <p style="margin: 5px 0;"><strong>Start date & time:</strong> ${formatDateTimeToEnglish(v.startDate)}</p>
                     <p style="margin: 5px 0;"><strong>End date & time:</strong> ${formatDateTimeToEnglish(v.endDate)}</p>
                   </div>
-                  ` : ''}
+                  `
+                      : ''
+                  }
                   
                   <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #856404;">⚠️ IMPORTANT INFORMATION</h5>
@@ -344,35 +370,47 @@ export function generateUserBookingConfirmationEn(
                   </div>
                 </div>
               `;
-                    }
-                )
-                .join('')}
-        </div>` : ''}
+            })
+            .join('')}
+        </div>`
+            : ''
+        }
 
-        ${transfers.length > 0 ? `
+        ${
+          transfers.length > 0
+            ? `
         <div class="section">
           <h3>🚐 Transfer${transfers.length > 1 ? 's' : ''} booked:</h3>
           ${transfers
-                .map(
-                    (t) => `
+            .map(
+              (t) => `
                 <div class="item-details transfer-item">
                   <p><strong>Service:</strong> ${t.name}</p>
                   <p><strong>Category:</strong> ${t.category}</p>
                   <p><strong>Date & time:</strong> ${formatDateTimeToEnglish(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Quantity:</strong> ${t.quantity}</p>` : ''}
                   <p><strong>Price:</strong> ${t.price.toFixed(2)} MXN</p>
+                  <div style="background-color: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #e65100;">✈️ FLIGHT INFORMATION</h5>
+                    <p style="margin: 5px 0;"><strong>Airline:</strong> ${t.airline}</p>
+                    <p style="margin: 5px 0;"><strong>Flight number:</strong> ${t.flightNumber}</p>
+                  </div>
                 </div>
-              `
-                )
-                .join('')}
-        </div>` : ''}
+              `,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
 
-        ${tours.length > 0 ? `
+        ${
+          tours.length > 0
+            ? `
         <div class="section">
           <h3>🗺️ Tour${tours.length > 1 ? 's' : ''} booked:</h3>
           ${tours
-                .map(
-                    (t) => `
+            .map(
+              (t) => `
                 <div class="item-details tour-item">
                   <p><strong>Name:</strong> ${t.name}</p>
                   <p><strong>Category:</strong> ${t.category}</p>
@@ -380,17 +418,21 @@ export function generateUserBookingConfirmationEn(
                   ${t.quantity > 1 ? `<p><strong>Quantity:</strong> ${t.quantity}</p>` : ''}
                   <p><strong>Price:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>
-              `
-                )
-                .join('')}
-        </div>` : ''}
+              `,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
 
-        ${tickets.length > 0 ? `
+        ${
+          tickets.length > 0
+            ? `
         <div class="section">
           <h3>🎟️ Ticket${tickets.length > 1 ? 's' : ''} booked:</h3>
           ${tickets
-                .map(
-                    (ti) => `
+            .map(
+              (ti) => `
                 <div class="item-details ticket-item">
                   <p><strong>Name:</strong> ${ti.name}</p>
                   <p><strong>Category:</strong> ${ti.category}</p>
@@ -398,12 +440,16 @@ export function generateUserBookingConfirmationEn(
                   ${ti.quantity > 1 ? `<p><strong>Quantity:</strong> ${ti.quantity}</p>` : ''}
                   <p><strong>Price:</strong> ${ti.price.toFixed(2)} MXN</p>
                 </div>
-              `
-                )
-                .join('')}
-        </div>` : ''}
+              `,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
 
-        ${vehicles.length > 0 ? `
+        ${
+          vehicles.length > 0
+            ? `
         <div class="section">
           <h3>🛠️ Additional Services Available:</h3>
           <div class="item-details" style="background-color: #f0f8ff; border-left-color: #4169e1;">
@@ -437,33 +483,39 @@ export function generateUserBookingConfirmationEn(
               <p style="margin: 0; font-size: 13px; color: #0066cc;"><strong>Note:</strong> Additional services can be requested at pickup time. Prices are subject to change.</p>
             </div>
           </div>
-        </div>` : ''}
+        </div>`
+            : ''
+        }
 
-        ${bookingData.requiresDelivery ? `
+        ${
+          bookingData.requiresDelivery
+            ? `
         <div class="section">
           <h2>🚚 Delivery Information:</h2>
           <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
             <p><strong>Delivery service:</strong> Yes</p>
             <p><strong>Service type:</strong> ${
-              bookingData.deliveryType === 'round-trip' 
-                ? 'Round trip' 
-                : bookingData.oneWayType === 'pickup' 
-                  ? 'One way - Pickup only' 
+              bookingData.deliveryType === 'round-trip'
+                ? 'Round trip'
+                : bookingData.oneWayType === 'pickup'
+                  ? 'One way - Pickup only'
                   : 'One way - Delivery only'
             }</p>
             ${bookingData.deliveryAddress ? `<p><strong>Address:</strong> ${bookingData.deliveryAddress}</p>` : ''}
             ${bookingData.deliveryCost ? `<p><strong>Delivery cost:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
             <div style="background-color: #fff9c4; padding: 10px; border-radius: 4px; margin-top: 10px;">
               <p style="margin: 0; font-size: 14px; color: #f57f17;"><strong>📍 Note:</strong> ${
-                bookingData.deliveryType === 'round-trip' 
-                  ? 'The vehicle will be delivered and picked up at the specified address.' 
+                bookingData.deliveryType === 'round-trip'
+                  ? 'The vehicle will be delivered and picked up at the specified address.'
                   : bookingData.oneWayType === 'pickup'
                     ? 'The vehicle will be picked up from the specified address. Initial pickup must be done at the branch.'
                     : 'The vehicle will be delivered to the specified address. Return must be made at the branch.'
               }</p>
             </div>
           </div>
-        </div>` : ''}
+        </div>`
+            : ''
+        }
 
         <div class="section payment-summary">
           <h2>💳 Payment Summary:</h2>
@@ -471,24 +523,32 @@ export function generateUserBookingConfirmationEn(
           <p><strong>Total paid (credit/debit):</strong> ${totalPagado.toFixed(2)} MXN</p>
           <p><strong>Balance due:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
           <p><strong>Payment method:</strong> ${bookingData?.paymentMethod?.name || 'Not specified'}</p>
-          ${saldoPendiente > 0 ? `
+          ${
+            saldoPendiente > 0
+              ? `
           <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
             <p style="margin: 0; font-size: 14px; color: #856404;"><strong>💰 Balance payment method:</strong> Cash, credit/debit card at branch</p>
           </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
 
-        ${branchName !== 'Branch not specified' ? `
+        ${
+          branchName !== 'Branch not specified'
+            ? `
         <div class="section pickup-info">
           <h2>📍 Pickup Information (Vehicles):</h2>
           <p>For vehicles, pickup is at ${branchName} Branch – <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">View on Google Maps</a></p>
           <p><strong><span class="emoji">⏰</span> Opening hours:</strong> 9:00 AM to 7:00 PM</p>
-        </div>` : `
+        </div>`
+            : `
         <div class="section pickup-info">
           <h2>📍 Meeting Points / Schedules:</h2>
           <p>Please check the specific details of each tour, transfer, or ticket for exact meeting points and schedules.</p>
         </div>
-        `}
+        `
+        }
 
         <div class="section contact-info">
           <h2><span class="emoji">📞</span> Questions?</h2>
@@ -510,5 +570,5 @@ export function generateUserBookingConfirmationEn(
     </html>
   `;
 
-    return { subject, html };
+  return { subject, html };
 }

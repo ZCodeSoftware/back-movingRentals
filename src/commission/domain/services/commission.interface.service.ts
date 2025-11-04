@@ -14,6 +14,7 @@ export interface ICommissionService {
     };
   }>;
   pay(id: string): Promise<CommissionModel>;
+  update(id: string, updates: Partial<{ amount: number; commissionPercentage: number }>): Promise<CommissionModel>;
   deleteById(id: string): Promise<void>;
   deleteByBookingNumberAndSource(bookingNumber: number, source: 'booking' | 'extension'): Promise<{ deletedCount: number }>;
 }

@@ -94,4 +94,9 @@ export class CreateBookingDTO {
   @ApiPropertyOptional({ description: 'Cost of the delivery service' })
   @IsNumber()
   deliveryCost?: number;
+
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'Distance of the delivery in kilometers' })
+  @IsNumber()
+  deliveryDistance?: number;
 }

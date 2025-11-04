@@ -21,6 +21,7 @@ export class BookingModel extends BaseModel {
   private _oneWayType?: 'pickup' | 'delivery';
   private _deliveryAddress?: string;
   private _deliveryCost?: number;
+  private _deliveryDistance?: number;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -43,6 +44,7 @@ export class BookingModel extends BaseModel {
       oneWayType: this._oneWayType,
       deliveryAddress: this._deliveryAddress,
       deliveryCost: this._deliveryCost,
+      deliveryDistance: this._deliveryDistance,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -102,6 +104,7 @@ export class BookingModel extends BaseModel {
     newBooking._oneWayType = booking.oneWayType;
     newBooking._deliveryAddress = booking.deliveryAddress;
     newBooking._deliveryCost = booking.deliveryCost;
+    newBooking._deliveryDistance = booking.deliveryDistance;
 
     return newBooking;
   }
@@ -130,6 +133,7 @@ export class BookingModel extends BaseModel {
     newBooking._oneWayType = booking.oneWayType;
     newBooking._deliveryAddress = booking.deliveryAddress;
     newBooking._deliveryCost = booking.deliveryCost;
+    newBooking._deliveryDistance = booking.deliveryDistance;
     newBooking._createdAt = booking.createdAt;
     newBooking._updatedAt = booking.updatedAt;
 

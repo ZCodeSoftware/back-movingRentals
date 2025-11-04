@@ -52,6 +52,12 @@ export class ContractExtensionDTO {
   @Max(100)
   commissionPercentage?: number;
 
+  @ApiPropertyOptional({ description: 'Fixed commission amount in MXN (overrides percentage calculation if > 0)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  commissionTotal?: number;
+
   @ApiPropertyOptional({ description: 'Extension status ID' })
   @IsOptional()
   @IsString()
