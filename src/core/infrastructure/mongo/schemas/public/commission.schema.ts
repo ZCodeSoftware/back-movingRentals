@@ -41,6 +41,9 @@ export class Commission {
 
   @Prop({ type: Number, required: false })
   commissionPercentage?: number;
+
+  @Prop({ type: Boolean, default: false })
+  isManual?: boolean;
 }
 
 export const CommissionSchema = SchemaFactory.createForClass(Commission);

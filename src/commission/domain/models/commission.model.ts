@@ -15,6 +15,7 @@ export class CommissionModel extends BaseModel {
   private _amount: number;
   private _source: 'booking' | 'extension';
   private _commissionPercentage?: number;
+  private _isManual?: boolean;
   private _contract?: any;
 
   public toJSON() {
@@ -31,6 +32,7 @@ export class CommissionModel extends BaseModel {
       amount: this._amount,
       source: this._source,
       commissionPercentage: this._commissionPercentage,
+      isManual: this._isManual,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -55,6 +57,7 @@ export class CommissionModel extends BaseModel {
     m._amount = data.amount;
     m._source = data.source ?? 'booking';
     m._commissionPercentage = data.commissionPercentage;
+    m._isManual = data.isManual ?? false;
     return m;
   }
 
@@ -75,6 +78,7 @@ export class CommissionModel extends BaseModel {
     m._amount = data.amount;
     m._source = data.source ?? 'booking';
     m._commissionPercentage = data.commissionPercentage;
+    m._isManual = data.isManual ?? false;
     m._contract = data.contract;
     m._createdAt = data.createdAt;
     m._updatedAt = data.updatedAt;
