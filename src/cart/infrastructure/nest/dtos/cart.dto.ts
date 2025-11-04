@@ -35,6 +35,14 @@ export class TransferDTO {
     @IsNumber()
     @ApiProperty({ required: false })
     total?: number;
+
+    @IsString()
+    @ApiProperty({ description: 'Airline name', example: 'Aeroméxico' })
+    airline: string;
+
+    @IsString()
+    @ApiProperty({ description: 'Flight number', example: 'AM123' })
+    flightNumber: string;
 }
 export class UpdateCartDTO {
     @IsString()

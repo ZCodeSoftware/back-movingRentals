@@ -257,6 +257,7 @@ export class ContractService implements IContractService {
           
           if (bookingData) {
             const extensionAmount = updateData.extension.extensionAmount;
+            const commissionTotal = updateData.extension.commissionTotal;
             const commissionPercentage = updateData.extension.commissionPercentage ?? 15;
             const concierge = (updateData as any).concierge;
             
@@ -265,13 +266,32 @@ export class ContractService implements IContractService {
               return updated;
             }
             
-            // Calcular el monto de la comisión
-            const commissionAmount = Math.round((extensionAmount * (commissionPercentage / 100)) * 100) / 100;
+            // Determinar el monto de la comisión:
+            // 1. Si viene commissionTotal > 0, usar ese valor exacto
+            // 2. Si no, calcular con el porcentaje
+            let commissionAmount: number;
+            let calculationMethod: string;
+            
+            if (commissionTotal && commissionTotal > 0) {
+              commissionAmount = Math.round(commissionTotal * 100) / 100;
+              calculationMethod = 'fixed';
+              console.log('[ContractService] Using fixed commission amount from frontend:', commissionAmount);
+            } else {
+              commissionAmount = Math.round((extensionAmount * (commissionPercentage / 100)) * 100) / 100;
+              calculationMethod = 'percentage';
+              console.log('[ContractService] Calculating commission with percentage:', {
+                extensionAmount,
+                commissionPercentage,
+                commissionAmount
+              });
+            }
             
             console.log('[ContractService] Creating extension commission:', {
               extensionAmount,
               commissionPercentage,
+              commissionTotal,
               commissionAmount,
+              calculationMethod,
               concierge,
               bookingNumber: bookingData.bookingNumber,
               bookingId: bookingData._id,

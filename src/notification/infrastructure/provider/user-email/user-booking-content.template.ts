@@ -26,6 +26,8 @@ interface CartTransferDetail {
 interface CartItemTransfer {
   transfer: CartTransferDetail;
   date: string;
+  airline: string;
+  flightNumber: string;
   quantity: number;
 }
 
@@ -186,6 +188,8 @@ export function generateUserBookingConfirmation(
     price: t.transfer.price,
     date: t.date,
     quantity: t.quantity,
+    airline: t.airline,
+    flightNumber: t.flightNumber,
   })) || [];
 
   const tours = cart.tours?.map((t: CartItemTour) => ({
@@ -361,6 +365,11 @@ export function generateUserBookingConfirmation(
                   <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
                   <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
+                  <div style="background-color: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #e65100;">✈️ INFORMACIÓN DE VUELO</h5>
+                    <p style="margin: 5px 0;"><strong>Aerolínea:</strong> ${t.airline}</p>
+                    <p style="margin: 5px 0;"><strong>Número de vuelo:</strong> ${t.flightNumber}</p>
+                  </div>
                 </div>
               `
         )

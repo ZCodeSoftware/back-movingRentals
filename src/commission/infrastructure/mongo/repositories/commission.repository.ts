@@ -307,6 +307,35 @@ export class CommissionRepository implements ICommissionRepository {
     return CommissionModel.hydrate(updated);
   }
 
+  async updateById(id: string, updates: Partial<{ amount: number; commissionPercentage: number }>): Promise<CommissionModel> {
+    const updateData: any = {};
+    
+    if (updates.amount !== undefined) {
+      updateData.amount = updates.amount;
+    }
+    
+    if (updates.commissionPercentage !== undefined) {
+      updateData.commissionPercentage = updates.commissionPercentage;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BaseErrorException('No valid fields to update', HttpStatus.BAD_REQUEST);
+    }
+
+    const updated = await this.commissionDB.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!updated) {
+      throw new BaseErrorException('Commission not found', HttpStatus.NOT_FOUND);
+    }
+
+    console.log(`[CommissionRepository] Commission ${id} updated:`, updateData);
+    return CommissionModel.hydrate(updated);
+  }
+
   async findByBookingNumber(bookingNumber: number): Promise<CommissionModel[]> {
     const list = await this.commissionDB
       .find({ bookingNumber })

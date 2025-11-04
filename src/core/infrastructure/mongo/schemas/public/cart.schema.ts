@@ -35,7 +35,9 @@ export class Cart {
             date: Date,
             passengers: { adults: Number, child: Number },
             quantity: Number,
-            total: Number
+            total: Number,
+            airline: { type: String, required: true },
+            flightNumber: { type: String, required: true }
         }]
     })
     transfer: {
@@ -43,7 +45,9 @@ export class Cart {
         date: Date,
         passengers: Passenger,
         quantity: number,
-        total?: number
+        total?: number,
+        airline: string,
+        flightNumber: string
     }[];
 
     @Prop({

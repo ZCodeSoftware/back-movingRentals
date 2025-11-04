@@ -251,6 +251,7 @@ export class BookingService implements IBookingService {
           oneWayType: vehicleWithDelivery.delivery.oneWayType,
           deliveryAddress: vehicleWithDelivery.delivery.deliveryAddress,
           deliveryCost: vehicleWithDelivery.delivery.deliveryCost,
+          deliveryDistance: vehicleWithDelivery.delivery.distance,
         };
       }
     }
@@ -263,6 +264,7 @@ export class BookingService implements IBookingService {
         oneWayType: null,
         deliveryAddress: cartData.deliveryAddress,
         deliveryCost: 0,
+        deliveryDistance: undefined,
       };
     }
 

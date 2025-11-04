@@ -6,6 +6,7 @@ export interface IContractExtension {
   depositNote?: string;
   extensionAmount?: number;
   commissionPercentage?: number;
+  commissionTotal?: number;
   extensionStatus?: string;
 }
 
