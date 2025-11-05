@@ -39,7 +39,7 @@ export class VehicleOwnerController {
 
     @Get('concierge')
     @HttpCode(200)
-    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR, TypeRoles.SELLER)
     @UseGuards(AuthGuards, RoleGuard)
     @ApiResponse({ status: 200, description: 'Return all concierge VehicleOwners' })
     @ApiResponse({ status: 404, description: 'Concierge VehicleOwners not found' })
