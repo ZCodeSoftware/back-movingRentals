@@ -245,6 +245,8 @@ export class ContractService implements IContractService {
 
       if ((updateData as any).isExtension && updateData.extension?.extensionAmount) {
         try {
+          console.log('[ContractService] ✅ Extension detected, preparing to create commission');
+          
           const contractData = updated.toJSON();
           const bookingData = contractData.booking;
           
@@ -252,8 +254,15 @@ export class ContractService implements IContractService {
             hasBooking: !!bookingData,
             bookingId: bookingData?._id,
             bookingNumber: bookingData?.bookingNumber,
-            reservingUserId: contractData.reservingUser?._id
+            reservingUserId: contractData.reservingUser?._id,
+            hasCart: !!bookingData?.cart,
+            conciergeFromUpdate: (updateData as any).concierge
           });
+          
+          if (!bookingData) {
+            console.error('[ContractService] ❌ No booking data found in updated contract - Cannot create commission');
+            return updated;
+          }
           
           if (bookingData) {
             const extensionAmount = updateData.extension.extensionAmount;
@@ -298,6 +307,26 @@ export class ContractService implements IContractService {
               userId: contractData.reservingUser?._id
             });
 
+            // Obtener el vehículo actual del cart del booking
+            let vehicleId: string | undefined;
+            try {
+              if (bookingData.cart) {
+                const cartData = typeof bookingData.cart === 'string' 
+                  ? JSON.parse(bookingData.cart) 
+                  : bookingData.cart;
+                
+                if (cartData.vehicles && Array.isArray(cartData.vehicles) && cartData.vehicles.length > 0) {
+                  const firstVehicle = cartData.vehicles[0];
+                  const extractedId = firstVehicle.vehicle?._id || firstVehicle.vehicle;
+                  vehicleId = typeof extractedId === 'string' ? extractedId : extractedId?.toString();
+                  
+                  console.log('[ContractService] Vehicle ID extracted from cart:', vehicleId);
+                }
+              }
+            } catch (cartError) {
+              console.error('[ContractService] Error parsing cart for vehicles:', cartError);
+            }
+
             // Crear la comisión con source: 'extension'
             // Si se usó commissionTotal, marcar como manual
             const commissionCreated = await this.commissionRepository.create(
@@ -306,7 +335,7 @@ export class ContractService implements IContractService {
                 bookingNumber: bookingData.bookingNumber as any,
                 user: contractData.reservingUser?._id as any,
                 vehicleOwner: concierge as any,
-                vehicles: [], // Las extensiones no están asociadas a vehículos específicos
+                vehicle: vehicleId as any, // Usar el vehículo actual del cart (singular)
                 detail: 'Extensión de Renta',
                 status: 'PENDING',
                 amount: commissionAmount as any,

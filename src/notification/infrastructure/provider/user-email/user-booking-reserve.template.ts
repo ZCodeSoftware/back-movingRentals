@@ -15,6 +15,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -27,6 +28,9 @@ interface CartItemTransfer {
   transfer: CartTransferDetail;
   date: string;
   quantity: number;
+  airline?: string;
+  flightNumber?: string;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -39,6 +43,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -51,6 +56,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -88,6 +94,23 @@ function formatDateTime(dateString?: string): string {
   } catch (e) {
     return dateString;
   }
+}
+
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
 }
 
 export function generateUserBookingReserve(
@@ -136,6 +159,7 @@ export function generateUserBookingReserve(
     total: v.total,
     startDate: v.dates?.start,
     endDate: v.dates?.end,
+    passengers: getPassengerCount(v.passengers),
   })) || [];
 
   const transfers = cart.transfer?.map((t: CartItemTransfer) => ({
@@ -144,6 +168,9 @@ export function generateUserBookingReserve(
     price: t.transfer.price,
     date: t.date,
     quantity: t.quantity,
+    airline: t.airline,
+    flightNumber: t.flightNumber,
+    passengers: getPassengerCount(t.passengers),
   })) || [];
 
   const tours = cart.tours?.map((t: CartItemTour) => ({
@@ -152,6 +179,7 @@ export function generateUserBookingReserve(
     price: t.tour.price,
     date: t.date,
     quantity: t.quantity,
+    passengers: getPassengerCount(t.passengers),
   })) || [];
 
   const tickets = cart.tickets?.map((ti: CartItemTicket) => ({
@@ -160,14 +188,18 @@ export function generateUserBookingReserve(
     price: ti.ticket.totalPrice,
     date: ti.date,
     quantity: ti.quantity,
+    passengers: getPassengerCount(ti.passengers),
   })) || [];
 
   const whatsappNumber = "+529841417024";
   const whatsappLink = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
   const phoneNumber = "+52 984 141 7024";
-  const email = "info@moovadventures.com";
+  const email = "oficinaveleta.moving@gmail.com";
 
-  const subject = `Reserva Pendiente #${bookingNumber}`;
+  const saldoPendiente = totalReserva - totalPagado;
+  const googleMapsUrl = `https://www.google.com/maps/search/MoovAdventures+Tulum/@20.2053617,-87.4710442,15z`;
+
+  const subject = `Reserva Pendiente #${bookingNumber} - Contáctanos para Confirmar`;
 
   const html = `
     <!DOCTYPE html>
@@ -178,12 +210,14 @@ export function generateUserBookingReserve(
       <title>${subject}</title>
       <style>
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
           margin: 0;
           padding: 0;
           background-color: #f4f7f6;
           color: #333333;
           line-height: 1.6;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
         }
         .email-container {
           max-width: 600px;
@@ -202,7 +236,8 @@ export function generateUserBookingReserve(
         }
         h1 { font-size: 24px; margin-bottom: 15px; text-align: center; }
         h2 { font-size: 20px; margin-top: 30px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #e0e6ed; }
-        p { font-size: 16px; margin-bottom: 10px; }
+        h3 { font-size: 18px; color: #34495e; margin-top: 20px; margin-bottom: 8px; }
+        p, li { font-size: 16px; margin-bottom: 10px; }
         strong { font-weight: 600; }
         a { color: #3498db; text-decoration: none; font-weight: 500; }
         a:hover { text-decoration: underline; }
@@ -215,6 +250,10 @@ export function generateUserBookingReserve(
           border-radius: 4px;
         }
         .item-details p { margin-bottom: 5px; }
+        .vehicle-item { border-left-color: #3498db; }
+        .transfer-item { border-left-color: #e67e22; }
+        .tour-item { border-left-color: #2ecc71; }
+        .ticket-item { border-left-color: #9b59b6; }
         .alert-box {
           background-color: #fff3cd;
           border-left: 4px solid #ffc107;
@@ -222,101 +261,221 @@ export function generateUserBookingReserve(
           border-radius: 4px;
           margin: 20px 0;
         }
-        .alert-box p { margin: 5px 0; color: #856404; }
-        .footer { 
-          margin-top: 30px; 
-          padding-top: 20px; 
-          text-align: center; 
-          font-size: 14px; 
-          color: #7f8c8d; 
-          border-top: 1px solid #e0e6ed; 
-        }
+        .alert-box p { margin: 5px 0; color: #856404; font-weight: 600; }
+        .payment-summary p, .pickup-info p, .contact-info p { margin-bottom: 6px; }
+        .footer { margin-top: 30px; padding-top: 20px; text-align: center; font-size: 14px; color: #7f8c8d; border-top: 1px solid #e0e6ed; }
         .footer p { margin-bottom: 5px; }
+        .emoji { font-size: inherit; }
+
         @media screen and (max-width: 480px) {
           .email-container { padding: 20px; margin: 10px auto; }
           h1 { font-size: 22px; }
           h2 { font-size: 18px; }
-          p { font-size: 15px; }
+          p, li { font-size: 15px; }
         }
       </style>
     </head>
     <body>
       <div class="email-container">
         <h1 style="color: #f39c12;">Reserva Pendiente ⚠️</h1>
-        <p>Hola <strong>${customerFullName}</strong>,</p>
-        <p>Hemos recibido tu solicitud de reserva. A continuación encontrarás la información esencial:</p>
 
         <div class="alert-box">
-          <p><strong>⚠️ RESERVA PENDIENTE:</strong> Tu reserva está pendiente de confirmación.</p>
-          <p><strong>Contáctanos para confirmar y completar el pago.</strong></p>
+          <p><strong>⚠️ RESERVA PENDIENTE - CONTÁCTANOS PARA CONFIRMAR</strong></p>
+          <p>Tu reserva está pendiente de confirmación. Por favor contáctanos para completar el proceso.</p>
         </div>
 
+        <div class="section contact-info" style="background-color: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50;">
+          <h2 style="margin-top: 0;"><span class="emoji">📞</span> Información de Contacto</h2>
+          <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">+52 984 141 7024</a></p>
+          <p><strong>📧 Email:</strong> <a href="mailto:${email}">${email}</a></p>
+          <p><strong>📍 Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
+          <p><strong>⏰ Horario:</strong> 9:00 AM - 7:00 PM</p>
+        </div>
+
+        <p>Estamos felices de acompañarte en tu próxima aventura por Tulum.</p>
+
         <div class="section">
-          <h2>📋 Resumen de Reserva</h2>
+          <h2>📝 Detalles generales de tu reserva:</h2>
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
-          <p><strong>Cliente:</strong> ${customerFullName}</p>
           <p><strong>Estado:</strong> <span style="color: #f39c12; font-weight: bold;">PENDIENTE</span></p>
+          ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
+          ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
         </div>
         
+        ${vehicles.length > 0 ? `
         <div class="section">
-          <h2>🛒 Items Solicitados</h2>
-          ${vehicles.length > 0 ? `
-            <p><strong>Vehículos:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${vehicles.map(v => {
-                const startDate = v.startDate ? new Date(v.startDate) : null;
-                const endDate = v.endDate ? new Date(v.endDate) : null;
-                const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                return `<li>${v.name} - ${days > 0 ? `${days} día${days !== 1 ? 's' : ''}` : 'Fechas por confirmar'} - ${v.total.toFixed(2)} MXN</li>`;
-              }).join('')}
-            </ul>
-          ` : ''}
-          ${transfers.length > 0 ? `
-            <p><strong>Transfers:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${transfers.map(t => `<li>${t.name} - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
-            </ul>
-          ` : ''}
-          ${tours.length > 0 ? `
-            <p><strong>Tours:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tours.map(t => `<li>${t.name} - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
-            </ul>
-          ` : ''}
-          ${tickets.length > 0 ? `
-            <p><strong>Tickets:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tickets.map(ti => `<li>${ti.name} - ${formatDateTime(ti.date)} - ${ti.price.toFixed(2)} MXN</li>`).join('')}
-            </ul>
-          ` : ''}
-        </div>
+          <h3>🛵 Vehículo${vehicles.length > 1 ? 's' : ''} reservado${vehicles.length > 1 ? 's' : ''}:</h3>
+          ${vehicles
+        .map(
+          (v) => {
+            const startDate = v.startDate ? new Date(v.startDate) : null;
+            const endDate = v.endDate ? new Date(v.endDate) : null;
+            const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+            
+            return `
+                <div class="item-details vehicle-item">
+                  <h4 style="margin: 0 0 10px 0; color: #2c3e50;">📋 DETALLES DE RENTA</h4>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                      <p><strong>Tipo de Vehículo:</strong> ${v.name}</p>
+                      <p><strong>Categoría:</strong> ${v.category}</p>
+                      <p><strong>Unidades:</strong> 1</p>
+                      ${v.passengers ? `<p><strong>Pasajeros:</strong> ${v.passengers}</p>` : ''}
+                    </div>
+                    <div>
+                      <p><strong>Días:</strong> ${days} día${days !== 1 ? 's' : ''}</p>
+                      <p><strong>Total:</strong> ${v.total.toFixed(2)} MXN</p>
+                    </div>
+                  </div>
+                  
+                  ${v.startDate && v.endDate ? `
+                  <div style="background-color: #e8f4fd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #2c3e50;">📅 FECHAS Y HORARIOS</h5>
+                    <p style="margin: 5px 0;"><strong>Fecha y hora de inicio:</strong> ${formatDateTime(v.startDate)}</p>
+                    <p style="margin: 5px 0;"><strong>Fecha y hora de fin:</strong> ${formatDateTime(v.endDate)}</p>
+                  </div>
+                  ` : ''}
+                  
+                  <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #856404;">⚠️ INFORMACIÓN IMPORTANTE</h5>
+                    <p style="margin: 5px 0; font-size: 14px;">• Se requiere depósito de garantía</p>
+                    ${bookingData?.metadata?.depositNote ? `<p style="margin: 5px 0; font-size: 14px; color: #d63031;"><strong>• Depósito registrado: ${bookingData.metadata.depositNote}</strong></p>` : ''}
+                    <p style="margin: 5px 0; font-size: 14px;">• Presentar documento de identidad válido</p>
+                    <p style="margin: 5px 0; font-size: 14px;">• Cascos y candado incluidos en la renta</p>
+                  </div>
+                  
+                  <div style="background-color: #d1ecf1; padding: 10px; border-radius: 4px;">
+                    <h5 style="margin: 0 0 8px 0; color: #0c5460;">🏪 ENTREGA Y DEVOLUCIÓN</h5>
+                    <p style="margin: 5px 0; font-size: 14px;"><strong>Lugar de entrega:</strong> Sucursal MoovAdventures</p>
+                    <p style="margin: 5px 0; font-size: 14px;"><strong>Lugar de devolución:</strong> Misma sucursal</p>
+                    <p style="margin: 5px 0; font-size: 14px;"><strong>Horario:</strong> 9:00 AM - 7:00 PM</p>
+                  </div>
+                </div>
+              `;
+          }
+        )
+        .join('')}
+        </div>` : ''}
 
+        ${transfers.length > 0 ? `
         <div class="section">
-          <h2>💰 Información de Pago</h2>
-          <div class="item-details" style="background-color: #fff9e6; border-left-color: #f39c12;">
-            <p><strong>Total de la reserva:</strong> <span style="font-size: 18px;">${totalReserva.toFixed(2)} MXN</span></p>
-            <p><strong>Anticipo pagado (crédito/débito):</strong> ${totalPagado.toFixed(2)} MXN</p>
-            <p><strong>Saldo pendiente:</strong> <span style="color: #e74c3c; font-size: 18px; font-weight: bold;">${(totalReserva - totalPagado).toFixed(2)} MXN</span></p>
-            <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'Por definir'}</p>
-            ${bookingData?.metadata?.paymentMedium ? `<p><strong>Medio de pago:</strong> ${bookingData.metadata.paymentMedium}</p>` : ''}
-          </div>
-        </div>
+          <h3>🚐 Transfer${transfers.length > 1 ? 's' : ''} reservado${transfers.length > 1 ? 's' : ''}:</h3>
+          ${transfers
+        .map(
+          (t) => `
+                <div class="item-details transfer-item">
+                  <p><strong>Servicio:</strong> ${t.name}</p>
+                  <p><strong>Categoría:</strong> ${t.category}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
+                  ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
+                  ${t.airline || t.flightNumber ? `
+                  <div style="background-color: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                    <h5 style="margin: 0 0 8px 0; color: #e65100;">✈️ INFORMACIÓN DE VUELO</h5>
+                    ${t.airline ? `<p style="margin: 5px 0;"><strong>Aerolínea:</strong> ${t.airline}</p>` : ''}
+                    ${t.flightNumber ? `<p style="margin: 5px 0;"><strong>Número de vuelo:</strong> ${t.flightNumber}</p>` : ''}
+                  </div>
+                  ` : ''}
+                </div>
+              `
+        )
+        .join('')}
+        </div>` : ''}
 
+        ${tours.length > 0 ? `
         <div class="section">
-          <h2>📞 Contáctanos para Confirmar tu Reserva</h2>
+          <h3>🗺️ Tour${tours.length > 1 ? 's' : ''} reservado${tours.length > 1 ? 's' : ''}:</h3>
+          ${tours
+        .map(
+          (t) => `
+                <div class="item-details tour-item">
+                  <p><strong>Nombre:</strong> ${t.name}</p>
+                  <p><strong>Categoría:</strong> ${t.category}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
+                  ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
+                </div>
+              `
+        )
+        .join('')}
+        </div>` : ''}
+
+        ${tickets.length > 0 ? `
+        <div class="section">
+          <h3>🎟️ Ticket${tickets.length > 1 ? 's' : ''} reservado${tickets.length > 1 ? 's' : ''}:</h3>
+          ${tickets
+        .map(
+          (ti) => `
+                <div class="item-details ticket-item">
+                  <p><strong>Nombre:</strong> ${ti.name}</p>
+                  <p><strong>Categoría:</strong> ${ti.category}</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(ti.date)}</p>
+                  ${ti.quantity > 1 ? `<p><strong>Cantidad:</strong> ${ti.quantity}</p>` : ''}
+                  ${ti.passengers ? `<p><strong>Pasajeros:</strong> ${ti.passengers}</p>` : ''}
+                  <p><strong>Precio:</strong> ${ti.price.toFixed(2)} MXN</p>
+                </div>
+              `
+        )
+        .join('')}
+        </div>` : ''}
+
+        ${bookingData.requiresDelivery ? `
+        <div class="section">
+          <h2>🚚 Información de Delivery:</h2>
           <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
-            <p style="font-size: 16px; margin-bottom: 15px;"><strong>Para confirmar tu reserva y coordinar el pago del saldo pendiente, contáctanos por:</strong></p>
-            <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer" style="font-size: 16px;">${phoneNumber}</a></p>
-            <p><strong>📧 Email:</strong> <a href="mailto:${email}" style="font-size: 16px;">${email}</a></p>
-            <p><strong>📍 Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
-            <p><strong>⏰ Horario:</strong> 9:00 AM - 7:00 PM</p>
+            <p><strong>Servicio de delivery:</strong> Sí</p>
+            <p><strong>Tipo de servicio:</strong> ${
+              bookingData.deliveryType === 'round-trip' 
+                ? 'Ida y vuelta (Round trip)' 
+                : bookingData.oneWayType === 'pickup' 
+                  ? 'Solo recogida (One way - Pickup)' 
+                  : 'Solo entrega (One way - Delivery)'
+            }</p>
+            ${bookingData.deliveryAddress ? `<p><strong>Dirección:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData.deliveryCost ? `<p><strong>Costo del delivery:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
+            <div style="background-color: #fff9c4; padding: 10px; border-radius: 4px; margin-top: 10px;">
+              <p style="margin: 0; font-size: 14px; color: #f57f17;"><strong>📍 Nota:</strong> ${
+                bookingData.deliveryType === 'round-trip' 
+                  ? 'El vehículo será entregado y recogido en la dirección especificada.' 
+                  : bookingData.oneWayType === 'pickup'
+                    ? 'El vehículo será recogido en la dirección especificada. La entrega inicial debe realizarse en la sucursal.'
+                    : 'El vehículo será entregado en la dirección especificada. La devolución debe realizarse en la sucursal.'
+              }</p>
+            </div>
           </div>
-          <p style="margin-top: 15px; font-size: 14px; color: #666;">Una vez confirmado el pago, recibirás un email con todos los detalles completos de tu reserva.</p>
+        </div>` : ''}
+
+        <div class="section payment-summary">
+          <h2>💳 Resumen de pago:</h2>
+          <p><strong>Total de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
+          <p><strong>Total pagado (crédito/débito):</strong> ${totalPagado.toFixed(2)} MXN</p>
+          <p><strong>Saldo pendiente:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
+          <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'No especificado'}</p>
+          ${saldoPendiente > 0 ? `
+          <div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
+            <p style="margin: 0; font-size: 14px; color: #856404;"><strong>💰 Método de pago del saldo:</strong> Efectivo, tarjeta de crédito/débito en sucursal</p>
+          </div>
+          ` : ''}
         </div>
+
+        ${branchName !== 'Sucursal no especificada' ? `
+        <div class="section pickup-info">
+          <h2>📍 Ubicación de la sucursal:</h2>
+          <p>Para vehículos, el retiro es en Sucursal ${branchName} – <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Ver en Google Maps</a></p>
+          <p><strong>Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., México</p>
+          <p><strong><span class="emoji">⏰</span> Horario de atención:</strong> 9:00 AM a 7:00 PM</p>
+        </div>` : `
+        <div class="section pickup-info">
+          <h2>📍 Puntos de encuentro / Horarios:</h2>
+          <p>Por favor, revisa los detalles específicos de cada tour, transfer o ticket para conocer los puntos de encuentro y horarios exactos.</p>
+        </div>
+        `}
 
         <div class="footer">
-          <p>Gracias por elegir MoovAdventures!</p>
-          <p><strong>El equipo de MoovAdventures</strong> 🌴</p>
+          <p>Nos vemos pronto!</p>
+          <p><strong>El equipo de MoovAdventures</strong> <span class="emoji">🌴</span></p>
           <p>Experiencias y Rentas en Tulum</p>
         </div>
       </div>

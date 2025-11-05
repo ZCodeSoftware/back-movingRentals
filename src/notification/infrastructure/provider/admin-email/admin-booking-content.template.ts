@@ -15,6 +15,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -27,6 +28,9 @@ interface CartItemTransfer {
   transfer: CartTransferDetail;
   date: string;
   quantity: number;
+  airline?: string;
+  flightNumber?: string;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -39,6 +43,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -51,6 +56,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -88,6 +94,23 @@ function formatDateTime(dateString?: string): string {
   } catch (e) {
     return dateString;
   }
+}
+
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
 }
 
 /**
@@ -149,6 +172,7 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
       total: v.total,
       startDate: v.dates?.start,
       endDate: v.dates?.end,
+      passengers: getPassengerCount(v.passengers),
     })) || [];
 
   const transfers =
@@ -158,6 +182,9 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
       price: t.transfer.price,
       date: t.date,
       quantity: t.quantity,
+      airline: t.airline,
+      flightNumber: t.flightNumber,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tours =
@@ -167,6 +194,7 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
       price: t.tour.price,
       date: t.date,
       quantity: t.quantity,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tickets =
@@ -176,11 +204,28 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
       price: ti.ticket.totalPrice,
       date: ti.date,
       quantity: ti.quantity,
+      passengers: getPassengerCount(ti.passengers),
     })) || [];
 
   const saldoPendiente = totalReserva - totalPagado;
 
-  const subject = `Nueva Reserva #${bookingNumber}`;
+  // Determinar el estado de la reserva
+  const bookingStatus = bookingData.status || 'confirmed';
+  let statusText = 'CONFIRMADA';
+  let statusColor = '#27ae60';
+  
+  if (bookingStatus === 'pending' || bookingStatus === 'reserve') {
+    statusText = 'PENDIENTE';
+    statusColor = '#f39c12';
+  } else if (bookingStatus === 'confirmed') {
+    statusText = 'CONFIRMADA';
+    statusColor = '#27ae60';
+  } else if (bookingStatus === 'cancelled') {
+    statusText = 'CANCELADA';
+    statusColor = '#e74c3c';
+  }
+
+  const subject = `Nueva Reserva #${bookingNumber} - ${statusText}`;
 
   const html = `
     <!DOCTYPE html>
@@ -201,6 +246,14 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
         .section { margin-bottom: 25px; }
         .item-details { margin-bottom: 15px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #3498db; border-radius: 4px; }
         .item-details p { margin-bottom: 5px; }
+        .status-badge {
+          display: inline-block;
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-weight: bold;
+          font-size: 16px;
+          margin: 10px 0;
+        }
         /* Colores para distinguir items */
         .customer-details { border-left-color: #1abc9c; } /* Verde menta */
         .vehicle-item { border-left-color: #3498db; } /* Azul */
@@ -212,11 +265,18 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
     </head>
     <body>
       <div class="email-container">
-        <h1>¡Nueva Reserva Recibida! 🛎️</h1>        
+        <h1>¡Nueva Reserva Recibida! 🛎️</h1>
+        
+        <div style="text-align: center; margin: 20px 0;">
+          <span class="status-badge" style="background-color: ${statusColor}; color: white;">
+            Estado: ${statusText}
+          </span>
+        </div>
 
         <div class="section">
           <h2>📝 Detalles de la Reserva:</h2>
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
+          <p><strong>Estado:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
           ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
         </div>
 
@@ -229,14 +289,6 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
             ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
           </div>
         </div>
-
-        ${branchName !== 'Sucursal no especificada' ? `
-        <div class="section">
-          <h2>📍 Ubicación de la Sucursal:</h2>
-          <p><strong>Sucursal:</strong> ${branchName}</p>
-          <p><strong>Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., México</p>
-          <p><strong>Horario:</strong> 9:00 AM - 7:00 PM</p>
-        </div>` : ''}
         
         ${
           vehicles.length > 0
@@ -252,6 +304,7 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
                     <p><strong>Inicio:</strong> ${formatDateTime(v.startDate)}</p>
                     <p><strong>Fin:</strong> ${formatDateTime(v.endDate)}</p>
                   ` : ''}
+                  ${v.passengers ? `<p><strong>Pasajeros:</strong> ${v.passengers}</p>` : ''}
                   <p><strong>Subtotal:</strong> ${v.total.toFixed(2)} MXN</p>
                   ${bookingData?.metadata?.depositNote ? `<p style="color: #d63031;"><strong>🔒 Depósito registrado:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
                 </div>`,
@@ -273,6 +326,9 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
                   <p><strong>Servicio:</strong> ${t.name} (${t.category})</p>
                   <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
+                  ${t.airline ? `<p><strong>✈️ Aerolínea:</strong> ${t.airline}</p>` : ''}
+                  ${t.flightNumber ? `<p><strong>🎫 Número de vuelo:</strong> ${t.flightNumber}</p>` : ''}
                   <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>`,
             )
@@ -293,6 +349,7 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
                   <p><strong>Nombre:</strong> ${t.name} (${t.category})</p>
                   <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
                   <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>`,
             )
@@ -313,7 +370,8 @@ export function generateAdminBookingNotification(booking: BookingModel, userData
                   <p><strong>Nombre:</strong> ${ti.name} (${ti.category})</p>
                   <p><strong>Fecha:</strong> ${formatDate(ti.date)}</p>
                   ${ti.quantity > 1 ? `<p><strong>Cantidad:</strong> ${ti.quantity}</p>` : ''}
-                  <p><strong>Precio:</strong> $${ti.price.toFixed(2)} MXN</p>
+                  ${ti.passengers ? `<p><strong>Pasajeros:</strong> ${ti.passengers}</p>` : ''}
+                  <p><strong>Precio:</strong> ${ti.price.toFixed(2)} MXN</p>
                 </div>`,
             )
             .join('')}

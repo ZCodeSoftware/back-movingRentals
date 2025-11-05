@@ -1,5 +1,22 @@
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
+}
+
 export function generateAdminBookingCancellation(
   booking: BookingModel,
   userData?: any,
@@ -25,7 +42,9 @@ export function generateAdminBookingCancellation(
     if (cart.vehicles && cart.vehicles.length > 0) {
       cartDetails += '<h4>🚗 Vehículos:</h4><ul>';
       cart.vehicles.forEach((item: any) => {
-        cartDetails += `<li>${item.vehicle?.name || 'Vehículo'} - $${item.total || 0}</li>`;
+        const passengerCount = getPassengerCount(item.passengers);
+        const passengersInfo = passengerCount ? ` - ${passengerCount} pasajero${passengerCount !== 1 ? 's' : ''}` : '';
+        cartDetails += `<li>${item.vehicle?.name || 'Vehículo'}${passengersInfo} - ${item.total || 0}</li>`;
       });
       cartDetails += '</ul>';
     }
@@ -34,7 +53,11 @@ export function generateAdminBookingCancellation(
     if (cart.transfer && cart.transfer.length > 0) {
       cartDetails += '<h4>🚐 Transfers:</h4><ul>';
       cart.transfer.forEach((item: any) => {
-        cartDetails += `<li>${item.transfer?.name || 'Transfer'} - Cantidad: ${item.quantity || 1} - $${(item.transfer?.price || 0) * (item.quantity || 1)}</li>`;
+        const passengerCount = getPassengerCount(item.passengers);
+        const passengersInfo = passengerCount ? ` - ${passengerCount} pasajero${passengerCount !== 1 ? 's' : ''}` : '';
+        const airlineInfo = item.airline ? ` - ✈️ ${item.airline}` : '';
+        const flightInfo = item.flightNumber ? ` (${item.flightNumber})` : '';
+        cartDetails += `<li>${item.transfer?.name || 'Transfer'}${passengersInfo}${airlineInfo}${flightInfo} - Cantidad: ${item.quantity || 1} - ${(item.transfer?.price || 0) * (item.quantity || 1)}</li>`;
       });
       cartDetails += '</ul>';
     }
@@ -43,7 +66,9 @@ export function generateAdminBookingCancellation(
     if (cart.tours && cart.tours.length > 0) {
       cartDetails += '<h4>🗺️ Tours:</h4><ul>';
       cart.tours.forEach((item: any) => {
-        cartDetails += `<li>${item.tour?.name || 'Tour'} - Cantidad: ${item.quantity || 1} - $${(item.tour?.price || 0) * (item.quantity || 1)}</li>`;
+        const passengerCount = getPassengerCount(item.passengers);
+        const passengersInfo = passengerCount ? ` - ${passengerCount} pasajero${passengerCount !== 1 ? 's' : ''}` : '';
+        cartDetails += `<li>${item.tour?.name || 'Tour'}${passengersInfo} - Cantidad: ${item.quantity || 1} - ${(item.tour?.price || 0) * (item.quantity || 1)}</li>`;
       });
       cartDetails += '</ul>';
     }
@@ -52,7 +77,9 @@ export function generateAdminBookingCancellation(
     if (cart.tickets && cart.tickets.length > 0) {
       cartDetails += '<h4>🎫 Tickets:</h4><ul>';
       cart.tickets.forEach((item: any) => {
-        cartDetails += `<li>${item.ticket?.name || 'Ticket'} - Cantidad: ${item.quantity || 1} - $${(item.ticket?.totalPrice || 0) * (item.quantity || 1)}</li>`;
+        const passengerCount = getPassengerCount(item.passengers);
+        const passengersInfo = passengerCount ? ` - ${passengerCount} pasajero${passengerCount !== 1 ? 's' : ''}` : '';
+        cartDetails += `<li>${item.ticket?.name || 'Ticket'}${passengersInfo} - Cantidad: ${item.quantity || 1} - ${(item.ticket?.totalPrice || 0) * (item.quantity || 1)}</li>`;
       });
       cartDetails += '</ul>';
     }
@@ -72,6 +99,14 @@ export function generateAdminBookingCancellation(
         .email-container { max-width: 600px; margin: 20px auto; padding: 25px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
         h1, h2, h3 { color: #e74c3c; margin-top: 0; font-weight: 600; }
         h1 { font-size: 28px; text-align: center; margin-bottom: 30px; }
+        .status-badge {
+          display: inline-block;
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-weight: bold;
+          font-size: 16px;
+          margin: 10px 0;
+        }
         .alert-box { background-color: #fff5f5; border: 2px solid #e74c3c; border-radius: 8px; padding: 20px; margin-bottom: 25px; text-align: center; }
         .booking-info { background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
         .customer-info { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
@@ -86,6 +121,12 @@ export function generateAdminBookingCancellation(
       <div class="email-container">
         <h1>🚨 Reserva Cancelada</h1>
         
+        <div style="text-align: center; margin: 20px 0;">
+          <span class="status-badge" style="background-color: #e74c3c; color: white;">
+            Estado: CANCELADA
+          </span>
+        </div>
+        
         <div class="alert-box">
           <h2>¡Atención! Una reserva ha sido cancelada</h2>
           <p><strong>Número de Reserva:</strong> #${bookingNumber}</p>
@@ -95,9 +136,10 @@ export function generateAdminBookingCancellation(
         <div class="booking-info">
           <h3>📋 Información de la Reserva</h3>
           <p><strong>Número de Reserva:</strong> #${bookingNumber}</p>
+          <p><strong>Estado:</strong> <span style="color: #e74c3c; font-weight: bold;">CANCELADA</span></p>
           <p><strong>Fecha de Creación:</strong> ${createdAt}</p>
-          <p><strong>Estado Actual:</strong> CANCELADA</p>
-          <p><strong>Total:</strong> $${total.toLocaleString('es-ES')}</p>
+          <p><strong>Fecha de Cancelación:</strong> ${cancelledAt}</p>
+          <p><strong>Total:</strong> ${total.toLocaleString('es-ES')}</p>
         </div>
      
         <div class="booking-details">

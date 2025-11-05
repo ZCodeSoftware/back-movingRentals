@@ -863,54 +863,146 @@ export class ContractRepository implements IContractRepository {
       matchConditions.createdAt = createdAtMatch;
     }
 
-    // Filtro por fecha de reserva (solo fecha de inicio del vehículo)
-    // Siempre comparamos con la fecha de inicio de la reserva, no con la finalización
-    // El cart está almacenado como: \\"start\\":\\"2025-11-11T12:00:00.000Z\\"
+    // Reemplazo para el filtro de fecha de reserva en el método findAll
+    // Buscar desde la línea ~510 donde está el filtro actual
+
+    // Filtro por fecha de reserva (inicio de servicio de cualquier tipo)
     if (filters.reservationDateStart || filters.reservationDateEnd) {
-      if (filters.reservationDateStart && filters.reservationDateEnd) {
-        // Si se proporcionan ambas fechas, filtrar por rango (desde-hasta)
-        const startDateStr = filters.reservationDateStart;
-        const endDateStr = filters.reservationDateEnd;
+      const reservationDateConditions: any[] = [];
 
-        // Buscar cualquier fecha que esté >= startDateStr
-        // El patrón busca: \\"start\\":\\"YYYY-MM-DD (con cualquier fecha >= startDateStr)
-        const startRegex = new RegExp(
-          `\\\\\\"start\\\\\\":\\\\\\"${escapeRegex(startDateStr)}`,
-          'i',
-        );
+      // Helper para crear condiciones de fecha
+      const createDateCondition = (
+        field: string,
+        startDate?: string,
+        endDate?: string,
+      ) => {
+        if (!startDate && !endDate) return null;
 
-        pipeline.push({
-          $match: {
-            'bookingData.cart': { $regex: startRegex },
+        if (startDate && !endDate) {
+          // Solo fecha de inicio: buscar esa fecha o posteriores
+          return {
+            $regexMatch: {
+              input: { $ifNull: [`$bookingData.${field}`, ''] },
+              regex: `"(start|date)":"${startDate.replace(/-/g, '-')}`,
+              options: 'i',
+            },
+          };
+        } else if (!startDate && endDate) {
+          // Solo fecha de fin: buscar esa fecha o anteriores
+          return {
+            $regexMatch: {
+              input: { $ifNull: [`$bookingData.${field}`, ''] },
+              regex: `"(start|date)":"${endDate.replace(/-/g, '-')}`,
+              options: 'i',
+            },
+          };
+        } else {
+          // Rango de fechas: necesitamos una estrategia diferente
+          // Crear un array de fechas en el rango para buscar
+          const start = new Date(startDate!);
+          const end = new Date(endDate!);
+          const dateRegexParts: string[] = [];
+
+          // Agregar las fechas de inicio y fin
+          dateRegexParts.push(startDate!.replace(/-/g, '-'));
+          dateRegexParts.push(endDate!.replace(/-/g, '-'));
+
+          // Crear regex que busque cualquiera de las fechas en el rango
+          const datePattern = `"(start|date)":"(${dateRegexParts.join('|')})`;
+
+          return {
+            $regexMatch: {
+              input: { $ifNull: [`$bookingData.${field}`, ''] },
+              regex: datePattern,
+              options: 'i',
+            },
+          };
+        }
+      };
+
+      // Agregar una etapa $addFields para extraer las fechas del cart
+      pipeline.push({
+        $addFields: {
+          cartParsed: {
+            $cond: {
+              if: { $ne: [{ $type: '$bookingData.cart' }, 'missing'] },
+              then: '$bookingData.cart',
+              else: '{}',
+            },
+          },
+        },
+      });
+
+      // Buscar en vehículos
+      const vehicleDateCondition = createDateCondition(
+        'cart',
+        filters.reservationDateStart,
+        filters.reservationDateEnd,
+      );
+
+      if (vehicleDateCondition) {
+        // Para vehículos, buscar el patrón: "vehicles":[..."dates":{"start":"YYYY-MM-DD"
+        const vehiclePattern =
+          filters.reservationDateStart && filters.reservationDateEnd
+            ? `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
+            : filters.reservationDateStart
+              ? `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"${filters.reservationDateStart}`
+              : `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"${filters.reservationDateEnd}`;
+
+        reservationDateConditions.push({
+          'bookingData.cart': {
+            $regex: new RegExp(vehiclePattern, 'i'),
           },
         });
-      } else if (filters.reservationDateStart) {
-        // Si solo se proporciona fecha de inicio, buscar desde esa fecha en adelante
-        const dateStr = filters.reservationDateStart;
-        
-        // Buscar el patrón: \\"start\\":\\"YYYY-MM-DD
-        const startRegex = new RegExp(
-          `\\\\\\"start\\\\\\":\\\\\\"${escapeRegex(dateStr)}`,
-          'i',
-        );
+      }
 
+      // Buscar en tours (campo "date")
+      const tourPattern =
+        filters.reservationDateStart && filters.reservationDateEnd
+          ? `\\"tours\\":\\[.*?\\"date\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
+          : filters.reservationDateStart
+            ? `\\"tours\\":\\[.*?\\"date\\":\\"${filters.reservationDateStart}`
+            : `\\"tours\\":\\[.*?\\"date\\":\\"${filters.reservationDateEnd}`;
+
+      reservationDateConditions.push({
+        'bookingData.cart': {
+          $regex: new RegExp(tourPattern, 'i'),
+        },
+      });
+
+      // Buscar en tickets (campo "date")
+      const ticketPattern =
+        filters.reservationDateStart && filters.reservationDateEnd
+          ? `\\"tickets\\":\\[.*?\\"date\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
+          : filters.reservationDateStart
+            ? `\\"tickets\\":\\[.*?\\"date\\":\\"${filters.reservationDateStart}`
+            : `\\"tickets\\":\\[.*?\\"date\\":\\"${filters.reservationDateEnd}`;
+
+      reservationDateConditions.push({
+        'bookingData.cart': {
+          $regex: new RegExp(ticketPattern, 'i'),
+        },
+      });
+
+      // Buscar en transfers (campo "date")
+      const transferPattern =
+        filters.reservationDateStart && filters.reservationDateEnd
+          ? `\\"transfer\\":\\[.*?\\"date\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
+          : filters.reservationDateStart
+            ? `\\"transfer\\":\\[.*?\\"date\\":\\"${filters.reservationDateStart}`
+            : `\\"transfer\\":\\[.*?\\"date\\":\\"${filters.reservationDateEnd}`;
+
+      reservationDateConditions.push({
+        'bookingData.cart': {
+          $regex: new RegExp(transferPattern, 'i'),
+        },
+      });
+
+      // Agregar todas las condiciones con $or
+      if (reservationDateConditions.length > 0) {
         pipeline.push({
           $match: {
-            'bookingData.cart': { $regex: startRegex },
-          },
-        });
-      } else if (filters.reservationDateEnd) {
-        // Si solo se proporciona fecha de fin, buscar hasta esa fecha
-        const dateStr = filters.reservationDateEnd;
-        
-        const endRegex = new RegExp(
-          `\\\\\\"start\\\\\\":\\\\\\"${escapeRegex(dateStr)}`,
-          'i',
-        );
-
-        pipeline.push({
-          $match: {
-            'bookingData.cart': { $regex: endRegex },
+            $or: reservationDateConditions,
           },
         });
       }
@@ -2123,6 +2215,58 @@ export class ContractRepository implements IContractRepository {
           error,
         );
         // Continuar con la eliminación aunque falle la restauración
+      }
+    }
+
+    // ELIMINAR COMISIÓN: Si es una extensión, eliminar la comisión asociada
+    if (isExtensionRenta) {
+      try {
+        console.log(
+          '[softDeleteHistoryEntry] Eliminando comisión de extensión asociada...',
+        );
+
+        // Obtener el contract para acceder al booking
+        const contract = await this.contractModel.findById(
+          historyEntry.contract,
+        );
+        if (contract && contract.booking) {
+          const booking = await this.bookingModel.findById(contract.booking);
+          if (booking && booking.bookingNumber) {
+            // Obtener la fecha de creación de esta extensión
+            const extensionDate = (historyEntry as any).createdAt;
+
+            // Buscar comisiones de extensión creadas alrededor de esta fecha (±5 segundos)
+            const fiveSecondsAgo = new Date(extensionDate.getTime() - 5000);
+            const fiveSecondsLater = new Date(extensionDate.getTime() + 5000);
+
+            const Commission = this.connection.model('Commission');
+            const commissionsToDelete = await Commission.find({
+              bookingNumber: booking.bookingNumber,
+              source: 'extension',
+              createdAt: {
+                $gte: fiveSecondsAgo,
+                $lte: fiveSecondsLater,
+              },
+            });
+
+            console.log(
+              `[softDeleteHistoryEntry] Encontradas ${commissionsToDelete.length} comisión(es) de extensión para eliminar`,
+            );
+
+            for (const commission of commissionsToDelete) {
+              await Commission.findByIdAndDelete(commission._id);
+              console.log(
+                `[softDeleteHistoryEntry] Comisión ${commission._id} eliminada exitosamente`,
+              );
+            }
+          }
+        }
+      } catch (commissionError) {
+        console.error(
+          '[softDeleteHistoryEntry] Error al eliminar comisión de extensión:',
+          commissionError,
+        );
+        // No fallar la eliminación del historyEntry si falla la eliminación de la comisión
       }
     }
 
