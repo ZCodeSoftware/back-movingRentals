@@ -15,6 +15,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -27,6 +28,9 @@ interface CartItemTransfer {
   transfer: CartTransferDetail;
   date: string;
   quantity: number;
+  airline?: string;
+  flightNumber?: string;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -39,6 +43,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -51,6 +56,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -136,6 +142,7 @@ export function generateUserBookingReserveEn(
     total: v.total,
     startDate: v.dates?.start,
     endDate: v.dates?.end,
+    passengers: v.passengers,
   })) || [];
 
   const transfers = cart.transfer?.map((t: CartItemTransfer) => ({
@@ -144,6 +151,9 @@ export function generateUserBookingReserveEn(
     price: t.transfer.price,
     date: t.date,
     quantity: t.quantity,
+    airline: t.airline,
+    flightNumber: t.flightNumber,
+    passengers: t.passengers,
   })) || [];
 
   const tours = cart.tours?.map((t: CartItemTour) => ({
@@ -152,6 +162,7 @@ export function generateUserBookingReserveEn(
     price: t.tour.price,
     date: t.date,
     quantity: t.quantity,
+    passengers: t.passengers,
   })) || [];
 
   const tickets = cart.tickets?.map((ti: CartItemTicket) => ({
@@ -160,14 +171,18 @@ export function generateUserBookingReserveEn(
     price: ti.ticket.totalPrice,
     date: ti.date,
     quantity: ti.quantity,
+    passengers: ti.passengers,
   })) || [];
 
   const whatsappNumber = "+529841417024";
   const whatsappLink = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
   const phoneNumber = "+52 984 141 7024";
-  const email = "info@moovadventures.com";
+  const email = "oficinaveleta.moving@gmail.com";
 
-  const subject = `Pending Reservation #${bookingNumber}`;
+  const saldoPendiente = totalReserva - totalPagado;
+  const googleMapsUrl = `https://www.google.com/maps/search/MoovAdventures+Tulum/@20.2053617,-87.4710442,15z`;
+
+  const subject = `Pending Reservation #${bookingNumber} - Contact Us to Confirm`;
 
   const html = `
     <!DOCTYPE html>
@@ -267,26 +282,26 @@ export function generateUserBookingReserveEn(
                 const startDate = v.startDate ? new Date(v.startDate) : null;
                 const endDate = v.endDate ? new Date(v.endDate) : null;
                 const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                return `<li>${v.name} - ${days > 0 ? `${days} day${days !== 1 ? 's' : ''}` : 'Dates to be confirmed'} - ${v.total.toFixed(2)} MXN</li>`;
+                return `<li>${v.name} - ${days > 0 ? `${days} day${days !== 1 ? 's' : ''}` : 'Dates to be confirmed'}${v.passengers ? ` - ${v.passengers} passenger${v.passengers !== 1 ? 's' : ''}` : ''} - ${v.total.toFixed(2)} MXN</li>`;
               }).join('')}
             </ul>
           ` : ''}
           ${transfers.length > 0 ? `
             <p><strong>Transfers:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${transfers.map(t => `<li>${t.name} - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
+              ${transfers.map(t => `<li>${t.name} - ${formatDateTime(t.date)}${t.passengers ? ` - ${t.passengers} passenger${t.passengers !== 1 ? 's' : ''}` : ''}${t.airline ? ` - ✈️ ${t.airline}` : ''}${t.flightNumber ? ` (${t.flightNumber})` : ''} - ${t.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
           ${tours.length > 0 ? `
             <p><strong>Tours:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tours.map(t => `<li>${t.name} - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
+              ${tours.map(t => `<li>${t.name} - ${formatDateTime(t.date)}${t.passengers ? ` - ${t.passengers} passenger${t.passengers !== 1 ? 's' : ''}` : ''} - ${t.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
           ${tickets.length > 0 ? `
             <p><strong>Tickets:</strong></p>
             <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tickets.map(ti => `<li>${ti.name} - ${formatDateTime(ti.date)} - ${ti.price.toFixed(2)} MXN</li>`).join('')}
+              ${tickets.map(ti => `<li>${ti.name} - ${formatDateTime(ti.date)}${ti.passengers ? ` - ${ti.passengers} passenger${ti.passengers !== 1 ? 's' : ''}` : ''} - ${ti.price.toFixed(2)} MXN</li>`).join('')}
             </ul>
           ` : ''}
         </div>

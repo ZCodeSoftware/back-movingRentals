@@ -15,6 +15,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -29,6 +30,7 @@ interface CartItemTransfer {
   airline: string;
   flightNumber: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -41,6 +43,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -53,6 +56,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -136,6 +140,23 @@ function formatDateTimeRangeToEnglish(
   }
 }
 
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
+}
+
 export function generateUserBookingConfirmationEn(
   booking: BookingModel,
   userEmail?: string,
@@ -189,6 +210,7 @@ export function generateUserBookingConfirmationEn(
       total: v.total,
       startDate: v.dates?.start,
       endDate: v.dates?.end,
+      passengers: getPassengerCount(v.passengers),
     })) || [];
 
   const transfers =
@@ -200,6 +222,7 @@ export function generateUserBookingConfirmationEn(
       quantity: t.quantity,
       airline: t.airline,
       flightNumber: t.flightNumber,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tours =
@@ -209,6 +232,7 @@ export function generateUserBookingConfirmationEn(
       price: t.tour.price,
       date: t.date,
       quantity: t.quantity,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tickets =
@@ -218,6 +242,7 @@ export function generateUserBookingConfirmationEn(
       price: ti.ticket.totalPrice,
       date: ti.date,
       quantity: ti.quantity,
+      passengers: getPassengerCount(ti.passengers),
     })) || [];
 
   const saldoPendiente = totalReserva - totalPagado;
@@ -334,6 +359,7 @@ export function generateUserBookingConfirmationEn(
                       <p><strong>Vehicle Type:</strong> ${v.name}</p>
                       <p><strong>Category:</strong> ${v.category}</p>
                       <p><strong>Units:</strong> 1</p>
+                      ${v.passengers ? `<p><strong>Passengers:</strong> ${v.passengers}</p>` : ''}
                     </div>
                     <div>
                       <p><strong>Days:</strong> ${days} day${days !== 1 ? 's' : ''}</p>
@@ -358,8 +384,7 @@ export function generateUserBookingConfirmationEn(
                     <p style="margin: 5px 0; font-size: 14px;">• Security deposit required</p>
                     ${bookingData?.metadata?.depositNote ? `<p style="margin: 5px 0; font-size: 14px; color: #d63031;"><strong>• Deposit registered: ${bookingData.metadata.depositNote}</strong></p>` : ''}
                     <p style="margin: 5px 0; font-size: 14px;">• Valid ID document required</p>
-                    <p style="margin: 5px 0; font-size: 14px;">• Helmet included in rental</p>
-                    <p style="margin: 5px 0; font-size: 14px;">• Locks available</p>
+                    <p style="margin: 5px 0; font-size: 14px;">• Helmets and lock included in rental</p>
                   </div>
                   
                   <div style="background-color: #d1ecf1; padding: 10px; border-radius: 4px;">
@@ -389,12 +414,15 @@ export function generateUserBookingConfirmationEn(
                   <p><strong>Category:</strong> ${t.category}</p>
                   <p><strong>Date & time:</strong> ${formatDateTimeToEnglish(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Quantity:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Passengers:</strong> ${t.passengers}</p>` : ''}
                   <p><strong>Price:</strong> ${t.price.toFixed(2)} MXN</p>
+                  ${t.airline || t.flightNumber ? `
                   <div style="background-color: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #e65100;">✈️ FLIGHT INFORMATION</h5>
-                    <p style="margin: 5px 0;"><strong>Airline:</strong> ${t.airline}</p>
-                    <p style="margin: 5px 0;"><strong>Flight number:</strong> ${t.flightNumber}</p>
+                    ${t.airline ? `<p style="margin: 5px 0;"><strong>Airline:</strong> ${t.airline}</p>` : ''}
+                    ${t.flightNumber ? `<p style="margin: 5px 0;"><strong>Flight number:</strong> ${t.flightNumber}</p>` : ''}
                   </div>
+                  ` : ''}
                 </div>
               `,
             )
@@ -416,6 +444,7 @@ export function generateUserBookingConfirmationEn(
                   <p><strong>Category:</strong> ${t.category}</p>
                   <p><strong>Date & time:</strong> ${formatDateTimeToEnglish(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Quantity:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Passengers:</strong> ${t.passengers}</p>` : ''}
                   <p><strong>Price:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>
               `,
@@ -438,51 +467,12 @@ export function generateUserBookingConfirmationEn(
                   <p><strong>Category:</strong> ${ti.category}</p>
                   <p><strong>Date & time:</strong> ${formatDateTimeToEnglish(ti.date)}</p>
                   ${ti.quantity > 1 ? `<p><strong>Quantity:</strong> ${ti.quantity}</p>` : ''}
+                  ${ti.passengers ? `<p><strong>Passengers:</strong> ${ti.passengers}</p>` : ''}
                   <p><strong>Price:</strong> ${ti.price.toFixed(2)} MXN</p>
                 </div>
               `,
             )
             .join('')}
-        </div>`
-            : ''
-        }
-
-        ${
-          vehicles.length > 0
-            ? `
-        <div class="section">
-          <h3>🛠️ Additional Services Available:</h3>
-          <div class="item-details" style="background-color: #f0f8ff; border-left-color: #4169e1;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-              <div>
-                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🏍️ ACCESSORIES</h5>
-                <p style="margin: 3px 0; font-size: 14px;">• Full tank: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Scooter: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• ATV: $300</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Dirt Bike: $300</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Car: $100</p>
-              </div>
-              <div>
-                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🔒 SECURITY</h5>
-                <p style="margin: 3px 0; font-size: 14px;">• Promoto: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Closed: $300</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Padlock: $175</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Scooter: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• ATV: $250</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Car: $3000</p>
-              </div>
-              <div>
-                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🚴 OTHERS</h5>
-                <p style="margin: 3px 0; font-size: 14px;">• Lost key: Consult</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Damage/Basket: Consult</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Cancellation: Consult</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Bike: $250</p>
-              </div>
-            </div>
-            <div style="margin-top: 10px; padding: 8px; background-color: #e6f3ff; border-radius: 4px;">
-              <p style="margin: 0; font-size: 13px; color: #0066cc;"><strong>Note:</strong> Additional services can be requested at pickup time. Prices are subject to change.</p>
-            </div>
-          </div>
         </div>`
             : ''
         }
@@ -554,7 +544,7 @@ export function generateUserBookingConfirmationEn(
           <h2><span class="emoji">📞</span> Questions?</h2>
           <div class="item-details" style="background-color: #e3f2fd; border-left-color: #2196f3;">
             <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">+52 984 141 7024</a></p>
-            <p><strong>📧 Email:</strong> <a href="mailto:info@moovadventures.com">info@moovadventures.com</a></p>
+            <p><strong>📧 Email:</strong> <a href="mailto:oficinaveleta.moving@gmail.com">oficinaveleta.moving@gmail.com</a></p>
             <p><strong>📍 Address:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
             <p><strong>⏰ Hours:</strong> 9:00 AM - 7:00 PM</p>
           </div>

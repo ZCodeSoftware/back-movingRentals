@@ -15,6 +15,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -29,6 +30,7 @@ interface CartItemTransfer {
   airline: string;
   flightNumber: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -41,6 +43,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -53,6 +56,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -133,6 +137,23 @@ function formatDateTimeRange(startDate?: string, endDate?: string): string {
   }
 }
 
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
+}
+
 
 export function generateUserBookingConfirmation(
   booking: BookingModel,
@@ -180,6 +201,7 @@ export function generateUserBookingConfirmation(
     total: v.total,
     startDate: v.dates?.start,
     endDate: v.dates?.end,
+    passengers: getPassengerCount(v.passengers),
   })) || [];
 
   const transfers = cart.transfer?.map((t: CartItemTransfer) => ({
@@ -190,6 +212,7 @@ export function generateUserBookingConfirmation(
     quantity: t.quantity,
     airline: t.airline,
     flightNumber: t.flightNumber,
+    passengers: getPassengerCount(t.passengers),
   })) || [];
 
   const tours = cart.tours?.map((t: CartItemTour) => ({
@@ -198,6 +221,7 @@ export function generateUserBookingConfirmation(
     price: t.tour.price,
     date: t.date,
     quantity: t.quantity,
+    passengers: getPassengerCount(t.passengers),
   })) || [];
 
   const tickets = cart.tickets?.map((ti: CartItemTicket) => ({
@@ -206,6 +230,7 @@ export function generateUserBookingConfirmation(
     price: ti.ticket.totalPrice,
     date: ti.date,
     quantity: ti.quantity,
+    passengers: getPassengerCount(ti.passengers),
   })) || [];
 
 
@@ -316,6 +341,7 @@ export function generateUserBookingConfirmation(
                       <p><strong>Tipo de Vehículo:</strong> ${v.name}</p>
                       <p><strong>Categoría:</strong> ${v.category}</p>
                       <p><strong>Unidades:</strong> 1</p>
+                      ${v.passengers ? `<p><strong>Pasajeros:</strong> ${v.passengers}</p>` : ''}
                     </div>
                     <div>
                       <p><strong>Días:</strong> ${days} día${days !== 1 ? 's' : ''}</p>
@@ -336,8 +362,7 @@ export function generateUserBookingConfirmation(
                     <p style="margin: 5px 0; font-size: 14px;">• Se requiere depósito de garantía</p>
                     ${bookingData?.metadata?.depositNote ? `<p style="margin: 5px 0; font-size: 14px; color: #d63031;"><strong>• Depósito registrado: ${bookingData.metadata.depositNote}</strong></p>` : ''}
                     <p style="margin: 5px 0; font-size: 14px;">• Presentar documento de identidad válido</p>
-                    <p style="margin: 5px 0; font-size: 14px;">• Casco incluido en la renta</p>
-                    <p style="margin: 5px 0; font-size: 14px;">• Candados disponibles</p>
+                    <p style="margin: 5px 0; font-size: 14px;">• Cascos y candado incluidos en la renta</p>
                   </div>
                   
                   <div style="background-color: #d1ecf1; padding: 10px; border-radius: 4px;">
@@ -364,12 +389,15 @@ export function generateUserBookingConfirmation(
                   <p><strong>Categoría:</strong> ${t.category}</p>
                   <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
                   <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
+                  ${t.airline || t.flightNumber ? `
                   <div style="background-color: #fff3e0; padding: 10px; border-radius: 4px; margin-top: 10px;">
                     <h5 style="margin: 0 0 8px 0; color: #e65100;">✈️ INFORMACIÓN DE VUELO</h5>
-                    <p style="margin: 5px 0;"><strong>Aerolínea:</strong> ${t.airline}</p>
-                    <p style="margin: 5px 0;"><strong>Número de vuelo:</strong> ${t.flightNumber}</p>
+                    ${t.airline ? `<p style="margin: 5px 0;"><strong>Aerolínea:</strong> ${t.airline}</p>` : ''}
+                    ${t.flightNumber ? `<p style="margin: 5px 0;"><strong>Número de vuelo:</strong> ${t.flightNumber}</p>` : ''}
                   </div>
+                  ` : ''}
                 </div>
               `
         )
@@ -387,6 +415,7 @@ export function generateUserBookingConfirmation(
                   <p><strong>Categoría:</strong> ${t.category}</p>
                   <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
                   ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
                   <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
                 </div>
               `
@@ -405,6 +434,7 @@ export function generateUserBookingConfirmation(
                   <p><strong>Categoría:</strong> ${ti.category}</p>
                   <p><strong>Fecha y hora:</strong> ${formatDateTime(ti.date)}</p>
                   ${ti.quantity > 1 ? `<p><strong>Cantidad:</strong> ${ti.quantity}</p>` : ''}
+                  ${ti.passengers ? `<p><strong>Pasajeros:</strong> ${ti.passengers}</p>` : ''}
                   <p><strong>Precio:</strong> ${ti.price.toFixed(2)} MXN</p>
                 </div>
               `
@@ -412,42 +442,7 @@ export function generateUserBookingConfirmation(
         .join('')}
         </div>` : ''}
 
-        ${vehicles.length > 0 ? `
-        <div class="section">
-          <h3>🛠️ Servicios Adicionales Disponibles:</h3>
-          <div class="item-details" style="background-color: #f0f8ff; border-left-color: #4169e1;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-              <div>
-                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🏍️ ACCESORIOS</h5>
-                <p style="margin: 3px 0; font-size: 14px;">• Tanque lleno: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Scooter: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• ATV: $300</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Dirt Bike: $300</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Car: $100</p>
-              </div>
-              <div>
-                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🔒 SEGURIDAD</h5>
-                <p style="margin: 3px 0; font-size: 14px;">• Promoto: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Cerrados: $300</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Padlock: $175</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Scooter: $150</p>
-                <p style="margin: 3px 0; font-size: 14px;">• ATV: $250</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Car: $3000</p>
-              </div>
-              <div>
-                <h5 style="margin: 0 0 8px 0; color: #2c3e50;">🚴 OTROS</h5>
-                <p style="margin: 3px 0; font-size: 14px;">• Llave perdida: Consultar</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Daños/Basket: Consultar</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Cancelación: Consultar</p>
-                <p style="margin: 3px 0; font-size: 14px;">• Bike: $250</p>
-              </div>
-            </div>
-            <div style="margin-top: 10px; padding: 8px; background-color: #e6f3ff; border-radius: 4px;">
-              <p style="margin: 0; font-size: 13px; color: #0066cc;"><strong>Nota:</strong> Los servicios adicionales se pueden solicitar en el momento de la entrega. Los precios están sujetos a cambios.</p>
-            </div>
-          </div>
-        </div>` : ''}
-
+        
         ${bookingData.requiresDelivery ? `
         <div class="section">
           <h2>🚚 Información de Delivery:</h2>
@@ -489,7 +484,7 @@ export function generateUserBookingConfirmation(
 
         ${branchName !== 'Sucursal no especificada' ? `
         <div class="section pickup-info">
-          <h2>📍 Información de retiro (Vehículos):</h2>
+          <h2>📍 Ubicación de la sucursal:</h2>
           <p>Para vehículos, el retiro es en Sucursal ${branchName} – <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Ver en Google Maps</a></p>
           <p><strong>Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., México</p>
           <p><strong><span class="emoji">⏰</span> Horario de atención:</strong> 9:00 AM a 7:00 PM</p>
@@ -504,7 +499,7 @@ export function generateUserBookingConfirmation(
           <h2><span class="emoji">📞</span> Dudas?</h2>
           <div class="item-details" style="background-color: #e3f2fd; border-left-color: #2196f3;">
             <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">+52 984 141 7024</a></p>
-            <p><strong>📧 Email:</strong> <a href="mailto:info@moovadventures.com">info@moovadventures.com</a></p>
+            <p><strong>📧 Email:</strong> <a href="mailto:oficinaveleta.moving@gmail.com">oficinaveleta.moving@gmail.com</a></p>
             <p><strong>📍 Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
             <p><strong>⏰ Horario:</strong> 9:00 AM - 7:00 PM</p>
           </div>

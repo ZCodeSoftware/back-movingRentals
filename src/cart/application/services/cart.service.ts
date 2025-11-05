@@ -93,7 +93,9 @@ export class CartService implements ICartService {
                 date: t.date, 
                 passengers: t.passengers, 
                 quantity: t.quantity,
-                total: t.total // Incluir total si viene en el item
+                total: t.total, // Incluir total si viene en el item
+                airline: t.airline, // Incluir aerolínea
+                flightNumber: t.flightNumber // Incluir número de vuelo
             };
             console.log('[CartService] Transfer result:', JSON.stringify(result, null, 2));
             return result;

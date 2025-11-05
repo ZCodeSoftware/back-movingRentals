@@ -16,6 +16,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -29,6 +30,9 @@ interface CartItemTransfer {
   transfer: CartTransferDetail;
   date: string;
   quantity: number;
+  airline?: string;
+  flightNumber?: string;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -42,6 +46,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -55,6 +60,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -76,6 +82,23 @@ function formatDate(dateString?: string): string {
   } catch (e) {
     return dateString;
   }
+}
+
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
 }
 
 export function generateUserBookingCancellationEn(booking: BookingModel): {
@@ -155,6 +178,7 @@ export function generateUserBookingCancellationEn(booking: BookingModel): {
       total: v.total,
       startDate: v.dates?.start,
       endDate: v.dates?.end,
+      passengers: getPassengerCount(v.passengers),
     })) || [];
 
   const transfers =
@@ -164,6 +188,9 @@ export function generateUserBookingCancellationEn(booking: BookingModel): {
       price: t.transfer.price,
       date: t.date,
       quantity: t.quantity,
+      airline: t.airline,
+      flightNumber: t.flightNumber,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tours =
@@ -173,6 +200,7 @@ export function generateUserBookingCancellationEn(booking: BookingModel): {
       price: t.tour.price,
       date: t.date,
       quantity: t.quantity,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tickets =
@@ -182,6 +210,7 @@ export function generateUserBookingCancellationEn(booking: BookingModel): {
       price: ti.ticket.totalPrice,
       date: ti.date,
       quantity: ti.quantity,
+      passengers: getPassengerCount(ti.passengers),
     })) || [];
 
   const subject = `Booking Cancelled - #${bookingNumber}`;
@@ -324,7 +353,8 @@ ${vehicles
 <p><strong>Name:</strong> ${v.name}</p>
 <p><strong>Category:</strong> ${v.category}</p>
 ${v.startDate && v.endDate ? `<p><strong>Original Period:</strong> ${formatDate(v.startDate)} - ${formatDate(v.endDate)}</p>` : ''}
-<p><strong>Subtotal:</strong> $${v.total.toFixed(2)} MXN</p>
+${v.passengers ? `<p><strong>Passengers:</strong> ${v.passengers}</p>` : ''}
+<p><strong>Subtotal:</strong> ${v.total.toFixed(2)} MXN</p>
 </div>
 `,
   )
@@ -345,7 +375,10 @@ ${transfers
 <p><strong>Category:</strong> ${t.category}</p>
 <p><strong>Original Date:</strong> ${formatDate(t.date)}</p>
 ${t.quantity > 1 ? `<p><strong>Quantity:</strong> ${t.quantity}</p>` : ''}
-<p><strong>Price:</strong> $${t.price.toFixed(2)} MXN</p>
+${t.passengers ? `<p><strong>Passengers:</strong> ${t.passengers}</p>` : ''}
+${t.airline ? `<p><strong>✈️ Airline:</strong> ${t.airline}</p>` : ''}
+${t.flightNumber ? `<p><strong>🎫 Flight number:</strong> ${t.flightNumber}</p>` : ''}
+<p><strong>Price:</strong> ${t.price.toFixed(2)} MXN</p>
 </div>
 `,
   )
@@ -366,7 +399,8 @@ ${tours
 <p><strong>Category:</strong> ${t.category}</p>
 <p><strong>Original Date:</strong> ${formatDate(t.date)}</p>
 ${t.quantity > 1 ? `<p><strong>Quantity:</strong> ${t.quantity}</p>` : ''}
-<p><strong>Price:</strong> $${t.price.toFixed(2)} MXN</p>
+${t.passengers ? `<p><strong>Passengers:</strong> ${t.passengers}</p>` : ''}
+<p><strong>Price:</strong> ${t.price.toFixed(2)} MXN</p>
 </div>
 `,
   )
@@ -387,7 +421,8 @@ ${tickets
 <p><strong>Category:</strong> ${ti.category}</p>
 <p><strong>Original Date:</strong> ${formatDate(ti.date)}</p>
 ${ti.quantity > 1 ? `<p><strong>Quantity:</strong> ${ti.quantity}</p>` : ''}
-<p><strong>Price:</strong> $${ti.price.toFixed(2)} MXN</p>
+${ti.passengers ? `<p><strong>Passengers:</strong> ${ti.passengers}</p>` : ''}
+<p><strong>Price:</strong> ${ti.price.toFixed(2)} MXN</p>
 </div>
 `,
   )
@@ -425,18 +460,11 @@ ${
 ${cancellationFee > 0 ? `<p><strong>Cancellation fee:</strong> -$${cancellationFee.toFixed(2)} MXN</p>` : ''}
 <p><strong>Final refund amount:</strong> $${(refundAmount - (cancellationFee || 0)).toFixed(2)} MXN</p>
 </div>
-<div class="important-info">
-<h3><span class="emoji">📋</span> What happens next?</h3>
-<p>• If applicable, your refund will be processed according to our cancellation policy</p>
-<p>• You will receive a confirmation once the refund has been initiated</p>
-<p>• Any physical items (like equipment) should be returned if already collected</p>
-<p>• Please save this email as your cancellation confirmation</p>
-</div>
 <div class="section contact-info">
 <h2><span class="emoji">📞</span> Questions about your cancellation?</h2>
 <div class="item-details" style="background-color: #e3f2fd; border-left-color: #2196f3;">
 <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">+52 984 141 7024</a></p>
-<p><strong>📧 Email:</strong> <a href="mailto:info@moovadventures.com">info@moovadventures.com</a></p>
+<p><strong>📧 Email:</strong> <a href="mailto:oficinaveleta.moving@gmail.com">oficinaveleta.moving@gmail.com</a></p>
 <p><strong>📍 Address:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
 <p><strong>⏰ Hours:</strong> 9:00 AM - 7:00 PM</p>
 </div>

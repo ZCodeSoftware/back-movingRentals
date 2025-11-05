@@ -15,6 +15,7 @@ interface CartItemVehicle {
   vehicle: CartVehicleDetail;
   total: number;
   dates?: { start: string; end: string };
+  passengers?: number;
 }
 
 interface CartTransferDetail {
@@ -27,6 +28,9 @@ interface CartItemTransfer {
   transfer: CartTransferDetail;
   date: string;
   quantity: number;
+  airline?: string;
+  flightNumber?: string;
+  passengers?: number;
 }
 
 interface CartTourDetail {
@@ -39,6 +43,7 @@ interface CartItemTour {
   tour: CartTourDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface CartTicketDetail {
@@ -51,6 +56,7 @@ interface CartItemTicket {
   ticket: CartTicketDetail;
   date: string;
   quantity: number;
+  passengers?: number;
 }
 
 interface ParsedCart {
@@ -88,6 +94,23 @@ function formatDateTime(dateString?: string): string {
   } catch (e) {
     return dateString;
   }
+}
+
+function getPassengerCount(passengers: any): number | undefined {
+  if (!passengers) return undefined;
+  if (typeof passengers === 'number') return passengers;
+  if (typeof passengers === 'object') {
+    // Si tiene adults y child, sumarlos
+    if (passengers.adults !== undefined || passengers.child !== undefined) {
+      const adults = passengers.adults || 0;
+      const child = passengers.child || 0;
+      return adults + child;
+    }
+    // Otros formatos de objeto
+    if (passengers.count) return passengers.count;
+    if (passengers.value) return passengers.value;
+  }
+  return undefined;
 }
 
 /**
@@ -149,6 +172,7 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
       total: v.total,
       startDate: v.dates?.start,
       endDate: v.dates?.end,
+      passengers: getPassengerCount(v.passengers),
     })) || [];
 
   const transfers =
@@ -158,6 +182,9 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
       price: t.transfer.price,
       date: t.date,
       quantity: t.quantity,
+      airline: t.airline,
+      flightNumber: t.flightNumber,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tours =
@@ -167,6 +194,7 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
       price: t.tour.price,
       date: t.date,
       quantity: t.quantity,
+      passengers: getPassengerCount(t.passengers),
     })) || [];
 
   const tickets =
@@ -176,16 +204,12 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
       price: ti.ticket.totalPrice,
       date: ti.date,
       quantity: ti.quantity,
+      passengers: getPassengerCount(ti.passengers),
     })) || [];
 
   const saldoPendiente = totalReserva - totalPagado;
-  
-  const whatsappNumber = "+529841417024";
-  const whatsappLink = `https://wa.me/${whatsappNumber.replace(/\D/g, '')}`;
-  const phoneNumber = "+52 984 141 7024";
-  const email = "info@moovadventures.com";
 
-  const subject = `⚠️ Reserva PENDIENTE #${bookingNumber} - Requiere Confirmación`;
+  const subject = `⚠️ Reserva PENDIENTE #${bookingNumber} - Verificar Pago`;
 
   const html = `
     <!DOCTYPE html>
@@ -213,6 +237,14 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
           margin: 20px 0;
         }
         .alert-box p { margin: 5px 0; color: #856404; font-weight: 600; }
+        .status-badge {
+          display: inline-block;
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-weight: bold;
+          font-size: 16px;
+          margin: 10px 0;
+        }
         .customer-details { border-left-color: #1abc9c; }
         .vehicle-item { border-left-color: #3498db; }
         .transfer-item { border-left-color: #e67e22; }
@@ -223,82 +255,154 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
     </head>
     <body>
       <div class="email-container">
-        <h1>⚠️ Reserva PENDIENTE - Acción Requerida</h1>
+        <h1>¡Nueva Reserva Recibida! 🛎️</h1>
 
         <div class="alert-box">
-          <p><strong>🔔 ACCIÓN REQUERIDA:</strong> Reserva pendiente de confirmación.</p>
-          <p><strong>Contacta al cliente para confirmar y coordinar el pago del saldo pendiente.</strong></p>
+          <p><strong>⚠️ RESERVA PENDIENTE - VERIFICAR PAGO</strong></p>
+          <p>Esta reserva requiere verificación del pago antes de confirmarla.</p>
+        </div>
+        
+        <div style="text-align: center; margin: 20px 0;">
+          <span class="status-badge" style="background-color: #f39c12; color: white;">
+            Estado: PENDIENTE
+          </span>
         </div>
 
         <div class="section">
-          <h2>📋 Información de la Reserva</h2>
+          <h2>📝 Detalles de la Reserva:</h2>
           <p><strong>Número de reserva:</strong> ${bookingNumber}</p>
           <p><strong>Estado:</strong> <span style="color: #f39c12; font-weight: bold;">PENDIENTE</span></p>
-          <p><strong>Cliente:</strong> ${customerFullName}</p>
-          <p><strong>Email:</strong> <a href="mailto:${customerEmail}">${customerEmail}</a></p>
-          <p><strong>Teléfono:</strong> ${customerPhone}</p>
-          ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
-        </div>
-        
-        <div class="section">
-          <h2>🛒 Items Solicitados</h2>
-          ${vehicles.length > 0 ? `
-            <p><strong>Vehículos:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${vehicles.map(v => {
-                const startDate = v.startDate ? new Date(v.startDate) : null;
-                const endDate = v.endDate ? new Date(v.endDate) : null;
-                const days = startDate && endDate ? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-                return `<li>${v.name} (${v.category}) - ${days > 0 ? `${days} día${days !== 1 ? 's' : ''}` : 'Fechas por confirmar'}${v.startDate && v.endDate ? ` - Inicio: ${formatDateTime(v.startDate)} / Fin: ${formatDateTime(v.endDate)}` : ''} - ${v.total.toFixed(2)} MXN</li>`;
-              }).join('')}
-            </ul>
-          ` : ''}
-          ${transfers.length > 0 ? `
-            <p><strong>Transfers:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${transfers.map(t => `<li>${t.name} (${t.category}) - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
-            </ul>
-          ` : ''}
-          ${tours.length > 0 ? `
-            <p><strong>Tours:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tours.map(t => `<li>${t.name} (${t.category}) - ${formatDateTime(t.date)} - ${t.price.toFixed(2)} MXN</li>`).join('')}
-            </ul>
-          ` : ''}
-          ${tickets.length > 0 ? `
-            <p><strong>Tickets:</strong></p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-              ${tickets.map(ti => `<li>${ti.name} (${ti.category}) - ${formatDate(ti.date)} - ${ti.price.toFixed(2)} MXN</li>`).join('')}
-            </ul>
-          ` : ''}
+          ${branchName !== 'Sucursal no especificada' ? `<p><strong>Sucursal de referencia:</strong> ${branchName}</p>` : ''}
         </div>
 
         <div class="section">
-          <h2>💰 Información de Pago</h2>
-          <div class="item-details" style="background-color: #fff9e6; border-left-color: #f39c12;">
-            <p><strong>Total de la reserva:</strong> <span style="font-size: 18px;">${totalReserva.toFixed(2)} MXN</span></p>
-            <p><strong>Anticipo pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
-            <p><strong>⚠️ Saldo pendiente:</strong> <span style="color: #e74c3c; font-size: 20px; font-weight: bold;">${saldoPendiente.toFixed(2)} MXN</span></p>
-            <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'Por definir'}</p>
-            ${bookingData?.metadata?.paymentMedium ? `<p><strong>Medio de pago:</strong> ${bookingData.metadata.paymentMedium}</p>` : ''}
-            ${bookingData?.metadata?.depositNote ? `<p><strong>Nota de depósito:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
+          <h2>👤 Información del Cliente:</h2>
+          <div class="item-details customer-details">
+            <p><strong>Nombre completo:</strong> ${customerFullName}</p>
+            <p><strong>Email:</strong> ${customerEmail}</p>
+            <p><strong>Teléfono:</strong> ${customerPhone}</p>
+            ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
           </div>
         </div>
+        
+        ${
+          vehicles.length > 0
+            ? `
+        <div class="section">
+          <h3>🛵 Vehículo(s):</h3>
+          ${vehicles
+            .map(
+              (v) => `
+                <div class="item-details vehicle-item">
+                  <p><strong>Nombre:</strong> ${v.name} (${v.category})</p>
+                  ${v.startDate && v.endDate ? `
+                    <p><strong>Inicio:</strong> ${formatDateTime(v.startDate)}</p>
+                    <p><strong>Fin:</strong> ${formatDateTime(v.endDate)}</p>
+                  ` : ''}
+                  ${v.passengers ? `<p><strong>Pasajeros:</strong> ${v.passengers}</p>` : ''}
+                  <p><strong>Subtotal:</strong> ${v.total.toFixed(2)} MXN</p>
+                  ${bookingData?.metadata?.depositNote ? `<p style="color: #d63031;"><strong>🔒 Depósito registrado:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
+                </div>`,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
+
+        ${
+          transfers.length > 0
+            ? `
+        <div class="section">
+          <h3>🚐 Transfer(s):</h3>
+          ${transfers
+            .map(
+              (t) => `
+                <div class="item-details transfer-item">
+                  <p><strong>Servicio:</strong> ${t.name} (${t.category})</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
+                  ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
+                  ${t.airline ? `<p><strong>✈️ Aerolínea:</strong> ${t.airline}</p>` : ''}
+                  ${t.flightNumber ? `<p><strong>🎫 Número de vuelo:</strong> ${t.flightNumber}</p>` : ''}
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
+                </div>`,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
+
+        ${
+          tours.length > 0
+            ? `
+        <div class="section">
+          <h3>🗺️ Tour(s):</h3>
+          ${tours
+            .map(
+              (t) => `
+                <div class="item-details tour-item">
+                  <p><strong>Nombre:</strong> ${t.name} (${t.category})</p>
+                  <p><strong>Fecha y hora:</strong> ${formatDateTime(t.date)}</p>
+                  ${t.quantity > 1 ? `<p><strong>Cantidad:</strong> ${t.quantity}</p>` : ''}
+                  ${t.passengers ? `<p><strong>Pasajeros:</strong> ${t.passengers}</p>` : ''}
+                  <p><strong>Precio:</strong> ${t.price.toFixed(2)} MXN</p>
+                </div>`,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
+        
+        ${
+          tickets.length > 0
+            ? `
+        <div class="section">
+          <h3>🎟️ Ticket(s):</h3>
+          ${tickets
+            .map(
+              (ti) => `
+                <div class="item-details ticket-item">
+                  <p><strong>Nombre:</strong> ${ti.name} (${ti.category})</p>
+                  <p><strong>Fecha:</strong> ${formatDate(ti.date)}</p>
+                  ${ti.quantity > 1 ? `<p><strong>Cantidad:</strong> ${ti.quantity}</p>` : ''}
+                  ${ti.passengers ? `<p><strong>Pasajeros:</strong> ${ti.passengers}</p>` : ''}
+                  <p><strong>Precio:</strong> ${ti.price.toFixed(2)} MXN</p>
+                </div>`,
+            )
+            .join('')}
+        </div>`
+            : ''
+        }
+
+        ${bookingData.requiresDelivery ? `
+        <div class="section">
+          <h2>🚚 Información de Delivery:</h2>
+          <div class="item-details" style="background-color: #e8f5e9; border-left-color: #4caf50;">
+            <p><strong>Servicio de delivery:</strong> Sí</p>
+            <p><strong>Tipo de servicio:</strong> ${
+              bookingData.deliveryType === 'round-trip' 
+                ? 'Ida y vuelta (Round trip)' 
+                : bookingData.oneWayType === 'pickup' 
+                  ? 'Solo recogida (One way - Pickup)' 
+                  : 'Solo entrega (One way - Delivery)'
+            }</p>
+            ${bookingData.deliveryAddress ? `<p><strong>Dirección:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData.deliveryCost ? `<p><strong>Costo del delivery:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
+          </div>
+        </div>` : ''}
 
         <div class="section">
-          <h2>📞 Información de Contacto</h2>
-          <div class="item-details" style="background-color: #e3f2fd; border-left-color: #2196f3;">
-            <p><strong>📱 WhatsApp:</strong> <a href="${whatsappLink}" target="_blank" rel="noopener noreferrer">${phoneNumber}</a></p>
-            <p><strong>📧 Email:</strong> <a href="mailto:${email}">${email}</a></p>
-            <p><strong>📍 Dirección:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R.</p>
-            <p><strong>⏰ Horario:</strong> 9:00 AM - 7:00 PM</p>
-          </div>
+          <h2>💳 Resumen de Pago:</h2>
+          <p><strong>Total de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
+          <p><strong>Total pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
+          <p><strong>Saldo pendiente:</strong> ${saldoPendiente.toFixed(2)} MXN</p>
+          <p><strong>Método de pago:</strong> ${bookingData?.paymentMethod?.name || 'No especificado'}</p>
+          <p><strong>Medio de pago (administrativo):</strong> ${bookingData?.metadata?.paymentMedium || bookingData?.paymentMedium || 'No especificado'}</p>
+          ${bookingData?.metadata?.depositNote ? `<p><strong>Nota de depósito:</strong> ${bookingData.metadata.depositNote}</p>` : ''}
         </div>
 
-        
         <div class="footer">
           <p>Este es un correo de notificación automático.</p>
-          <p><strong>Sistema de Reservas - MoovAdventures</strong></p>
         </div>
       </div>
     </body>
