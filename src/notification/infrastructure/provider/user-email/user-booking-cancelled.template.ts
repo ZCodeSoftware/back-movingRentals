@@ -168,46 +168,66 @@ export function generateUserBookingCancellation(booking: BookingModel): {
 
   // Mapeo de items usando la misma estructura del email de confirmación
   const vehicles =
-    cart.vehicles?.map((v: CartItemVehicle) => ({
-      name: v.vehicle.name,
-      category: v.vehicle.category.name,
-      total: v.total,
-      startDate: v.dates?.start,
-      endDate: v.dates?.end,
-      passengers: getPassengerCount(v.passengers),
-    })) || [];
+    cart.vehicles?.map((v: CartItemVehicle) => {
+      // Verificar si vehicle es un objeto completo o solo un ID
+      const isPopulated = v.vehicle && typeof v.vehicle === 'object' && v.vehicle.name;
+      
+      return {
+        name: isPopulated ? v.vehicle.name : 'Vehículo',
+        category: isPopulated && v.vehicle.category?.name ? v.vehicle.category.name : 'Sin categoría',
+        total: v.total || 0,
+        startDate: v.dates?.start,
+        endDate: v.dates?.end,
+        passengers: getPassengerCount(v.passengers),
+      };
+    }).filter(v => v !== null) || [];
 
   const transfers =
-    cart.transfer?.map((t: CartItemTransfer) => ({
-      name: t.transfer.name,
-      category: t.transfer.category.name,
-      price: t.transfer.price,
-      date: t.date,
-      quantity: t.quantity,
-      airline: t.airline,
-      flightNumber: t.flightNumber,
-      passengers: getPassengerCount(t.passengers),
-    })) || [];
+    cart.transfer?.map((t: CartItemTransfer) => {
+      // Verificar si transfer es un objeto completo o solo un ID
+      const isPopulated = t.transfer && typeof t.transfer === 'object' && t.transfer.name;
+      
+      return {
+        name: isPopulated ? t.transfer.name : 'Transfer',
+        category: isPopulated && t.transfer.category?.name ? t.transfer.category.name : 'Sin categoría',
+        price: isPopulated ? (t.transfer.price || 0) : 0,
+        date: t.date,
+        quantity: t.quantity || 1,
+        airline: t.airline,
+        flightNumber: t.flightNumber,
+        passengers: getPassengerCount(t.passengers),
+      };
+    }).filter(t => t !== null) || [];
 
   const tours =
-    cart.tours?.map((t: CartItemTour) => ({
-      name: t.tour.name,
-      category: t.tour.category.name,
-      price: t.tour.price,
-      date: t.date,
-      quantity: t.quantity,
-      passengers: getPassengerCount(t.passengers),
-    })) || [];
+    cart.tours?.map((t: CartItemTour) => {
+      // Verificar si tour es un objeto completo o solo un ID
+      const isPopulated = t.tour && typeof t.tour === 'object' && t.tour.name;
+      
+      return {
+        name: isPopulated ? t.tour.name : 'Tour',
+        category: isPopulated && t.tour.category?.name ? t.tour.category.name : 'Sin categoría',
+        price: isPopulated ? (t.tour.price || 0) : 0,
+        date: t.date,
+        quantity: t.quantity || 1,
+        passengers: getPassengerCount(t.passengers),
+      };
+    }).filter(t => t !== null) || [];
 
   const tickets =
-    cart.tickets?.map((ti: CartItemTicket) => ({
-      name: ti.ticket.name,
-      category: ti.ticket.category.name,
-      price: ti.ticket.totalPrice,
-      date: ti.date,
-      quantity: ti.quantity,
-      passengers: getPassengerCount(ti.passengers),
-    })) || [];
+    cart.tickets?.map((ti: CartItemTicket) => {
+      // Verificar si ticket es un objeto completo o solo un ID
+      const isPopulated = ti.ticket && typeof ti.ticket === 'object' && ti.ticket.name;
+      
+      return {
+        name: isPopulated ? ti.ticket.name : 'Ticket',
+        category: isPopulated && ti.ticket.category?.name ? ti.ticket.category.name : 'Sin categoría',
+        price: isPopulated ? (ti.ticket.totalPrice || 0) : 0,
+        date: ti.date,
+        quantity: ti.quantity || 1,
+        passengers: getPassengerCount(ti.passengers),
+      };
+    }).filter(ti => ti !== null) || [];
 
   const subject = `Reserva Cancelada - #${bookingNumber}`;
 

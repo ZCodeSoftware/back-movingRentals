@@ -203,47 +203,55 @@ export function generateUserBookingConfirmationEn(
 
   const branchName = cart.branch?.name || 'Branch not specified';
 
-  const vehicles =
-    cart.vehicles?.map((v: CartItemVehicle) => ({
-      name: v.vehicle.name,
-      category: v.vehicle.category.name,
-      total: v.total,
+  const vehicles = cart.vehicles?.map((v: CartItemVehicle) => {
+    const isPopulated = v.vehicle && typeof v.vehicle === 'object' && v.vehicle.name;
+    return {
+      name: isPopulated ? v.vehicle.name : 'Vehicle',
+      category: isPopulated && v.vehicle.category?.name ? v.vehicle.category.name : 'No category',
+      total: v.total || 0,
       startDate: v.dates?.start,
       endDate: v.dates?.end,
       passengers: getPassengerCount(v.passengers),
-    })) || [];
+    };
+  }).filter(v => v !== null) || [];
 
-  const transfers =
-    cart.transfer?.map((t: CartItemTransfer) => ({
-      name: t.transfer.name,
-      category: t.transfer.category.name,
-      price: t.transfer.price,
+  const transfers = cart.transfer?.map((t: CartItemTransfer) => {
+    const isPopulated = t.transfer && typeof t.transfer === 'object' && t.transfer.name;
+    return {
+      name: isPopulated ? t.transfer.name : 'Transfer',
+      category: isPopulated && t.transfer.category?.name ? t.transfer.category.name : 'No category',
+      price: isPopulated ? (t.transfer.price || 0) : 0,
       date: t.date,
-      quantity: t.quantity,
+      quantity: t.quantity || 1,
       airline: t.airline,
       flightNumber: t.flightNumber,
       passengers: getPassengerCount(t.passengers),
-    })) || [];
+    };
+  }).filter(t => t !== null) || [];
 
-  const tours =
-    cart.tours?.map((t: CartItemTour) => ({
-      name: t.tour.name,
-      category: t.tour.category.name,
-      price: t.tour.price,
+  const tours = cart.tours?.map((t: CartItemTour) => {
+    const isPopulated = t.tour && typeof t.tour === 'object' && t.tour.name;
+    return {
+      name: isPopulated ? t.tour.name : 'Tour',
+      category: isPopulated && t.tour.category?.name ? t.tour.category.name : 'No category',
+      price: isPopulated ? (t.tour.price || 0) : 0,
       date: t.date,
-      quantity: t.quantity,
+      quantity: t.quantity || 1,
       passengers: getPassengerCount(t.passengers),
-    })) || [];
+    };
+  }).filter(t => t !== null) || [];
 
-  const tickets =
-    cart.tickets?.map((ti: CartItemTicket) => ({
-      name: ti.ticket.name,
-      category: ti.ticket.category.name,
-      price: ti.ticket.totalPrice,
+  const tickets = cart.tickets?.map((ti: CartItemTicket) => {
+    const isPopulated = ti.ticket && typeof ti.ticket === 'object' && ti.ticket.name;
+    return {
+      name: isPopulated ? ti.ticket.name : 'Ticket',
+      category: isPopulated && ti.ticket.category?.name ? ti.ticket.category.name : 'No category',
+      price: isPopulated ? (ti.ticket.totalPrice || 0) : 0,
       date: ti.date,
-      quantity: ti.quantity,
+      quantity: ti.quantity || 1,
       passengers: getPassengerCount(ti.passengers),
-    })) || [];
+    };
+  }).filter(ti => ti !== null) || [];
 
   const saldoPendiente = totalReserva - totalPagado;
 
