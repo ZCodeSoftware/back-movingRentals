@@ -1,4 +1,6 @@
-import { InternalServerErrorException, Logger } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
@@ -13,6 +15,7 @@ import { generateUserBookingConfirmation } from './user-booking-content.template
 import { generateUserBookingReserve } from './user-booking-reserve.template';
 import { generateUserBookingReserveEn } from './user-booking-reserve-en.template';
 
+@Injectable()
 export class UserEmailProvider implements IUserEmailAdapter {
   private readonly logger = new Logger(UserEmailProvider.name);
   private readonly maxRetries = 3;
@@ -21,7 +24,9 @@ export class UserEmailProvider implements IUserEmailAdapter {
   private readonly brevoApiKey: string;
   private readonly brevoApiUrl = 'https://api.brevo.com/v3/smtp/email';
 
-  constructor() {
+  constructor(
+    @InjectConnection() private readonly connection: Connection,
+  ) {
     this.brevoApiKey = this.initializeBrevo();
   }
 
@@ -189,6 +194,166 @@ export class UserEmailProvider implements IUserEmailAdapter {
       .trim();
   }
 
+  /**
+   * Enriquece el cart del booking con los datos completos de la base de datos
+   * Maneja tanto el caso donde los items ya están populados como cuando solo son IDs
+   */
+  private async enrichBookingCart(booking: BookingModel): Promise<BookingModel> {
+    const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
+    const bookingNumber = bookingData.bookingNumber || 'N/A';
+    
+    try {
+      const cartString = bookingData.cart;
+      if (!cartString || typeof cartString !== 'string') {
+        this.logger.warn(`[${bookingNumber}] Cart no es un string válido, retornando booking sin cambios`);
+        return booking;
+      }
+
+      const cart = JSON.parse(cartString);
+      let hasChanges = false;
+
+      // Enriquecer vehículos
+      if (cart.vehicles && Array.isArray(cart.vehicles)) {
+        for (let i = 0; i < cart.vehicles.length; i++) {
+          const vehicleItem = cart.vehicles[i];
+          const vehicleRef = vehicleItem.vehicle;
+          
+          // Si vehicle es solo un string (ID), buscar los datos completos
+          if (typeof vehicleRef === 'string') {
+            try {
+              const Vehicle = this.connection.model('Vehicle');
+              const vehicleData = await Vehicle.findById(vehicleRef)
+                .populate('category')
+                .lean()
+                .exec();
+              
+              if (vehicleData) {
+                cart.vehicles[i].vehicle = vehicleData;
+                hasChanges = true;
+                this.logger.log(`[${bookingNumber}] Vehículo ${vehicleRef} enriquecido`);
+              }
+            } catch (error) {
+              this.logger.error(`[${bookingNumber}] Error enriqueciendo vehículo ${vehicleRef}:`, error.message);
+            }
+          }
+        }
+      }
+
+      // Enriquecer transfers
+      if (cart.transfer && Array.isArray(cart.transfer)) {
+        for (let i = 0; i < cart.transfer.length; i++) {
+          const transferItem = cart.transfer[i];
+          const transferRef = transferItem.transfer;
+          
+          // Si transfer es solo un string (ID), buscar los datos completos
+          if (typeof transferRef === 'string') {
+            try {
+              const Transfer = this.connection.model('Transfer');
+              const transferData = await Transfer.findById(transferRef)
+                .populate('category')
+                .lean()
+                .exec();
+              
+              if (transferData) {
+                cart.transfer[i].transfer = transferData;
+                hasChanges = true;
+                this.logger.log(`[${bookingNumber}] Transfer ${transferRef} enriquecido`);
+              }
+            } catch (error) {
+              this.logger.error(`[${bookingNumber}] Error enriqueciendo transfer ${transferRef}:`, error.message);
+            }
+          }
+        }
+      }
+
+      // Enriquecer tours
+      if (cart.tours && Array.isArray(cart.tours)) {
+        for (let i = 0; i < cart.tours.length; i++) {
+          const tourItem = cart.tours[i];
+          const tourRef = tourItem.tour;
+          
+          // Si tour es solo un string (ID), buscar los datos completos
+          if (typeof tourRef === 'string') {
+            try {
+              const Tour = this.connection.model('Tour');
+              const tourData = await Tour.findById(tourRef)
+                .populate('category')
+                .lean()
+                .exec();
+              
+              if (tourData) {
+                cart.tours[i].tour = tourData;
+                hasChanges = true;
+                this.logger.log(`[${bookingNumber}] Tour ${tourRef} enriquecido`);
+              }
+            } catch (error) {
+              this.logger.error(`[${bookingNumber}] Error enriqueciendo tour ${tourRef}:`, error.message);
+            }
+          }
+        }
+      }
+
+      // Enriquecer tickets
+      if (cart.tickets && Array.isArray(cart.tickets)) {
+        for (let i = 0; i < cart.tickets.length; i++) {
+          const ticketItem = cart.tickets[i];
+          const ticketRef = ticketItem.ticket;
+          
+          // Si ticket es solo un string (ID), buscar los datos completos
+          if (typeof ticketRef === 'string') {
+            try {
+              const Ticket = this.connection.model('Ticket');
+              const ticketData = await Ticket.findById(ticketRef)
+                .populate('category')
+                .lean()
+                .exec();
+              
+              if (ticketData) {
+                cart.tickets[i].ticket = ticketData;
+                hasChanges = true;
+                this.logger.log(`[${bookingNumber}] Ticket ${ticketRef} enriquecido`);
+              }
+            } catch (error) {
+              this.logger.error(`[${bookingNumber}] Error enriqueciendo ticket ${ticketRef}:`, error.message);
+            }
+          }
+        }
+      }
+
+      // Enriquecer branch si es necesario
+      if (cart.branch && typeof cart.branch === 'string') {
+        try {
+          const Branch = this.connection.model('Branch');
+          const branchData = await Branch.findById(cart.branch).lean().exec();
+          
+          if (branchData) {
+            cart.branch = branchData;
+            hasChanges = true;
+            this.logger.log(`[${bookingNumber}] Branch ${cart.branch} enriquecido`);
+          }
+        } catch (error) {
+          this.logger.error(`[${bookingNumber}] Error enriqueciendo branch:`, error.message);
+        }
+      }
+
+      // Si hubo cambios, crear un nuevo booking con el cart enriquecido
+      if (hasChanges) {
+        const enrichedBookingData = {
+          ...bookingData,
+          cart: JSON.stringify(cart),
+        };
+        this.logger.log(`[${bookingNumber}] Cart enriquecido exitosamente`);
+        return BookingModel.hydrate(enrichedBookingData);
+      }
+
+      return booking;
+    } catch (error) {
+      this.logger.error(`[${bookingNumber}] Error enriqueciendo cart:`, error);
+      // En caso de error, retornar el booking original
+      return booking;
+    }
+  }
+
   async reservationUserEmail(email: string, name: string): Promise<any> {
     const context = `reservation-${email}`;
     this.logger.log(`[${context}] Iniciando reservationUserEmail`);
@@ -259,6 +424,10 @@ export class UserEmailProvider implements IUserEmailAdapter {
     );
 
     try {
+      // Enriquecer el booking con datos completos de la BD
+      this.logger.log(`[${context}] Enriqueciendo cart con datos de la BD...`);
+      const enrichedBooking = await this.enrichBookingCart(booking);
+      
       let emailContent: { subject: string; html: string };
 
       this.logger.log(
@@ -269,14 +438,14 @@ export class UserEmailProvider implements IUserEmailAdapter {
       if (isReserve) {
         emailContent =
           lang === 'es'
-            ? generateUserBookingReserve(booking, userEmail, userData)
-            : generateUserBookingReserveEn(booking, userEmail, userData);
+            ? generateUserBookingReserve(enrichedBooking, userEmail, userData)
+            : generateUserBookingReserveEn(enrichedBooking, userEmail, userData);
       } else {
         // Si es una reserva confirmada, usar las plantillas completas
         emailContent =
           lang === 'es'
-            ? generateUserBookingConfirmation(booking, userEmail, userData)
-            : generateUserBookingConfirmationEn(booking, userEmail, userData);
+            ? generateUserBookingConfirmation(enrichedBooking, userEmail, userData)
+            : generateUserBookingConfirmationEn(enrichedBooking, userEmail, userData);
       }
 
       this.logger.log(`[${context}] Subject: ${emailContent.subject}`);
@@ -375,11 +544,15 @@ export class UserEmailProvider implements IUserEmailAdapter {
     );
 
     try {
+      // Enriquecer el booking con datos completos de la BD
+      this.logger.log(`[${context}] Enriqueciendo cart con datos de la BD...`);
+      const enrichedBooking = await this.enrichBookingCart(booking);
+      
       let emailContent: { subject: string; html: string };
       emailContent =
         lang === 'es'
-          ? generateUserBookingCancellation(booking)
-          : generateUserBookingCancellationEn(booking);
+          ? generateUserBookingCancellation(enrichedBooking)
+          : generateUserBookingCancellationEn(enrichedBooking);
 
       const emailData = this.createBrevoEmailData(
         { email: config().business.contact_email, name: 'MoovAdventures' },
