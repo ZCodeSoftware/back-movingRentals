@@ -863,148 +863,130 @@ export class ContractRepository implements IContractRepository {
       matchConditions.createdAt = createdAtMatch;
     }
 
-    // Reemplazo para el filtro de fecha de reserva en el método findAll
-    // Buscar desde la línea ~510 donde está el filtro actual
-
-    // Filtro por fecha de reserva (inicio de servicio de cualquier tipo)
     if (filters.reservationDateStart || filters.reservationDateEnd) {
       const reservationDateConditions: any[] = [];
 
-      // Helper para crear condiciones de fecha
-      const createDateCondition = (
-        field: string,
-        startDate?: string,
-        endDate?: string,
-      ) => {
-        if (!startDate && !endDate) return null;
+      // Helper para generar patrón regex que busque CUALQUIER fecha en formato ISO
+      // que esté dentro del rango especificado
+      const createFlexibleDatePattern = (): string => {
+        if (filters.reservationDateStart && filters.reservationDateEnd) {
+          const startDate = new Date(
+            filters.reservationDateStart + 'T00:00:00.000Z',
+          );
+          const endDate = new Date(
+            filters.reservationDateEnd + 'T23:59:59.999Z',
+          );
 
-        if (startDate && !endDate) {
-          // Solo fecha de inicio: buscar esa fecha o posteriores
-          return {
-            $regexMatch: {
-              input: { $ifNull: [`$bookingData.${field}`, ''] },
-              regex: `"(start|date)":"${startDate.replace(/-/g, '-')}`,
-              options: 'i',
-            },
-          };
-        } else if (!startDate && endDate) {
-          // Solo fecha de fin: buscar esa fecha o anteriores
-          return {
-            $regexMatch: {
-              input: { $ifNull: [`$bookingData.${field}`, ''] },
-              regex: `"(start|date)":"${endDate.replace(/-/g, '-')}`,
-              options: 'i',
-            },
-          };
-        } else {
-          // Rango de fechas: necesitamos una estrategia diferente
-          // Crear un array de fechas en el rango para buscar
-          const start = new Date(startDate!);
-          const end = new Date(endDate!);
-          const dateRegexParts: string[] = [];
+          // Generar patrón que busque años-meses en el rango
+          const startYear = startDate.getFullYear();
+          const startMonth = startDate.getMonth() + 1;
+          const endYear = endDate.getFullYear();
+          const endMonth = endDate.getMonth() + 1;
 
-          // Agregar las fechas de inicio y fin
-          dateRegexParts.push(startDate!.replace(/-/g, '-'));
-          dateRegexParts.push(endDate!.replace(/-/g, '-'));
+          const yearMonthPatterns: string[] = [];
 
-          // Crear regex que busque cualquiera de las fechas en el rango
-          const datePattern = `"(start|date)":"(${dateRegexParts.join('|')})`;
+          // Si es el mismo año
+          if (startYear === endYear) {
+            for (let m = startMonth; m <= endMonth; m++) {
+              const monthStr = String(m).padStart(2, '0');
+              yearMonthPatterns.push(`${startYear}-${monthStr}`);
+            }
+          } else {
+            // Año inicial: desde startMonth hasta 12
+            for (let m = startMonth; m <= 12; m++) {
+              const monthStr = String(m).padStart(2, '0');
+              yearMonthPatterns.push(`${startYear}-${monthStr}`);
+            }
 
-          return {
-            $regexMatch: {
-              input: { $ifNull: [`$bookingData.${field}`, ''] },
-              regex: datePattern,
-              options: 'i',
-            },
-          };
+            // Años intermedios (si hay)
+            for (let y = startYear + 1; y < endYear; y++) {
+              for (let m = 1; m <= 12; m++) {
+                const monthStr = String(m).padStart(2, '0');
+                yearMonthPatterns.push(`${y}-${monthStr}`);
+              }
+            }
+
+            // Año final: desde 01 hasta endMonth
+            for (let m = 1; m <= endMonth; m++) {
+              const monthStr = String(m).padStart(2, '0');
+              yearMonthPatterns.push(`${endYear}-${monthStr}`);
+            }
+          }
+
+          // Crear patrón que busque cualquiera de estos año-mes
+          return `(?:${yearMonthPatterns.join('|')})-(?:[0-2][0-9]|3[01])`;
+        } else if (filters.reservationDateStart) {
+          // Solo buscar desde esa fecha en adelante (año-mes-día o posterior)
+          const date = new Date(
+            filters.reservationDateStart + 'T00:00:00.000Z',
+          );
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          // Buscar ese mes y cualquier mes posterior
+          return `(?:${year}-(?:${month}|(?:0[${Number(month[1]) + 1}-9]|1[0-2]))|(?:${year + 1}|${year + 2}|${year + 3}|${year + 4})-(?:0[1-9]|1[0-2]))-(?:[0-2][0-9]|3[01])`;
+        } else if (filters.reservationDateEnd) {
+          // Solo buscar hasta esa fecha
+          const date = new Date(filters.reservationDateEnd + 'T23:59:59.999Z');
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          return `(?:${year}-(?:0[1-9]|${month}))-(?:[0-2][0-9]|3[01])`;
         }
+        return '';
       };
 
-      // Agregar una etapa $addFields para extraer las fechas del cart
-      pipeline.push({
-        $addFields: {
-          cartParsed: {
-            $cond: {
-              if: { $ne: [{ $type: '$bookingData.cart' }, 'missing'] },
-              then: '$bookingData.cart',
-              else: '{}',
+      const datePattern = createFlexibleDatePattern();
+
+      if (datePattern) {
+        // Buscar en vehículos (campo "dates.start" O "dates.end")
+        // IMPORTANTE: Buscar TANTO en start como en end para capturar reservas que solapen
+        const vehicleStartPattern = `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"(${datePattern})`;
+        const vehicleEndPattern = `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"end\\":\\"(${datePattern})`;
+
+        reservationDateConditions.push(
+          {
+            'bookingData.cart': {
+              $regex: new RegExp(vehicleStartPattern, 'i'),
             },
           },
-        },
-      });
+          {
+            'bookingData.cart': {
+              $regex: new RegExp(vehicleEndPattern, 'i'),
+            },
+          },
+        );
 
-      // Buscar en vehículos
-      const vehicleDateCondition = createDateCondition(
-        'cart',
-        filters.reservationDateStart,
-        filters.reservationDateEnd,
-      );
-
-      if (vehicleDateCondition) {
-        // Para vehículos, buscar el patrón: "vehicles":[..."dates":{"start":"YYYY-MM-DD"
-        const vehiclePattern =
-          filters.reservationDateStart && filters.reservationDateEnd
-            ? `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
-            : filters.reservationDateStart
-              ? `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"${filters.reservationDateStart}`
-              : `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"${filters.reservationDateEnd}`;
-
+        // Buscar en tours (campo "date")
+        const tourPattern = `\\"tours\\":\\[.*?\\"date\\":\\"(${datePattern})`;
         reservationDateConditions.push({
           'bookingData.cart': {
-            $regex: new RegExp(vehiclePattern, 'i'),
+            $regex: new RegExp(tourPattern, 'i'),
           },
         });
-      }
 
-      // Buscar en tours (campo "date")
-      const tourPattern =
-        filters.reservationDateStart && filters.reservationDateEnd
-          ? `\\"tours\\":\\[.*?\\"date\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
-          : filters.reservationDateStart
-            ? `\\"tours\\":\\[.*?\\"date\\":\\"${filters.reservationDateStart}`
-            : `\\"tours\\":\\[.*?\\"date\\":\\"${filters.reservationDateEnd}`;
-
-      reservationDateConditions.push({
-        'bookingData.cart': {
-          $regex: new RegExp(tourPattern, 'i'),
-        },
-      });
-
-      // Buscar en tickets (campo "date")
-      const ticketPattern =
-        filters.reservationDateStart && filters.reservationDateEnd
-          ? `\\"tickets\\":\\[.*?\\"date\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
-          : filters.reservationDateStart
-            ? `\\"tickets\\":\\[.*?\\"date\\":\\"${filters.reservationDateStart}`
-            : `\\"tickets\\":\\[.*?\\"date\\":\\"${filters.reservationDateEnd}`;
-
-      reservationDateConditions.push({
-        'bookingData.cart': {
-          $regex: new RegExp(ticketPattern, 'i'),
-        },
-      });
-
-      // Buscar en transfers (campo "date")
-      const transferPattern =
-        filters.reservationDateStart && filters.reservationDateEnd
-          ? `\\"transfer\\":\\[.*?\\"date\\":\\"(${filters.reservationDateStart}|${filters.reservationDateEnd})`
-          : filters.reservationDateStart
-            ? `\\"transfer\\":\\[.*?\\"date\\":\\"${filters.reservationDateStart}`
-            : `\\"transfer\\":\\[.*?\\"date\\":\\"${filters.reservationDateEnd}`;
-
-      reservationDateConditions.push({
-        'bookingData.cart': {
-          $regex: new RegExp(transferPattern, 'i'),
-        },
-      });
-
-      // Agregar todas las condiciones con $or
-      if (reservationDateConditions.length > 0) {
-        pipeline.push({
-          $match: {
-            $or: reservationDateConditions,
+        // Buscar en tickets (campo "date")
+        const ticketPattern = `\\"tickets\\":\\[.*?\\"date\\":\\"(${datePattern})`;
+        reservationDateConditions.push({
+          'bookingData.cart': {
+            $regex: new RegExp(ticketPattern, 'i'),
           },
         });
+
+        // Buscar en transfers (campo "date")
+        const transferPattern = `\\"transfer\\":\\[.*?\\"date\\":\\"(${datePattern})`;
+        reservationDateConditions.push({
+          'bookingData.cart': {
+            $regex: new RegExp(transferPattern, 'i'),
+          },
+        });
+
+        // Agregar todas las condiciones con $or
+        if (reservationDateConditions.length > 0) {
+          pipeline.push({
+            $match: {
+              $or: reservationDateConditions,
+            },
+          });
+        }
       }
     }
 

@@ -536,8 +536,9 @@ export function generateUserBookingConfirmationEn(
           branchName !== 'Branch not specified'
             ? `
         <div class="section pickup-info">
-          <h2>📍 Pickup Information (Vehicles):</h2>
+          <h2>📍 Branch Location:</h2>
           <p>For vehicles, pickup is at ${branchName} Branch – <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">View on Google Maps</a></p>
+          <p><strong>Address:</strong> Calle 12 Sur Por avenida Guardianes Mayas, La Veleta, 77760 Tulum, Q.R., Mexico</p>
           <p><strong><span class="emoji">⏰</span> Opening hours:</strong> 9:00 AM to 7:00 PM</p>
         </div>`
             : `
