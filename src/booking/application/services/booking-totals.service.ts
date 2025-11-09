@@ -56,25 +56,33 @@ export class BookingTotalsService {
           const amount = parseFloat(historyEntry.eventMetadata.amount);
 
           if (!isNaN(amount) && amount !== 0) {
-            // Determinar la dirección del movimiento basándose en el tipo de evento
-            const direction = this.determineMovementDirection(
-              historyEntry.eventType?.name || historyEntry.details,
-              historyEntry.eventMetadata
-            );
+            // EXCEPCIÓN: NO sumar el delivery al netTotal porque ya viene incluido en el total del booking
+            const isDeliveryEvent = historyEntry.eventType?.name === 'DELIVERY';
+            
+            if (!isDeliveryEvent) {
+              // Determinar la dirección del movimiento basándose en el tipo de evento
+              const direction = this.determineMovementDirection(
+                historyEntry.eventType?.name || historyEntry.details,
+                historyEntry.eventMetadata
+              );
 
-            // Aplicar el ajuste al total neto
-            if (direction === 'IN') {
-              netTotal += amount;
-            } else {
-              netTotal -= amount;
+              // Aplicar el ajuste al total neto
+              if (direction === 'IN') {
+                netTotal += amount;
+              } else {
+                netTotal -= amount;
+              }
             }
 
-            // Agregar a la lista de ajustes
+            // Agregar a la lista de ajustes (incluyendo delivery para visibilidad)
             adjustments.push({
               eventType: historyEntry.eventType?._id || 'unknown',
               eventName: historyEntry.eventType?.name || historyEntry.details || 'Evento sin nombre',
               amount: amount,
-              direction: direction,
+              direction: this.determineMovementDirection(
+                historyEntry.eventType?.name || historyEntry.details,
+                historyEntry.eventMetadata
+              ),
               date: historyEntry.createdAt || new Date(),
               details: historyEntry.details || '',
               paymentMethod: historyEntry.eventMetadata?.paymentMethod,
