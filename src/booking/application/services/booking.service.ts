@@ -89,24 +89,39 @@ export class BookingService implements IBookingService {
 
       if (userEmail) {
         const bookingJson = bookingSave.toJSON();
-        console.log('[BookingService] 📧 Emitiendo evento send-booking.created (desde create)');
-        console.log('[BookingService] Datos del evento:', {
-          bookingId: bookingJson._id,
-          bookingNumber: bookingJson.bookingNumber,
-          userEmail: userEmail,
-          lang,
-          isReserve: bookingJson.isReserve,
-          total: bookingJson.total,
-          totalPaid: bookingJson.totalPaid
-        });
+        const paymentMethodName = catPaymentMethod.toJSON().name;
+        
+        // Solo enviar email de confirmación si NO es un método de pago que requiere confirmación posterior
+        const requiresPaymentConfirmation = 
+          paymentMethodName === 'Credito/Debito' || 
+          paymentMethodName === 'Efectivo' ||
+          paymentMethodName === 'Credito' ||
+          paymentMethodName === 'Debito';
 
-        this.eventEmitter.emit('send-booking.created', {
-          updatedBooking: bookingSave,
-          userEmail: userEmail,
-          lang,
-        });
+        if (!requiresPaymentConfirmation) {
+          console.log('[BookingService] 📧 Emitiendo evento send-booking.created (desde create)');
+          console.log('[BookingService] Datos del evento:', {
+            bookingId: bookingJson._id,
+            bookingNumber: bookingJson.bookingNumber,
+            userEmail: userEmail,
+            lang,
+            isReserve: bookingJson.isReserve,
+            total: bookingJson.total,
+            totalPaid: bookingJson.totalPaid,
+            paymentMethod: paymentMethodName
+          });
 
-        console.log('[BookingService] ✅ Evento send-booking.created emitido (desde create)');
+          this.eventEmitter.emit('send-booking.created', {
+            updatedBooking: bookingSave,
+            userEmail: userEmail,
+            lang,
+          });
+
+          console.log('[BookingService] ✅ Evento send-booking.created emitido (desde create)');
+        } else {
+          console.log('[BookingService] ⏸️ Email NO enviado - método de pago requiere confirmación:', paymentMethodName);
+          console.log('[BookingService] El email se enviará cuando se confirme el pago mediante validateBooking');
+        }
       } else {
         console.warn('[BookingService] ⚠️ No se pudo obtener el email del usuario, no se enviará notificación');
       }
@@ -317,24 +332,40 @@ export class BookingService implements IBookingService {
     );
 
     const bookingJson = bookingSave.toJSON();
-    console.log('[BookingService] 📧 Emitiendo evento send-booking.created');
-    console.log('[BookingService] Datos del evento:', {
-      bookingId: bookingJson._id,
-      bookingNumber: bookingJson.bookingNumber,
-      userEmail: email,
-      lang,
-      isReserve: bookingJson.isReserve,
-      total: bookingJson.total,
-      totalPaid: bookingJson.totalPaid
-    });
+    const paymentMethodName = paymentMethods.toJSON().name;
+    
+    // Solo enviar email de confirmación si NO es un método de pago que requiere confirmación posterior
+    // Para crédito/débito y efectivo, NO enviamos email hasta que se confirme el pago
+    const requiresPaymentConfirmation = 
+      paymentMethodName === 'Credito/Debito' || 
+      paymentMethodName === 'Efectivo' ||
+      paymentMethodName === 'Credito' ||
+      paymentMethodName === 'Debito';
 
-    this.eventEmitter.emit('send-booking.created', {
-      updatedBooking: bookingSave,
-      userEmail: email,
-      lang,
-    });
+    if (!requiresPaymentConfirmation) {
+      console.log('[BookingService] 📧 Emitiendo evento send-booking.created');
+      console.log('[BookingService] Datos del evento:', {
+        bookingId: bookingJson._id,
+        bookingNumber: bookingJson.bookingNumber,
+        userEmail: email,
+        lang,
+        isReserve: bookingJson.isReserve,
+        total: bookingJson.total,
+        totalPaid: bookingJson.totalPaid,
+        paymentMethod: paymentMethodName
+      });
 
-    console.log('[BookingService] ✅ Evento send-booking.created emitido');
+      this.eventEmitter.emit('send-booking.created', {
+        updatedBooking: bookingSave,
+        userEmail: email,
+        lang,
+      });
+
+      console.log('[BookingService] ✅ Evento send-booking.created emitido');
+    } else {
+      console.log('[BookingService] ⏸️ Email NO enviado - método de pago requiere confirmación:', paymentMethodName);
+      console.log('[BookingService] El email se enviará cuando se confirme el pago mediante validateBooking');
+    }
 
     // 9. Crear comisiones si la reserva viene aprobada
     const statusName = status.toJSON().name;
@@ -824,13 +855,16 @@ export class BookingService implements IBookingService {
     if (!booking) {
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
+    
+    const paymentMethodName = booking.toJSON().paymentMethod.name;
     let status;
-    if (booking.toJSON().paymentMethod.name === 'Credito/Debito') {
+    
+    if (paymentMethodName === 'Credito/Debito') {
       status = await this.catStatusRepository.getStatusByName(
         paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
       );
     } else {
-      if (booking.toJSON().paymentMethod.name === "Efectivo") {
+      if (paymentMethodName === "Efectivo") {
         status = await this.catStatusRepository.getStatusByName(
           TypeStatus.APPROVED
         );
@@ -863,19 +897,19 @@ export class BookingService implements IBookingService {
       email = user.toJSON().email || email;
     }
 
-    if (
-      (status.toJSON().name === TypeStatus.APPROVED ||
-        (booking.toJSON().paymentMethod.name !== 'Mercado Pago' &&
-          booking.toJSON().paymentMethod.name !== 'Credito' &&
-          booking.toJSON().paymentMethod.name !== 'Debito')) &&
-      status.toJSON().name !== TypeStatus.REJECTED
-    ) {
+    const statusName = status.toJSON().name;
+    
+    // Enviar correo según el estado resultante
+    if (statusName === TypeStatus.APPROVED) {
+      // Pago aprobado - enviar correo de confirmación
+      console.log(`[BookingService] Pago aprobado para booking ${id}, enviando correo de confirmación`);
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
         userEmail: email,
         lang,
       });
 
+      // Crear comisiones solo si el pago fue aprobado
       try {
         const user = await this.bookingRepository.findUserByBookingId(id);
         const userId = user?.toJSON()._id?.toString?.() ?? undefined;
@@ -888,7 +922,7 @@ export class BookingService implements IBookingService {
         const existing = await this.commissionRepository.findByBooking(bookingId);
         if (existing && existing.length > 0) {
           console.log(`[BookingService] Ya existen ${existing.length} comisiones para el booking ${bookingNumber}, no se crearán nuevas`);
-          return;
+          return updatedBooking;
         }
 
         // Si tiene concierge asignado, crear UNA SOLA comisión sobre el total
@@ -972,6 +1006,14 @@ export class BookingService implements IBookingService {
         console.error('[BookingService] Error creating commissions:', e);
         // ignore commission errors
       }
+    } else if (statusName === TypeStatus.PENDING || statusName === TypeStatus.REJECTED) {
+      // Pago pendiente o rechazado - enviar correo de pendiente
+      console.log(`[BookingService] Pago ${statusName} para booking ${id}, enviando correo de pendiente`);
+      this.eventEmitter.emit('send-booking.created', {
+        updatedBooking,
+        userEmail: email,
+        lang,
+      });
     }
 
     return updatedBooking;
