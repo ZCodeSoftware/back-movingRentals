@@ -82,13 +82,28 @@ export class NotificationEventService implements INotificationEventService {
     const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
     const bookingIdForLogs = bookingData.bookingNumber || bookingData.id || bookingId;
     const isReserve = bookingData.isReserve || false;
+    const bookingStatus = bookingData.status?.name || 'UNKNOWN';
+    const paymentMethodName = bookingData.paymentMethod?.name || 'UNKNOWN';
+
+    // LÓGICA ESPECIAL PARA EFECTIVO:
+    // Si el método de pago es "Efectivo" Y el status es APPROVED,
+    // enviar email de confirmación aunque isReserve sea true
+    // (caso de Efectivo con pago del 20% validado desde Web)
+    const isEfectivoApproved = 
+      paymentMethodName === 'Efectivo' && 
+      (bookingStatus === 'APROBADO' || bookingStatus === 'APPROVED');
+    
+    const effectiveIsReserve = isEfectivoApproved ? false : isReserve;
 
     this.logger.log(`========================================`);
     this.logger.log(`[Reserva #${bookingIdForLogs}] 🚀 INICIO PROCESO DE NOTIFICACIÓN`);
     this.logger.log(`[Reserva #${bookingIdForLogs}] Email usuario: ${userEmail}`);
     this.logger.log(`[Reserva #${bookingIdForLogs}] Idioma: ${lang}`);
-    this.logger.log(`[Reserva #${bookingIdForLogs}] isReserve: ${isReserve}`);
-    this.logger.log(`[Reserva #${bookingIdForLogs}] Tipo de email: ${isReserve ? 'PENDIENTE (minimalista)' : 'CONFIRMADO (completo)'}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] isReserve original: ${isReserve}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Status: ${bookingStatus}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Método de pago: ${paymentMethodName}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Es Efectivo Aprobado: ${isEfectivoApproved}`);
+    this.logger.log(`[Reserva #${bookingIdForLogs}] Tipo de email: ${effectiveIsReserve ? 'PENDIENTE (minimalista)' : 'CONFIRMADO (completo)'}`);
     this.logger.log(`========================================`);
 
     // Verificar si ya se envió un email para esta reserva recientemente
@@ -98,7 +113,7 @@ export class NotificationEventService implements INotificationEventService {
     
     if (lastSent && (now - lastSent) < this.DEDUP_WINDOW_MS) {
       this.logger.warn(
-        `[Reserva #${bookingIdForLogs}] ⚠️ Email duplicado detectado. Ya se envió hace ${Math.round((now - lastSent) / 1000)}s. Ignorando.`,
+        `[Reserva #${bookingIdForLogs}] ��️ Email duplicado detectado. Ya se envió hace ${Math.round((now - lastSent) / 1000)}s. Ignorando.`,
       );
       return { skipped: true, reason: 'duplicate', lastSent };
     }
@@ -142,6 +157,16 @@ export class NotificationEventService implements INotificationEventService {
       this.logger.error(`[Reserva #${bookingIdForLogs}] ❌ Error obteniendo usuario: ${error.message}`);
     }
 
+    // Si es Efectivo Aprobado, crear una copia del booking con isReserve = false
+    // para que se envíe el email de confirmación en lugar del de pendiente
+    const bookingForEmail = isEfectivoApproved 
+      ? { ...bookingData, isReserve: false }
+      : bookingData;
+    
+    const bookingModelForEmail = {
+      toJSON: () => bookingForEmail
+    } as BookingModel;
+
     try {
       this.logger.log(`========================================`);
       this.logger.log(
@@ -151,14 +176,14 @@ export class NotificationEventService implements INotificationEventService {
         `[Reserva #${bookingIdForLogs}] Destinatario: ${userEmail}`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Tipo: ${isReserve ? 'PENDIENTE' : 'CONFIRMADO'}`,
+        `[Reserva #${bookingIdForLogs}] Tipo: ${effectiveIsReserve ? 'PENDIENTE' : 'CONFIRMADO'}`,
       );
       this.logger.log(
         `[Reserva #${bookingIdForLogs}] ⏰ Inicio: ${new Date().toISOString()}`,
       );
 
       const userResult = await Promise.race([
-        this.userEmailAdapter.sendUserBookingCreated(booking, userEmail, lang, userData),
+        this.userEmailAdapter.sendUserBookingCreated(bookingModelForEmail, userEmail, lang, userData),
         this.createTimeoutPromise(120000, 'Usuario email timeout'), // 2 minutos
       ]);
 
@@ -211,14 +236,14 @@ export class NotificationEventService implements INotificationEventService {
         `[Reserva #${bookingIdForLogs}] 📧 ENVIANDO EMAIL AL ADMIN`,
       );
       this.logger.log(
-        `[Reserva #${bookingIdForLogs}] Tipo: ${isReserve ? 'PENDIENTE' : 'CONFIRMADO'}`,
+        `[Reserva #${bookingIdForLogs}] Tipo: ${effectiveIsReserve ? 'PENDIENTE' : 'CONFIRMADO'}`,
       );
       this.logger.log(
         `[Reserva #${bookingIdForLogs}] ⏰ Inicio: ${new Date().toISOString()}`,
       );
 
       const adminResult = await Promise.race([
-        this.adminEmailAdapter.sendAdminBookingCreated(booking, userData),
+        this.adminEmailAdapter.sendAdminBookingCreated(bookingModelForEmail, userData),
         this.createTimeoutPromise(60000, 'Admin email timeout'), // 1 minuto
       ]);
 
