@@ -318,8 +318,17 @@ export class BookingService implements IBookingService {
 
     const bookingModel = BookingModel.create(bookingData);
 
-    // 7. Agregar status pendiente
-    const status = await this.catStatusRepository.getStatusById(body.status);
+    // 7. Agregar status
+    // Si isReserve=true, el status debe ser PENDIENTE (independientemente del status enviado)
+    // Si isReserve=false, usar el status enviado
+    let status;
+    if (bookingData.isReserve) {
+      console.log('[BookingService] isReserve=true, estableciendo status PENDIENTE');
+      status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+    } else {
+      status = await this.catStatusRepository.getStatusById(body.status);
+    }
+    
     if (!status) {
       throw new BaseErrorException('CatStatus not found', HttpStatus.NOT_FOUND);
     }
@@ -865,24 +874,51 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
     
+    // Buscar el contrato asociado para verificar el source
+    let contractSource = 'Web'; // Por defecto Web
+    try {
+      const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+      const contract = await Contract.findOne({ booking: id }).lean();
+      if (contract) {
+        contractSource = contract.source || 'Web';
+      }
+    } catch (error) {
+      console.warn('[BookingService] No se pudo obtener el source del contrato:', error.message);
+    }
+    
     const paymentMethodName = booking.toJSON().paymentMethod.name;
     let status;
+    
+    console.log(`[BookingService] validateBooking - Método: ${paymentMethodName}, Source: ${contractSource}, Paid: ${paid}`);
     
     if (paymentMethodName === 'Credito/Debito') {
       status = await this.catStatusRepository.getStatusByName(
         paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
       );
-    } else {
-      if (paymentMethodName === "Efectivo") {
+    } else if (paymentMethodName === "Efectivo") {
+      // Para Efectivo, siempre aprobar cuando se valida
+      status = await this.catStatusRepository.getStatusByName(
+        TypeStatus.APPROVED
+      );
+    } else if (paymentMethodName === "Transferencia") {
+      // Para Transferencia desde WEB: siempre queda PENDIENTE hasta que el admin lo apruebe manualmente
+      // Para Transferencia desde DASHBOARD: usar paid para determinar el estado
+      if (contractSource === 'Web') {
         status = await this.catStatusRepository.getStatusByName(
-          TypeStatus.APPROVED
+          TypeStatus.PENDING
         );
+        console.log('[BookingService] Transferencia desde Web → Status PENDING');
       } else {
-        // Para otros métodos de pago (Transferencia, etc.), usar paid para determinar el estado
         status = await this.catStatusRepository.getStatusByName(
           paid ? TypeStatus.APPROVED : TypeStatus.PENDING
         );
+        console.log(`[BookingService] Transferencia desde Dashboard → Status ${paid ? 'APPROVED' : 'PENDING'}`);
       }
+    } else {
+      // Para otros métodos de pago, usar paid para determinar el estado
+      status = await this.catStatusRepository.getStatusByName(
+        paid ? TypeStatus.APPROVED : TypeStatus.PENDING
+      );
     }
 
     if (!status) {
@@ -908,10 +944,25 @@ export class BookingService implements IBookingService {
 
     const statusName = status.toJSON().name;
     
+    // Actualizar el status del contrato asociado para mantener consistencia
+    try {
+      const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+      const contract = await Contract.findOne({ booking: id });
+      if (contract) {
+        contract.status = status.toJSON()._id;
+        await contract.save();
+        console.log(`[BookingService] Status del contrato ${contract._id} actualizado a ${statusName}`);
+      }
+    } catch (error) {
+      console.error('[BookingService] Error actualizando status del contrato:', error.message);
+    }
+    
     // Enviar correo según el estado resultante
+    // NOTA: Para Efectivo desde Web, siempre se envía email de confirmación (APPROVED)
     if (statusName === TypeStatus.APPROVED) {
       // Pago aprobado - enviar correo de confirmación
       console.log(`[BookingService] Pago aprobado para booking ${id}, enviando correo de confirmación`);
+      console.log(`[BookingService] Método de pago: ${paymentMethodName}`);
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
         userEmail: email,
@@ -1015,14 +1066,18 @@ export class BookingService implements IBookingService {
         console.error('[BookingService] Error creating commissions:', e);
         // ignore commission errors
       }
-    } else if (statusName === TypeStatus.PENDING || statusName === TypeStatus.REJECTED) {
-      // Pago pendiente o rechazado - enviar correo de pendiente
-      console.log(`[BookingService] Pago ${statusName} para booking ${id}, enviando correo de pendiente`);
+    } else if (statusName === TypeStatus.PENDING) {
+      // Pago pendiente - enviar correo de pendiente
+      console.log(`[BookingService] Pago PENDIENTE para booking ${id}, enviando correo de pendiente`);
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
         userEmail: email,
         lang,
       });
+    } else if (statusName === TypeStatus.REJECTED) {
+      // Pago rechazado - NO enviar email
+      console.log(`[BookingService] Pago RECHAZADO para booking ${id}, NO se enviará email`);
+      // No se envía email cuando el pago es rechazado
     }
 
     return updatedBooking;
