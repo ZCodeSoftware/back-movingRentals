@@ -1,8 +1,11 @@
 import { Controller, Inject } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { ApiTags } from '@nestjs/swagger';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { BookingModel } from '../../../../booking/domain/models/booking.model';
 import { ContractModel } from '../../../../contract/domain/models/contract.model';
+import { Contract } from '../../../../core/infrastructure/mongo/schemas/public/contract.schema';
 import SymbolsNotification from '../../../../notification/symbols-notification';
 import { INotificationEventService } from '../../../domain/services/notificacion.event.interface.service';
 
@@ -12,6 +15,8 @@ export class NotificationEventController {
   constructor(
     @Inject(SymbolsNotification.INotificationEventService)
     private readonly notificationEventService: INotificationEventService,
+    @InjectModel(Contract.name)
+    private readonly contractModel: Model<Contract>,
   ) { }
 
   @OnEvent('user-email-notification')
@@ -47,12 +52,49 @@ export class NotificationEventController {
     
     try {
       const { updatedBooking, userEmail, lang } = payload;
-      await this.notificationEventService.sendBookingCreated(
-        updatedBooking,
-        userEmail,
-        lang,
-      );
-      console.log('[NotificationEventController] ✅ Email enviado exitosamente');
+      const bookingId = updatedBooking?.toJSON?.()?._id;
+      
+      // Buscar el contrato asociado al booking para verificar el source
+      const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
+      
+      if (contract) {
+        const source = contract.source || 'Web';
+        console.log(`[NotificationEventController] Contrato encontrado - source: ${source}`);
+        
+        // LÓGICA:
+        // - Dashboard: SIEMPRE enviar email inmediatamente
+        // - Web: Mantener lógica actual (solo enviar cuando se confirma el pago)
+        //   El BookingService ya maneja esto, así que para Web simplemente enviamos
+        //   el email cuando llegue el evento (que solo se emite en los momentos correctos)
+        
+        if (source === 'Dashboard') {
+          console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email inmediatamente');
+          await this.notificationEventService.sendBookingCreated(
+            updatedBooking,
+            userEmail,
+            lang,
+          );
+          console.log('[NotificationEventController] ✅ Email enviado exitosamente');
+        } else {
+          // Source es 'Web' - Enviar email siguiendo la lógica actual
+          // (el BookingService ya decidió si debe emitir el evento o no)
+          console.log('[NotificationEventController] 📧 Source es Web - Enviando email según lógica de confirmación de pago');
+          await this.notificationEventService.sendBookingCreated(
+            updatedBooking,
+            userEmail,
+            lang,
+          );
+          console.log('[NotificationEventController] ✅ Email enviado exitosamente');
+        }
+      } else {
+        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - Enviando email por defecto');
+        // Si no hay contrato, enviar el email (comportamiento por defecto)
+        await this.notificationEventService.sendBookingCreated(
+          updatedBooking,
+          userEmail,
+          lang,
+        );
+      }
     } catch (error) {
       console.error('[NotificationEventController] ❌ Error enviando email:', error);
       throw error;
@@ -83,11 +125,30 @@ export class NotificationEventController {
   }) {
     const { booking, userEmail, lang } = payload;
     try {
-      await this.notificationEventService.sendBookingCancelled(
-        booking,
-        userEmail,
-        lang,
-      );
+      const bookingId = booking?.toJSON?.()?._id;
+      
+      // Buscar el contrato asociado al booking para verificar el source
+      const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
+      
+      if (contract) {
+        const source = contract.source || 'Web';
+        console.log(`[NotificationEventController] Contrato encontrado para cancelación - source: ${source}`);
+        
+        // Solo enviar email si el source es 'Dashboard'
+        if (source === 'Dashboard') {
+          console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email de cancelación');
+          await this.notificationEventService.sendBookingCancelled(
+            booking,
+            userEmail,
+            lang,
+          );
+          console.log('[NotificationEventController] ✅ Email de cancelación enviado exitosamente');
+        } else {
+          console.log('[NotificationEventController] ⏸️ Source es Web - NO se envía email de cancelación');
+        }
+      } else {
+        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - NO se envía email de cancelación');
+      }
     } catch (error) {
       console.error('Error sending booking cancellation emails:', error);
     }
@@ -101,11 +162,30 @@ export class NotificationEventController {
   }) {
     const { booking, userEmail, lang } = payload;
     try {
-      await this.notificationEventService.sendBookingConfirmed(
-        booking,
-        userEmail,
-        lang,
-      );
+      const bookingId = booking?.toJSON?.()?._id;
+      
+      // Buscar el contrato asociado al booking para verificar el source
+      const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
+      
+      if (contract) {
+        const source = contract.source || 'Web';
+        console.log(`[NotificationEventController] Contrato encontrado para confirmación - source: ${source}`);
+        
+        // Solo enviar email si el source es 'Dashboard'
+        if (source === 'Dashboard') {
+          console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email de confirmación');
+          await this.notificationEventService.sendBookingConfirmed(
+            booking,
+            userEmail,
+            lang,
+          );
+          console.log('[NotificationEventController] ✅ Email de confirmación enviado exitosamente');
+        } else {
+          console.log('[NotificationEventController] ⏸️ Source es Web - NO se envía email de confirmación');
+        }
+      } else {
+        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - NO se envía email de confirmación');
+      }
     } catch (error) {
       console.error('Error sending booking confirmation emails:', error);
     }
