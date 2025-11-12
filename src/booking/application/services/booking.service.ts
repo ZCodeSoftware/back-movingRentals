@@ -83,6 +83,8 @@ export class BookingService implements IBookingService {
     const bookingSave = await this.bookingRepository.create(bookingModel, id);
 
     // Obtener el email del usuario para enviar notificación
+    // NOTA: Los emails solo se envían cuando el booking viene del Dashboard (source: 'Dashboard')
+    // Para bookings de Web (source: 'Web'), NO se envían emails
     try {
       const user = await this.bookingRepository.findUserByBookingId(bookingSave.toJSON()._id?.toString());
       const userEmail = user?.toJSON()?.email;
@@ -333,6 +335,7 @@ export class BookingService implements IBookingService {
 
     const bookingJson = bookingSave.toJSON();
     const paymentMethodName = paymentMethods.toJSON().name;
+    const bookingSource = (body as any).source || 'Web';
     
     // Solo enviar email de confirmación si NO es un método de pago que requiere confirmación posterior
     // Para crédito/débito y efectivo, NO enviamos email hasta que se confirme el pago
@@ -342,7 +345,12 @@ export class BookingService implements IBookingService {
       paymentMethodName === 'Credito' ||
       paymentMethodName === 'Debito';
 
-    if (!requiresPaymentConfirmation) {
+    // LÓGICA DE ENVÍO DE EMAILS:
+    // - Dashboard: SIEMPRE enviar email inmediatamente (sin importar método de pago)
+    // - Web: Solo enviar si NO requiere confirmación de pago
+    const shouldSendEmail = bookingSource === 'Dashboard' || !requiresPaymentConfirmation;
+
+    if (shouldSendEmail) {
       console.log('[BookingService] 📧 Emitiendo evento send-booking.created');
       console.log('[BookingService] Datos del evento:', {
         bookingId: bookingJson._id,
@@ -352,7 +360,8 @@ export class BookingService implements IBookingService {
         isReserve: bookingJson.isReserve,
         total: bookingJson.total,
         totalPaid: bookingJson.totalPaid,
-        paymentMethod: paymentMethodName
+        paymentMethod: paymentMethodName,
+        source: bookingSource
       });
 
       this.eventEmitter.emit('send-booking.created', {
