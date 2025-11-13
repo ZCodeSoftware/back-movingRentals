@@ -20,7 +20,7 @@ import {
   PopularVehicle,
   TransactionDetail,
 } from '../../../domain/types/metrics.type';
-import { BOOKING_STATUS } from '../../nest/constants/booking-status.constants';
+import { BOOKING_STATUS, EXCLUDED_BOOKING_STATUSES } from '../../nest/constants/booking-status.constants';
 
 @Injectable()
 export class MetricsRepository implements IMetricsRepository {
@@ -35,6 +35,21 @@ export class MetricsRepository implements IMetricsRepository {
     @InjectModel('CatCategory') private readonly categoryModel: Model<CatCategory>,
     @InjectModel('CatStatus') private readonly statusModel: Model<CatStatus>,
   ) { }
+
+  /**
+   * Agrega filtros para excluir bookings cancelados y rechazados
+   * Estos estados no deben contabilizarse en reportes ni movimientos
+   */
+  private async addExcludedStatusFilter(filter: any): Promise<void> {
+    const excludedStatuses = await this.statusModel.find({
+      name: { $in: EXCLUDED_BOOKING_STATUSES }
+    }).select('_id');
+
+    if (excludedStatuses.length > 0) {
+      const excludedIds = excludedStatuses.map(s => s._id);
+      filter.status = { $nin: excludedIds };
+    }
+  }
 
   async getGeneralMetrics(filters?: MetricsFilters): Promise<GeneralMetrics> {
     const currentDateFilter = this.buildDateFilter(filters?.dateFilter);

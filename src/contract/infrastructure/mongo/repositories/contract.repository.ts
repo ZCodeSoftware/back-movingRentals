@@ -1345,6 +1345,56 @@ export class ContractRepository implements IContractRepository {
           }).save({ session });
 
           createdHistoryEntryId = savedHistory._id;
+
+          // NUEVA FUNCIONALIDAD: Sumar el monto al totalPaid del booking cuando se agrega un evento con monto
+          // (como DELIVERY, CRASH, etc.) después de la creación inicial
+          // Verificar el status actual del contrato (puede venir en el update o ya estar en el contrato)
+          const statusToCheck = contractUpdateData.status || originalContract.status;
+          
+          if (statusToCheck) {
+            // Convertir a string si es un ObjectId
+            const statusId = typeof statusToCheck === 'string' 
+              ? statusToCheck 
+              : statusToCheck.toString();
+            
+            // Obtener el status para verificar si es APROBADO
+            const CatStatus = this.connection.collection('cat_status');
+            const statusDoc = await CatStatus.findOne({
+              _id: new mongoose.Types.ObjectId(statusId),
+            });
+
+            if (statusDoc && statusDoc.name === 'APROBADO') {
+              console.log(
+                '[ContractRepository][update] Status es APROBADO - Actualizando totalPaid del booking con evento',
+              );
+
+              // Obtener el booking para actualizar totalPaid
+              const booking = await this.bookingModel
+                .findById(originalContract.booking)
+                .session(session);
+
+              if (booking && contractUpdateData.extension?.extensionAmount) {
+                const currentTotalPaid =
+                  booking.totalPaid || booking.total || 0;
+                const newTotalPaid =
+                  currentTotalPaid +
+                  contractUpdateData.extension.extensionAmount;
+
+                booking.totalPaid = newTotalPaid;
+                await booking.save({ session });
+
+                console.log(
+                  '[ContractRepository][update] totalPaid actualizado con evento:',
+                  {
+                    anterior: currentTotalPaid,
+                    montoEvento: contractUpdateData.extension.extensionAmount,
+                    nuevo: newTotalPaid,
+                    tipoEvento: reasonForChange,
+                  },
+                );
+              }
+            }
+          }
         }
       }
 
@@ -2249,6 +2299,116 @@ export class ContractRepository implements IContractRepository {
           commissionError,
         );
         // No fallar la eliminación del historyEntry si falla la eliminación de la comisión
+      }
+    }
+
+    // RESTAR MONTO DEL TOTALPAID: Si el evento tiene un monto, restarlo del totalPaid del booking
+    if (historyEntry.eventMetadata && (historyEntry.eventMetadata as any).amount) {
+      try {
+        console.log(
+          '[softDeleteHistoryEntry] Restando monto del totalPaid del booking...',
+        );
+
+        // Obtener el contract para acceder al booking
+        const contract = await this.contractModel.findById(
+          historyEntry.contract,
+        );
+        if (contract && contract.booking) {
+          const booking = await this.bookingModel.findById(contract.booking);
+          if (booking) {
+            const amountToSubtract = (historyEntry.eventMetadata as any).amount;
+            const currentTotalPaid = booking.totalPaid || booking.total || 0;
+            const newTotalPaid = Math.max(0, currentTotalPaid - amountToSubtract); // No permitir valores negativos
+
+            booking.totalPaid = newTotalPaid;
+            await booking.save();
+
+            console.log(
+              '[softDeleteHistoryEntry] totalPaid actualizado:',
+              {
+                anterior: currentTotalPaid,
+                montoRestado: amountToSubtract,
+                nuevo: newTotalPaid,
+                tipoEvento: (historyEntry.eventType as any)?.name || 'Desconocido',
+              },
+            );
+          }
+        }
+      } catch (totalPaidError) {
+        console.error(
+          '[softDeleteHistoryEntry] Error al restar monto del totalPaid:',
+          totalPaidError,
+        );
+        // No fallar la eliminación del historyEntry si falla la actualización del totalPaid
+      }
+    }
+
+    // ELIMINAR DELIVERY DEL BOOKING: Si es un DELIVERY, quitar requiresDelivery y deliveryCost del booking
+    const isDelivery =
+      historyEntry.eventType &&
+      (historyEntry.eventType as any).name === 'DELIVERY';
+
+    if (isDelivery) {
+      try {
+        console.log(
+          '[softDeleteHistoryEntry] Eliminando delivery del booking...',
+        );
+
+        // Obtener el contract para acceder al booking
+        const contract = await this.contractModel.findById(
+          historyEntry.contract,
+        );
+        if (contract && contract.booking) {
+          const booking = await this.bookingModel.findById(contract.booking);
+          if (booking) {
+            // Quitar los campos de delivery del booking
+            booking.requiresDelivery = false;
+            booking.deliveryCost = 0;
+            booking.deliveryType = undefined;
+            booking.oneWayType = undefined;
+            booking.deliveryAddress = undefined;
+
+            await booking.save();
+
+            console.log(
+              '[softDeleteHistoryEntry] Delivery eliminado del booking exitosamente',
+            );
+
+            // También actualizar el carrito para quitar el delivery de los vehículos
+            if (booking.cart) {
+              try {
+                const cartData = JSON.parse(booking.cart);
+                
+                // Quitar delivery de todos los vehículos en el carrito
+                if (cartData.vehicles && Array.isArray(cartData.vehicles)) {
+                  cartData.vehicles = cartData.vehicles.map((vehicle: any) => {
+                    const { delivery, ...vehicleWithoutDelivery } = vehicle;
+                    return vehicleWithoutDelivery;
+                  });
+
+                  // Guardar el carrito actualizado
+                  booking.cart = JSON.stringify(cartData);
+                  await booking.save();
+
+                  console.log(
+                    '[softDeleteHistoryEntry] Delivery eliminado del carrito exitosamente',
+                  );
+                }
+              } catch (cartError) {
+                console.error(
+                  '[softDeleteHistoryEntry] Error al actualizar carrito:',
+                  cartError,
+                );
+              }
+            }
+          }
+        }
+      } catch (deliveryError) {
+        console.error(
+          '[softDeleteHistoryEntry] Error al eliminar delivery del booking:',
+          deliveryError,
+        );
+        // No fallar la eliminación del historyEntry si falla la actualización del booking
       }
     }
 

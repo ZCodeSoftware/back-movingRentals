@@ -288,14 +288,16 @@ export class NotificationEventService implements INotificationEventService {
     email: string,
     token: string,
     frontendHost: string,
+    lang: string = 'es',
   ): Promise<any> {
-    this.logger.log(`Iniciando forgot password para: ${email}`);
+    this.logger.log(`Iniciando forgot password para: ${email}, lang: ${lang}`);
     this.logger.log(`Frontend host: ${frontendHost}`);
     try {
       const result = await this.userEmailAdapter.sendUserForgotPassword(
         email,
         token,
         frontendHost,
+        lang,
       );
       this.logger.log(`Forgot password exitoso para: ${email}`);
       return result;

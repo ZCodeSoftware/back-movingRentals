@@ -17,12 +17,33 @@ export class PromotionalPriceService implements IPromotionalPriceService {
         private readonly catModelRepository: ICatModelRepository,
     ) {}
 
+    /**
+     * Convierte una fecha a la zona horaria de México (America/Mexico_City)
+     * Asegura que la fecha se interprete correctamente sin importar desde dónde se acceda
+     */
+    private toMexicoTimezone(dateInput: string | Date): Date {
+        // Si es una cadena de fecha sin hora (YYYY-MM-DD), agregar la hora de México
+        if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+            // Agregar hora 00:00:00 en zona horaria de México
+            return new Date(`${dateInput}T00:00:00.000-06:00`);
+        }
+        
+        // Si ya tiene información de zona horaria o es un objeto Date, convertirlo
+        const date = new Date(dateInput);
+        
+        // Obtener la fecha en formato ISO y ajustarla a México
+        const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+        
+        return mexicoDate;
+    }
+
     async create(data: ICreatePromotionalPrice): Promise<PromotionalPriceModel> {
         const { model, ...rest } = data;
 
         // Validar que la fecha de inicio sea menor que la fecha de fin
-        const startDate = new Date(data.startDate);
-        const endDate = new Date(data.endDate);
+        // Usar zona horaria de México
+        const startDate = this.toMexicoTimezone(data.startDate);
+        const endDate = this.toMexicoTimezone(data.endDate);
 
         if (startDate >= endDate) {
             throw new BaseErrorException('Start date must be before end date', 400);
@@ -36,8 +57,8 @@ export class PromotionalPriceService implements IPromotionalPriceService {
 
         const hasOverlap = existingPromotions.some((promo) => {
             const promoJson = promo.toJSON();
-            const promoStart = new Date(promoJson.startDate);
-            const promoEnd = new Date(promoJson.endDate);
+            const promoStart = this.toMexicoTimezone(promoJson.startDate);
+            const promoEnd = this.toMexicoTimezone(promoJson.endDate);
 
             // Verificar si hay solapamiento
             return (
@@ -92,8 +113,8 @@ export class PromotionalPriceService implements IPromotionalPriceService {
 
         // Validar fechas si se proporcionan ambas
         if (data.startDate && data.endDate) {
-            const startDate = new Date(data.startDate);
-            const endDate = new Date(data.endDate);
+            const startDate = this.toMexicoTimezone(data.startDate);
+            const endDate = this.toMexicoTimezone(data.endDate);
 
             if (startDate >= endDate) {
                 throw new BaseErrorException('Start date must be before end date', 400);
@@ -118,8 +139,8 @@ export class PromotionalPriceService implements IPromotionalPriceService {
                     // Excluir la promoción actual de la validación
                     if (String(promoJson._id) === id) return false;
 
-                    const promoStart = new Date(promoJson.startDate);
-                    const promoEnd = new Date(promoJson.endDate);
+                    const promoStart = this.toMexicoTimezone(promoJson.startDate);
+                    const promoEnd = this.toMexicoTimezone(promoJson.endDate);
 
                     // Verificar si hay solapamiento
                     return (
@@ -139,8 +160,8 @@ export class PromotionalPriceService implements IPromotionalPriceService {
         }
 
         const updateData: any = { ...rest };
-        if (data.startDate) updateData.startDate = new Date(data.startDate);
-        if (data.endDate) updateData.endDate = new Date(data.endDate);
+        if (data.startDate) updateData.startDate = this.toMexicoTimezone(data.startDate);
+        if (data.endDate) updateData.endDate = this.toMexicoTimezone(data.endDate);
 
         const promotionalPriceModel = PromotionalPriceModel.create(updateData);
 

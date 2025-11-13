@@ -6,6 +6,7 @@ import config from '../../../../config';
 import { IUserEmailAdapter } from '../../../domain/adapter/user-email.interface.adapter';
 import { ContactUserDto } from '../../nest/dto/notifications.dto';
 import { forgotPasswordTemplate } from '../forgot-password/forgot-password.template';
+import { forgotPasswordTemplateEn } from '../forgot-password/forgot-password-en.template';
 import { userAutoCreateTemplateEn } from './auto-create.template-en';
 import { userAutoCreateTemplateEs } from './auto-create.template-es';
 import { generateUserBookingCancellationEn } from './user-booking-cancelled-en.template';
@@ -419,8 +420,11 @@ export class UserEmailProvider implements IUserEmailAdapter {
     const context = `booking-created-${bookingId}`;
     const isReserve = bookingData.isReserve || false;
 
+    // Normalizar el idioma (tomar solo el primer valor si viene duplicado)
+    const normalizedLang = lang?.split(',')[0]?.trim() || 'es';
+
     this.logger.log(
-      `[${context}] Iniciando sendUserBookingCreated para: ${userEmail}, lang: ${lang}, isReserve: ${isReserve}`,
+      `[${context}] Iniciando sendUserBookingCreated para: ${userEmail}, lang: ${normalizedLang}, isReserve: ${isReserve}`,
     );
 
     try {
@@ -431,19 +435,19 @@ export class UserEmailProvider implements IUserEmailAdapter {
       let emailContent: { subject: string; html: string };
 
       this.logger.log(
-        `[${context}] Generando contenido del email en idioma: ${lang}`,
+        `[${context}] Generando contenido del email en idioma: ${normalizedLang}`,
       );
       
       // Si es una pre-reserva, usar las plantillas de reserva
       if (isReserve) {
         emailContent =
-          lang === 'es'
+          normalizedLang === 'es'
             ? generateUserBookingReserve(enrichedBooking, userEmail, userData)
             : generateUserBookingReserveEn(enrichedBooking, userEmail, userData);
       } else {
         // Si es una reserva confirmada, usar las plantillas completas
         emailContent =
-          lang === 'es'
+          normalizedLang === 'es'
             ? generateUserBookingConfirmation(enrichedBooking, userEmail, userData)
             : generateUserBookingConfirmationEn(enrichedBooking, userEmail, userData);
       }
@@ -477,21 +481,24 @@ export class UserEmailProvider implements IUserEmailAdapter {
     email: string,
     token: string,
     frontendHost: string,
+    lang: string = 'es',
   ): Promise<any> {
     const context = `forgot-password-${email}`;
-    this.logger.log(`[${context}] Iniciando sendUserForgotPassword`);
+    this.logger.log(`[${context}] Iniciando sendUserForgotPassword, lang: ${lang}`);
 
     try {
-      const htmlContent = forgotPasswordTemplate(token, frontendHost);
+      const template = lang === 'es' ? forgotPasswordTemplate : forgotPasswordTemplateEn;
+      const htmlContent = template(token, frontendHost);
+      const subject = lang === 'es' ? 'Recuperar contraseña' : 'Reset your password';
 
       const emailData = this.createBrevoEmailData(
         { email: config().business.contact_email, name: 'MoovAdventures' },
         email,
-        'Recuperar contraseña',
+        subject,
         htmlContent,
       );
 
-      emailData.tags = ['password-recovery'];
+      emailData.tags = ['password-recovery', lang];
 
       return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {

@@ -13,6 +13,26 @@ export class PromotionalPriceRepository implements IPromotionalPriceRepository {
         private readonly promotionalPriceModel: Model<PromotionalPrice>,
     ) {}
 
+    /**
+     * Convierte una fecha a la zona horaria de México (America/Mexico_City)
+     * Asegura que la fecha se interprete correctamente sin importar desde dónde se acceda
+     */
+    private toMexicoTimezone(dateInput: string | Date): Date {
+        // Si es una cadena de fecha sin hora (YYYY-MM-DD), agregar la hora de México
+        if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+            // Agregar hora 00:00:00 en zona horaria de México
+            return new Date(`${dateInput}T00:00:00.000-06:00`);
+        }
+        
+        // Si ya tiene información de zona horaria o es un objeto Date, convertirlo
+        const date = new Date(dateInput);
+        
+        // Obtener la fecha en formato ISO y ajustarla a México
+        const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+        
+        return mexicoDate;
+    }
+
     async create(promotionalPrice: PromotionalPriceModel): Promise<PromotionalPriceModel> {
         try {
             const schema = new this.promotionalPriceModel(promotionalPrice.toJSON());
@@ -68,22 +88,26 @@ export class PromotionalPriceRepository implements IPromotionalPriceRepository {
                 query.isActive = filters.isActive;
             }
 
-            // Filtrar por rango de fechas
+            // Filtrar por rango de fechas usando zona horaria de México
             if (filters.startDate || filters.endDate) {
                 query.$or = [];
                 
                 if (filters.startDate && filters.endDate) {
                     // Buscar promociones que se solapen con el rango dado
+                    const startDate = this.toMexicoTimezone(filters.startDate);
+                    const endDate = this.toMexicoTimezone(filters.endDate);
                     query.$or.push({
                         $and: [
-                            { startDate: { $lte: new Date(filters.endDate) } },
-                            { endDate: { $gte: new Date(filters.startDate) } }
+                            { startDate: { $lte: endDate } },
+                            { endDate: { $gte: startDate } }
                         ]
                     });
                 } else if (filters.startDate) {
-                    query.$or.push({ endDate: { $gte: new Date(filters.startDate) } });
+                    const startDate = this.toMexicoTimezone(filters.startDate);
+                    query.$or.push({ endDate: { $gte: startDate } });
                 } else if (filters.endDate) {
-                    query.$or.push({ startDate: { $lte: new Date(filters.endDate) } });
+                    const endDate = this.toMexicoTimezone(filters.endDate);
+                    query.$or.push({ startDate: { $lte: endDate } });
                 }
             }
 
