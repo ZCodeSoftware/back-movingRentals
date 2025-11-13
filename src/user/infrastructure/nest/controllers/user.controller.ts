@@ -219,11 +219,18 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'Send email to reset password' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiQuery({ name: 'email', type: String })
+  @ApiQuery({
+    name: 'lang',
+    type: String,
+    required: false,
+    description: 'Language for the email notification (es or en)',
+  })
   async forgotPassword(
     @Query('email') email: string,
     @Headers('origin') requestHost: string,
+    @Query('lang') lang: string,
   ): Promise<any> {
-    return await this.userService.forgotPassword(email, requestHost);
+    return await this.userService.forgotPassword(email, requestHost, lang);
   }
 
   @Delete(':id')

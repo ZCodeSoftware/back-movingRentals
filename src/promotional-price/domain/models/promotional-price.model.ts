@@ -15,13 +15,35 @@ export class PromotionalPriceModel extends BaseModel {
     private _isActive: boolean = true;
     private _description?: string;
 
+    /**
+     * Formatea una fecha en la zona horaria de México (America/Mexico_City)
+     * Devuelve la fecha en formato ISO pero ajustada a la hora de México
+     */
+    private formatDateForMexico(date: Date): string {
+        if (!date) return null;
+        
+        // Convertir la fecha a la zona horaria de México
+        const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+        
+        // Obtener los componentes de la fecha en México
+        const year = mexicoDate.getFullYear();
+        const month = String(mexicoDate.getMonth() + 1).padStart(2, '0');
+        const day = String(mexicoDate.getDate()).padStart(2, '0');
+        const hours = String(mexicoDate.getHours()).padStart(2, '0');
+        const minutes = String(mexicoDate.getMinutes()).padStart(2, '0');
+        const seconds = String(mexicoDate.getSeconds()).padStart(2, '0');
+        
+        // Devolver en formato ISO pero con la hora de México
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+    }
+
     public toJSON() {
         const aggregate = this._id ? { _id: this._id.toValue() } : {};
         return {
             ...aggregate,
             model: this._model ? this._model.toJSON() : {},
-            startDate: this._startDate,
-            endDate: this._endDate,
+            startDate: this._startDate ? this.formatDateForMexico(this._startDate) : null,
+            endDate: this._endDate ? this.formatDateForMexico(this._endDate) : null,
             price: this._price,
             pricePer4: this._pricePer4,
             pricePer8: this._pricePer8,

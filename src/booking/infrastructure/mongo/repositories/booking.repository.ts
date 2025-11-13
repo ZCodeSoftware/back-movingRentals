@@ -259,16 +259,10 @@ export class BookingRepository implements IBookingRepository {
       .find({
         _id: { $in: user.bookings },
       })
-      .populate({
-        path: 'status',
-        match: { name: TypeStatus.APPROVED },
-        select: 'name',
-      })
+      .populate('status')
       .populate('paymentMethod')
-      .exec()
-      .then((bookings) =>
-        bookings.filter((booking) => booking.status !== null),
-      );
+      .sort({ createdAt: -1 })
+      .exec();
 
     return bookings.map((booking) => BookingModel.hydrate(booking));
   }

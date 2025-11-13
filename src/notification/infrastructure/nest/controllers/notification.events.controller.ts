@@ -106,9 +106,10 @@ export class NotificationEventController {
     email: string;
     token: string;
     frontendHost: string;
+    lang?: string;
   }) {
-    const { email, token, frontendHost } = payload;
-    await this.notificationEventService.sendUserForgotPassword(email, token, frontendHost);
+    const { email, token, frontendHost, lang } = payload;
+    await this.notificationEventService.sendUserForgotPassword(email, token, frontendHost, lang);
   }
 
   @OnEvent('send-user.auto-create')
@@ -170,22 +171,16 @@ export class NotificationEventController {
       if (contract) {
         const source = contract.source || 'Web';
         console.log(`[NotificationEventController] Contrato encontrado para confirmación - source: ${source}`);
-        
-        // Solo enviar email si el source es 'Dashboard'
-        if (source === 'Dashboard') {
-          console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email de confirmación');
-          await this.notificationEventService.sendBookingConfirmed(
-            booking,
-            userEmail,
-            lang,
-          );
-          console.log('[NotificationEventController] ✅ Email de confirmación enviado exitosamente');
-        } else {
-          console.log('[NotificationEventController] ⏸️ Source es Web - NO se envía email de confirmación');
-        }
-      } else {
-        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - NO se envía email de confirmación');
       }
+      
+      // SIEMPRE enviar email cuando se confirma un pago, independientemente del source
+      console.log('[NotificationEventController] ✅ Enviando email de confirmación de pago');
+      await this.notificationEventService.sendBookingConfirmed(
+        booking,
+        userEmail,
+        lang,
+      );
+      console.log('[NotificationEventController] ✅ Email de confirmación enviado exitosamente');
     } catch (error) {
       console.error('Error sending booking confirmation emails:', error);
     }

@@ -114,9 +114,16 @@ export class UserService implements IUserService {
 
       const userSave = await this.userRepository.create(userModel, role);
 
-      const validFrontendUrl = config().app.front.front_base_urls.find(
+      const configuredUrls = config().app.front.front_base_urls;
+      
+      let validFrontendUrl = configuredUrls.find(
         (url: string) => url.includes(frontendHost),
       );
+      
+      // Si no se encuentra una URL válida, usar la primera URL configurada como fallback
+      if (!validFrontendUrl && configuredUrls.length > 0) {
+        validFrontendUrl = configuredUrls[0];
+      }
 
       if (userSave) {
         this.eventEmitter.emit('send-user.auto-create', {
@@ -274,7 +281,7 @@ export class UserService implements IUserService {
     }
   }
 
-  async forgotPassword(email: string, requestHost: string): Promise<any> {
+  async forgotPassword(email: string, requestHost: string, lang: string = 'es'): Promise<any> {
     try {
       const validFrontendUrl = config().app.front.front_base_urls.find(
         (url: string) => url.includes(requestHost),
@@ -298,6 +305,7 @@ export class UserService implements IUserService {
         email,
         token,
         frontendHost: validFrontendUrl,
+        lang,
       });
       return foundUser;
     } catch (error) {
