@@ -1,6 +1,28 @@
 import { registerAs } from '@nestjs/config';
 
 export default registerAs('config', () => {
+  // URLs por defecto del frontend
+  const defaultFrontUrls = [
+    'https://moovadventures.com',
+    'https://www.moovadventures.com',
+    'https://moovadventures.mx',
+    'https://www.moovadventures.mx',
+  ];
+
+  let frontBaseUrls = defaultFrontUrls;
+  
+  // Intentar parsear las URLs del .env si existen
+  if (process.env.FRONT_BASE_URLS) {
+    try {
+      const parsedUrls = JSON.parse(process.env.FRONT_BASE_URLS);
+      if (Array.isArray(parsedUrls) && parsedUrls.length > 0) {
+        frontBaseUrls = parsedUrls;
+      }
+    } catch (error) {
+      console.warn('Error parsing FRONT_BASE_URLS, using default URLs:', error.message);
+    }
+  }
+
   return {
     app: {
       appName: process.env.APP_NAME,
@@ -8,7 +30,7 @@ export default registerAs('config', () => {
       api_key: process.env.APP_API_KEY,
       app_global_prefix: process.env.APP_GLOBAL_PREFIX,
       front: {
-        front_base_urls: JSON.parse(process.env.FRONT_BASE_URLS) ?? [],
+        front_base_urls: frontBaseUrls,
       },
       domain: process.env.APP_DOMAIN,
       env: process.env.NODE_ENV,

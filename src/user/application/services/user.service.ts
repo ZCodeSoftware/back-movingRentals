@@ -283,12 +283,38 @@ export class UserService implements IUserService {
 
   async forgotPassword(email: string, requestHost: string, lang: string = 'es'): Promise<any> {
     try {
-      const validFrontendUrl = config().app.front.front_base_urls.find(
-        (url: string) => url.includes(requestHost),
-      );
-      if (!validFrontendUrl)
-        throw new BaseErrorException('Invalid request', HttpStatus.BAD_REQUEST);
+      // Log para debugging
+      console.log('=== FORGOT PASSWORD DEBUG ===');
+      console.log('Email:', email);
+      console.log('RequestHost:', requestHost);
+      console.log('Lang:', lang);
+      
+      const configuredUrls = config().app.front.front_base_urls;
+      console.log('Configured URLs:', configuredUrls);
+      
+      let validFrontendUrl = null;
+      
+      // Si requestHost está presente, buscar coincidencia exacta
+      if (requestHost) {
+        validFrontendUrl = configuredUrls.find(
+          (url: string) => url === requestHost || url.includes(requestHost) || requestHost.includes(url),
+        );
+        console.log('Found matching URL:', validFrontendUrl);
+      }
+      
+      // Si aún no hay URL válida, usar la primera URL configurada como fallback
+      if (!validFrontendUrl && configuredUrls.length > 0) {
+        validFrontendUrl = configuredUrls[0];
+        console.log('Using fallback URL:', validFrontendUrl);
+      }
+      
+      // Si no hay URLs configuradas, lanzar error
+      if (!validFrontendUrl) {
+        throw new BaseErrorException('No frontend URLs configured', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      
       const foundUser = await this.userRepository.findByEmail(email);
+      console.log('User found:', !!foundUser);
 
       if (!foundUser)
         throw new BaseErrorException('Invalid request', HttpStatus.BAD_REQUEST);
