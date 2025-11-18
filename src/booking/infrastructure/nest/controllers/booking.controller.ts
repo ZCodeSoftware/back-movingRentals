@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   Inject,
   Param,
@@ -9,8 +10,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiBody, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
@@ -113,6 +116,66 @@ export class BookingController {
     const res = await this.bookingService.findAll(filters);
     return res;
   }
+  @Get('export/excel')
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiResponse({ status: 200, description: 'Export bookings as Excel' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: 'string',
+    description: 'Filter by status ID',
+  })
+  @ApiQuery({
+    name: 'paymentMethod',
+    required: false,
+    type: 'string',
+    description: 'Filter by payment method ID',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    type: 'string',
+    description: 'Filter by user ID',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by start date',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by end date',
+  })
+  @ApiQuery({
+    name: 'isReserve',
+    required: false,
+    type: 'boolean',
+    description: 'Filter by reservation status',
+  })
+  async exportBookings(
+    @Query() filters: any,
+    @Res() res: Response,
+  ) {
+    const excelBuffer = await this.bookingService.exportBookings(filters);
+    
+    const filename = `reservas_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', excelBuffer.length);
+    
+    res.send(excelBuffer);
+  }
+
   @Get('/user')
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Return Booking by User id' })

@@ -1364,4 +1364,171 @@ export class BookingService implements IBookingService {
       throw error;
     }
   }
+
+  async exportBookings(filters: any): Promise<Buffer> {
+    const XLSX = require('xlsx');
+    
+    // Obtener todas las reservas sin paginación
+    const allFilters = { ...filters, page: 1, limit: 999999 };
+    const result = await this.bookingRepository.findAll(allFilters);
+    const bookings = result.data;
+
+    // Obtener información de contratos
+    const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+
+    const rows = [];
+
+    for (const booking of bookings) {
+      try {
+        // Parsear el cart para obtener los servicios y el hotel
+        const cart = JSON.parse(booking.cart || '{}');
+        
+        // Obtener servicios detallados
+        const services = [];
+        if (cart.vehicles && cart.vehicles.length > 0) {
+          cart.vehicles.forEach((v: any) => {
+            const vehicleName = v.vehicle?.name || 'Vehículo';
+            const dates = v.dates ? `${new Date(v.dates.start).toLocaleDateString()} - ${new Date(v.dates.end).toLocaleDateString()}` : '';
+            services.push(`${vehicleName} (${dates})`);
+          });
+        }
+        if (cart.transfer && cart.transfer.length > 0) {
+          cart.transfer.forEach((t: any) => {
+            const transferName = t.transfer?.name || 'Transfer';
+            services.push(transferName);
+          });
+        }
+        if (cart.tours && cart.tours.length > 0) {
+          cart.tours.forEach((t: any) => {
+            const tourName = t.tour?.name || 'Tour';
+            services.push(tourName);
+          });
+        }
+        if (cart.tickets && cart.tickets.length > 0) {
+          cart.tickets.forEach((t: any) => {
+            const ticketName = t.ticket?.name || 'Ticket';
+            services.push(ticketName);
+          });
+        }
+
+        // Obtener hotel del cliente - solo desde metadata.hotel
+        // El cart.branch es la sucursal de Moving Rentals, NO el hotel del cliente
+        let hotel = '-';
+        if (booking.metadata && booking.metadata.hotel) {
+          hotel = booking.metadata.hotel;
+        }
+
+        // Obtener concierge - verificar múltiples ubicaciones
+        let conciergeName = '-';
+        
+        // 1. Intentar desde el aggregate (conciergeName)
+        if ((booking as any).conciergeName) {
+          conciergeName = (booking as any).conciergeName;
+        }
+        // 2. Si no viene del aggregate, buscar manualmente
+        else if (booking.concierge) {
+          try {
+            const concierge = await this.vehicleOwnerRepository.findById(
+              typeof booking.concierge === 'string' ? booking.concierge : booking.concierge.toString()
+            );
+            if (concierge) {
+              conciergeName = concierge.toJSON().name || '-';
+            }
+          } catch (error) {
+            // Silenciar el error si el concierge no existe (fue eliminado)
+            // Solo mostrar en consola para debug
+            if (error.statusCode !== 404) {
+              console.error('Error obteniendo concierge:', error.message);
+            }
+          }
+        }
+
+        // Obtener monto de extensión del contrato (si existe)
+        let extensionAmount = 0;
+        try {
+          const contract = await Contract.findOne({ booking: booking._id }).lean();
+          if (contract && contract.extension) {
+            extensionAmount = contract.extension.extensionAmount || 0;
+          }
+        } catch (error) {
+          console.error('Error obteniendo contrato:', error);
+        }
+
+        // Obtener medio de pago desde metadata
+        // Verificar múltiples ubicaciones posibles
+        let paymentMedium = '-';
+        
+        // 1. Intentar desde booking.metadata.paymentMedium
+        if (booking.metadata && booking.metadata.paymentMedium) {
+          paymentMedium = booking.metadata.paymentMedium;
+        }
+        // 2. Intentar desde booking.paymentMedium (campo directo)
+        else if ((booking as any).paymentMedium) {
+          paymentMedium = (booking as any).paymentMedium;
+        }
+
+        // Calcular total general (total + extensión si existe)
+        const totalGeneral = (booking.total || 0) + extensionAmount;
+
+        const row = {
+          'Número de Reserva': booking.bookingNumber || 'N/A',
+          'Estado': booking.status?.name || 'N/A',
+          'Método de Pago': booking.paymentMethod?.name || 'N/A',
+          'Medio de Pago': paymentMedium,
+          'Total Inicial': booking.total || 0,
+          'Total General': totalGeneral,
+          'Servicios': services.join('\n') || 'N/A',
+          'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : 'N/A',
+          'Hotel': hotel,
+          'Nombre Cliente': booking.userContact ? `${booking.userContact.name || ''} ${booking.userContact.lastName || ''}`.trim() : 'N/A',
+          'Email Cliente': booking.userContact?.email || 'N/A',
+          'Teléfono Cliente': booking.userContact?.cellphone || 'N/A',
+          'Concierge': conciergeName
+        };
+
+        rows.push(row);
+      } catch (error) {
+        console.error('Error procesando booking:', booking.bookingNumber, error);
+      }
+    }
+
+    // Crear el libro de Excel
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    
+    // Ajustar el ancho de las columnas
+    const columnWidths = [
+      { wch: 18 }, // Número de Reserva
+      { wch: 15 }, // Estado
+      { wch: 18 }, // Método de Pago
+      { wch: 18 }, // Medio de Pago
+      { wch: 15 }, // Total Inicial
+      { wch: 15 }, // Total General
+      { wch: 40 }, // Servicios
+      { wch: 18 }, // Fecha de Creación
+      { wch: 20 }, // Hotel
+      { wch: 25 }, // Nombre Cliente
+      { wch: 30 }, // Email Cliente
+      { wch: 18 }, // Teléfono Cliente
+      { wch: 20 }  // Concierge
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Habilitar wrap text para la columna de servicios
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      const cellAddress = XLSX.utils.encode_cell({ r: R, c: 6 }); // Columna G (Servicios)
+      if (worksheet[cellAddress]) {
+        if (!worksheet[cellAddress].s) worksheet[cellAddress].s = {};
+        worksheet[cellAddress].s.alignment = { wrapText: true, vertical: 'top' };
+      }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reservas');
+
+    // Generar el buffer del archivo Excel
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    return excelBuffer;
+  }
 }
