@@ -175,7 +175,18 @@ export class BookingRepository implements IBookingRepository {
         },
       },
       {
+        $lookup: {
+          from: 'vehicle_owners',
+          localField: 'concierge',
+          foreignField: '_id',
+          as: 'conciergeData',
+        },
+      },
+      {
         $unwind: { path: '$statusData', preserveNullAndEmptyArrays: true },
+      },
+      {
+        $unwind: { path: '$conciergeData', preserveNullAndEmptyArrays: true },
       },
       {
         $unwind: {
@@ -199,6 +210,10 @@ export class BookingRepository implements IBookingRepository {
           totalPaid: 1,
           bookingNumber: 1,
           isReserve: 1,
+          metadata: 1,
+          concierge: 1,
+          paymentMedium: 1,
+          conciergeName: { $ifNull: ['$conciergeData.name', null] },
           status: '$statusData',
           paymentMethod: '$paymentMethodData',
           userContact: {
