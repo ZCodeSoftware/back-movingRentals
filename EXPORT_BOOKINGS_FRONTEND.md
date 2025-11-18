@@ -523,7 +523,6 @@ const exportToExcel = async () => {
       }
     );
 
-    // Descargar archivo
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
