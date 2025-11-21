@@ -313,7 +313,7 @@ export class NotificationEventService implements INotificationEventService {
     frontendHost: string,
     lang: string = 'es',
   ): Promise<any> {
-    this.logger.log(`Iniciando auto create para: ${email}, lang: ${lang}`);
+    this.logger.log(`Iniciando auto create (con credenciales) para: ${email}, lang: ${lang}`);
     this.logger.log(`Frontend host: ${frontendHost}`);
     try {
       const result = await this.userEmailAdapter.sendUserAutoCreate(
@@ -326,6 +326,27 @@ export class NotificationEventService implements INotificationEventService {
       return result;
     } catch (error) {
       this.logger.error(`Error en auto create para ${email}:`, error);
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async sendUserWelcome(
+    email: string,
+    frontendHost: string,
+    lang: string = 'es',
+  ): Promise<any> {
+    this.logger.log(`Iniciando welcome (sin credenciales) para: ${email}, lang: ${lang}`);
+    this.logger.log(`Frontend host: ${frontendHost}`);
+    try {
+      const result = await this.userEmailAdapter.sendUserWelcome(
+        email,
+        frontendHost,
+        lang,
+      );
+      this.logger.log(`Welcome exitoso para: ${email}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error en welcome para ${email}:`, error);
       throw new BadRequestException(error.message);
     }
   }

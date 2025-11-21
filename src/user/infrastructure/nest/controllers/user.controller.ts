@@ -33,11 +33,21 @@ export class UserController {
   ) {}
 
   @Post()
-  @ApiResponse({ status: 201, description: 'Create a new user' })
+  @ApiResponse({ status: 201, description: 'Create a new user and send welcome email' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiBody({ type: CreateUserDTO })
-  async createUser(@Body() user: CreateUserDTO): Promise<any> {
-    return await this.userService.create(user);
+  @ApiQuery({
+    name: 'lang',
+    type: String,
+    required: false,
+    description: 'Language for the email notification (es or en). Defaults to es.',
+  })
+  async createUser(
+    @Body() user: CreateUserDTO,
+    @Headers('origin') requestHost: string,
+    @Query('lang') lang: string,
+  ): Promise<any> {
+    return await this.userService.createWithEmail(user, requestHost, lang);
   }
 
   @Post('automatic-register')

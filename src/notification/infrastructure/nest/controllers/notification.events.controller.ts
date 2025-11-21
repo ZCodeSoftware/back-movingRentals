@@ -118,6 +118,12 @@ export class NotificationEventController {
     await this.notificationEventService.sendUserAutoCreate(email, password, frontendHost, lang);
   }
 
+  @OnEvent('send-user.welcome')
+  async sendUserWelcome(payload: { email: string, frontendHost: string, lang?: string }) {
+    const { email, frontendHost, lang } = payload;
+    await this.notificationEventService.sendUserWelcome(email, frontendHost, lang);
+  }
+
   @OnEvent('send-booking.cancelled')
   async sendBookingCancelled(payload: {
     booking: BookingModel;
