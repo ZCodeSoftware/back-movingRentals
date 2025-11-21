@@ -64,8 +64,7 @@ export class VehicleController {
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return Vehicle updated by id' })
     @ApiResponse({ status: 404, description: 'Vehicle not found' })
-    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
-    @UseGuards(AuthGuards, RoleGuard)
+    @UseGuards(AuthGuards)
     async update(@Param('id') id: string, @Body() body: UpdateVehicleDTO) {
         return this.vehicleService.update(id, body);
     }
