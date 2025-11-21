@@ -72,12 +72,89 @@ export class UserService implements IUserService {
     }
   }
 
+  async createWithEmail(
+    user: IUserCreate,
+    frontendHost: string,
+    lang: string = 'es',
+  ): Promise<UserModel> {
+    try {
+      // Normalizar el idioma - usar 'es' por defecto si no se proporciona o está vacío
+      const normalizedLang = lang?.trim() || 'es';
+      console.log(`[UserService.createWithEmail] Lang recibido: "${lang}", normalizado: "${normalizedLang}"`);
+      console.log(`[UserService.createWithEmail] Creating user: ${user.email}`);
+      
+      const { role, address, ...rest } = user;
+      const foundEmail = await this.userRepository.findByEmail(rest.email);
+
+      if (foundEmail)
+        throw new BaseErrorException(
+          'This email is already in use',
+          HttpStatus.BAD_REQUEST,
+        );
+
+      // Guardar la contraseña en texto plano para enviarla por email
+      const plainPassword = rest.password;
+      const hashedPassword = await hashPassword(rest.password);
+
+      const userModel = UserModel.create({
+        ...rest,
+        password: hashedPassword,
+        isActive: true,
+      });
+
+      const addesModel = AddressModel.create(address);
+
+      const findCountry = await this.catCountryRepository.findById(
+        address.countryId,
+      );
+
+      addesModel.addCountry(findCountry);
+
+      const addressSave = await this.addressRepository.create(addesModel);
+
+      userModel.addAddress(addressSave);
+
+      const userSave = await this.userRepository.create(userModel, role);
+
+      // Configurar la URL del frontend
+      const configuredUrls = config().app.front.front_base_urls;
+      
+      let validFrontendUrl = configuredUrls.find(
+        (url: string) => url.includes(frontendHost),
+      );
+      
+      // Si no se encuentra una URL válida, usar la primera URL configurada como fallback
+      if (!validFrontendUrl && configuredUrls.length > 0) {
+        validFrontendUrl = configuredUrls[0];
+      }
+
+      // Enviar email de bienvenida SIN credenciales (el usuario ya sabe su contraseña)
+      if (userSave) {
+        console.log(`[UserService.createWithEmail] User created successfully, emitting welcome email event (without credentials) with lang: "${normalizedLang}"`);
+        this.eventEmitter.emit('send-user.welcome', {
+          email: userSave.toJSON().email,
+          frontendHost: validFrontendUrl,
+          lang: normalizedLang,
+        });
+      }
+
+      return userSave;
+    } catch (error) {
+      console.error(`[UserService.createWithEmail] Error:`, error);
+      throw new BaseErrorException(error.message, error.statusCode);
+    }
+  }
+
   async autoCreate(
     user: IAutoCreate & { name?: string; lastName?: string; cellphone?: string; address?: { countryId?: string }; countryId?: string },
     frontendHost: string,
     lang: string = 'es',
   ): Promise<UserModel> {
     try {
+      // Normalizar el idioma - usar 'es' por defecto si no se proporciona o está vacío
+      const normalizedLang = lang?.trim() || 'es';
+      console.log(`[UserService.autoCreate] Lang recibido: "${lang}", normalizado: "${normalizedLang}"`);
+      
       const { role, address, countryId, ...rest } = user as any;
       const foundEmail = await this.userRepository.findByEmail(rest.email);
       if (foundEmail)
@@ -126,11 +203,12 @@ export class UserService implements IUserService {
       }
 
       if (userSave) {
+        console.log(`[UserService.autoCreate] Emitiendo evento con lang: "${normalizedLang}"`);
         this.eventEmitter.emit('send-user.auto-create', {
           email: userSave.toJSON().email,
           password,
           frontendHost: validFrontendUrl,
-          lang,
+          lang: normalizedLang,
         });
       }
 

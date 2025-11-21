@@ -9,6 +9,8 @@ import { forgotPasswordTemplate } from '../forgot-password/forgot-password.templ
 import { forgotPasswordTemplateEn } from '../forgot-password/forgot-password-en.template';
 import { userAutoCreateTemplateEn } from './auto-create.template-en';
 import { userAutoCreateTemplateEs } from './auto-create.template-es';
+import { userWelcomeTemplateEn } from './welcome.template-en';
+import { userWelcomeTemplateEs } from './welcome.template-es';
 import { generateUserBookingCancellationEn } from './user-booking-cancelled-en.template';
 import { generateUserBookingCancellation } from './user-booking-cancelled.template';
 import { generateUserBookingConfirmationEn } from './user-booking-content-en.template';
@@ -514,25 +516,58 @@ export class UserEmailProvider implements IUserEmailAdapter {
     lang?: string,
   ): Promise<any> {
     const context = `auto-create-${email}`;
-    this.logger.log(`[${context}] Iniciando sendUserAutoCreate, lang: ${lang}`);
+    // Normalizar el idioma - usar 'es' por defecto si no se proporciona
+    const normalizedLang = lang?.trim() || 'es';
+    this.logger.log(`[${context}] Iniciando sendUserAutoCreate (con credenciales), lang recibido: ${lang}, normalizado: ${normalizedLang}`);
 
     try {
       const template =
-        lang === 'es' ? userAutoCreateTemplateEs : userAutoCreateTemplateEn;
+        normalizedLang === 'en' ? userAutoCreateTemplateEn : userAutoCreateTemplateEs;
       const htmlContent = template(email, password, frontendHost);
 
       const emailData = this.createBrevoEmailData(
         { email: config().business.contact_email, name: 'MoovAdventures' },
         email,
-        lang === 'es' ? 'Cuenta creada' : 'Account created',
+        normalizedLang === 'en' ? 'Account created' : 'Cuenta creada',
         htmlContent,
       );
 
-      emailData.tags = ['account-creation', lang || 'es'];
+      emailData.tags = ['account-creation-with-credentials', normalizedLang];
 
       return await this.sendEmailWithBrevo(emailData, context);
     } catch (error) {
       this.logger.error(`[${context}] Error en sendUserAutoCreate:`, error);
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendUserWelcome(
+    email: string,
+    frontendHost: string,
+    lang?: string,
+  ): Promise<any> {
+    const context = `welcome-${email}`;
+    // Normalizar el idioma - usar 'es' por defecto si no se proporciona
+    const normalizedLang = lang?.trim() || 'es';
+    this.logger.log(`[${context}] Iniciando sendUserWelcome (sin credenciales), lang recibido: ${lang}, normalizado: ${normalizedLang}`);
+
+    try {
+      const template =
+        normalizedLang === 'en' ? userWelcomeTemplateEn : userWelcomeTemplateEs;
+      const htmlContent = template(email, frontendHost);
+
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        email,
+        normalizedLang === 'en' ? 'Welcome to MoovAdventures!' : '¡Bienvenido a MoovAdventures!',
+        htmlContent,
+      );
+
+      emailData.tags = ['user-welcome', normalizedLang];
+
+      return await this.sendEmailWithBrevo(emailData, context);
+    } catch (error) {
+      this.logger.error(`[${context}] Error en sendUserWelcome:`, error);
       throw new InternalServerErrorException(error.message);
     }
   }
