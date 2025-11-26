@@ -896,9 +896,9 @@ export class BookingService implements IBookingService {
         paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
       );
     } else if (paymentMethodName === "Efectivo") {
-      // Para Efectivo, siempre aprobar cuando se valida
+      // Para Efectivo: aprobar solo si paid=true, rechazar si paid=false
       status = await this.catStatusRepository.getStatusByName(
-        TypeStatus.APPROVED
+        paid ? TypeStatus.APPROVED : TypeStatus.REJECTED
       );
     } else if (paymentMethodName === "Transferencia") {
       // Para Transferencia desde WEB: siempre queda PENDIENTE hasta que el admin lo apruebe manualmente
@@ -959,9 +959,11 @@ export class BookingService implements IBookingService {
     
     // Enviar correo según el estado resultante
     // NOTA: Para Efectivo desde Web, siempre se envía email de confirmación (APPROVED)
+    console.log(`[BookingService] validateBooking - Status final: ${statusName}, Paid: ${paid}`);
+    
     if (statusName === TypeStatus.APPROVED) {
       // Pago aprobado - enviar correo de confirmación
-      console.log(`[BookingService] Pago aprobado para booking ${id}, enviando correo de confirmación`);
+      console.log(`[BookingService] ✅ Pago APROBADO para booking ${id}, enviando correo de confirmación`);
       console.log(`[BookingService] Método de pago: ${paymentMethodName}`);
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking,
