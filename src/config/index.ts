@@ -64,8 +64,10 @@ export default registerAs('config', () => {
       },
     },
     paymentMethod: {
-      mercadopago: {
-        accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      stripe: {
+        secretKey: process.env.STRIPE_SECRET_KEY,
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
       },
     },
     exchangeRate: {

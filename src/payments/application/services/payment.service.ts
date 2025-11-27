@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import MercadoPagoConfig, { Preference } from "mercadopago";
+import Stripe from "stripe";
 
 import config from "../../../config/";
 import { BaseErrorException } from "../../../core/domain/exceptions/base.error.exception";
@@ -9,120 +9,196 @@ import { IPaymentService } from "../../domain/services/payment.service.interface
 
 @Injectable()
 export class PaymentService implements IPaymentService {
-    private client: MercadoPagoConfig;
+    private stripe: Stripe;
 
     constructor(
         @Inject(SymbolsUser.IUserRepository)
         private readonly userRepository: IUserRepository
     ) {
-        this.client = new MercadoPagoConfig({
-            accessToken: config().paymentMethod.mercadopago.accessToken
-        })
+        this.stripe = new Stripe(config().paymentMethod.stripe.secretKey, {
+            apiVersion: '2025-11-17.clover', // Usa la versión más reciente
+        });
     }
 
     async createPayment(body: any) {
         try {
-            const preference = body
+            const {
+                amount, // Monto en centavos (ej: 1000 = $10.00)
+                currency = 'mxn', // Moneda (mxn, usd, etc.)
+                description,
+                metadata = {},
+                userId,
+                customerEmail,
+                customerName,
+                successUrl,
+                cancelUrl,
+                success_url, // Aceptar también con guión bajo
+                cancel_url,  // Aceptar también con guión bajo
+            } = body;
 
-            // Agregar campos obligatorios y recomendados de Mercado Pago
-            // 1. notification_url - OBLIGATORIO (14 puntos)
-            if (!preference.notification_url) {
-                const backendUrl = config().app.backend_url || process.env.BACKEND_URL;
-                if (backendUrl) {
-                    preference.notification_url = `${backendUrl}/payments/mercadopago/webhook`;
+            // Usar el formato que venga (camelCase o snake_case)
+            const finalSuccessUrlFromBody = successUrl || success_url;
+            const finalCancelUrlFromBody = cancelUrl || cancel_url;
+
+            // Validaciones básicas
+            if (!amount || amount <= 0) {
+                throw new BaseErrorException('El monto debe ser mayor a 0', 400);
+            }
+
+            // Obtener información del usuario si viene userId
+            let customer: any = {
+                email: customerEmail,
+                name: customerName,
+            };
+
+            if (userId) {
+                try {
+                    const user = await this.userRepository.findById(userId);
+                    if (user) {
+                        const userData = user.toJSON();
+                        customer.email = customer.email || userData.email;
+                        customer.name = customer.name || `${userData.name} ${userData.lastName}`.trim();
+                        customer.phone = userData.cellphone;
+                    }
+                } catch (error) {
+                    console.warn('No se pudo obtener información del usuario:', error?.message);
                 }
             }
 
-            // 2. external_reference - OBLIGATORIO (17 puntos)
-            // Si no viene external_reference, generar uno único
-            if (!preference.external_reference) {
-                preference.external_reference = `booking-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+            // Crear o recuperar cliente en Stripe
+            let stripeCustomer: Stripe.Customer | null = null;
+            if (customer.email) {
+                // Buscar si el cliente ya existe
+                const existingCustomers = await this.stripe.customers.list({
+                    email: customer.email,
+                    limit: 1,
+                });
+
+                if (existingCustomers.data.length > 0) {
+                    stripeCustomer = existingCustomers.data[0];
+                } else {
+                    // Crear nuevo cliente
+                    stripeCustomer = await this.stripe.customers.create({
+                        email: customer.email,
+                        name: customer.name,
+                        phone: customer.phone,
+                        metadata: {
+                            userId: userId || '',
+                        },
+                    });
+                }
             }
 
-            // 3. items.category_id - RECOMENDADO (4 puntos)
-            // 4. items.id - RECOMENDADO (4 puntos)
-            if (preference.items && Array.isArray(preference.items)) {
-                preference.items = preference.items.map((item: any, index: number) => ({
-                    ...item,
-                    // Agregar category_id si no existe (categoría de turismo/servicios)
-                    category_id: item.category_id || 'services',
-                    // Agregar id único si no existe
-                    id: item.id || `item-${index}-${Date.now()}`,
-                }));
-            }
-
-            // 5. payer.first_name - RECOMENDADO (5 puntos)
-            // 6. payer.last_name - RECOMENDADO (5 puntos)
-            // Estos campos mejoran la tasa de aprobación y reducen rechazos por fraude
-            if (!preference.payer) {
-                preference.payer = {};
-            }
+            // Crear sesión de checkout
+            const finalSuccessUrl = finalSuccessUrlFromBody || `${config().app.front.front_base_urls[0]}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
+            const finalCancelUrl = finalCancelUrlFromBody || `${config().app.front.front_base_urls[0]}/payment/cancel`;
             
-            // Si no vienen los datos del comprador, intentar obtenerlos del usuario autenticado
-            if (!preference.payer.first_name || !preference.payer.last_name || !preference.payer.email) {
-                // Si viene userId, buscar la información del usuario en la base de datos
-                if (body.userId && typeof body.userId === 'string') {
-                    try {
-                        const user = await this.userRepository.findById(body.userId);
-                        if (user) {
-                            const userData = user.toJSON();
-                            // Solo agregar si los datos existen y son válidos
-                            if (userData.name && !preference.payer.first_name) {
-                                preference.payer.first_name = userData.name;
-                            }
-                            if (userData.lastName && !preference.payer.last_name) {
-                                preference.payer.last_name = userData.lastName;
-                            }
-                            if (userData.email && !preference.payer.email) {
-                                preference.payer.email = userData.email;
-                            }
-                            
-                            // También agregar el teléfono si está disponible
-                            if (userData.cellphone && !preference.payer.phone) {
-                                preference.payer.phone = {
-                                    area_code: '',
-                                    number: userData.cellphone
-                                };
-                            }
-                        }
-                    } catch (error) {
-                        // No hacer nada, simplemente continuar sin los datos del usuario
-                        console.warn('No se pudo obtener información del usuario:', error?.message || 'Error desconocido');
-                    }
-                }
-                
-                // Si aún no hay datos y viene un nombre completo en payer.name, intentar dividirlo
-                if ((!preference.payer.first_name || !preference.payer.last_name) && preference.payer.name) {
-                    try {
-                        const nameParts = preference.payer.name.trim().split(' ');
-                        if (nameParts.length >= 2) {
-                            if (!preference.payer.first_name) {
-                                preference.payer.first_name = nameParts[0];
-                            }
-                            if (!preference.payer.last_name) {
-                                preference.payer.last_name = nameParts.slice(1).join(' ');
-                            }
-                        } else if (nameParts.length === 1) {
-                            // Si solo hay un nombre, usarlo para ambos campos
-                            if (!preference.payer.first_name) {
-                                preference.payer.first_name = nameParts[0];
-                            }
-                            if (!preference.payer.last_name) {
-                                preference.payer.last_name = nameParts[0];
-                            }
-                        }
-                    } catch (error) {
-                        // Si falla el split, continuar sin problema
-                        console.warn('Error al procesar payer.name:', error?.message || 'Error desconocido');
-                    }
-                }
+            const session = await this.stripe.checkout.sessions.create({
+                payment_method_types: ['card'],
+                line_items: [
+                    {
+                        price_data: {
+                            currency: currency.toLowerCase(),
+                            product_data: {
+                                name: description || 'Servicio de Moov Adventures',
+                                description: description,
+                            },
+                            unit_amount: amount, // Monto en centavos
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: 'payment',
+                customer: stripeCustomer?.id,
+                customer_email: !stripeCustomer ? customer.email : undefined,
+                success_url: finalSuccessUrl,
+                cancel_url: finalCancelUrl,
+                metadata: {
+                    userId: userId || '',
+                    ...metadata,
+                },
+                // Configurar webhook
+                payment_intent_data: {
+                    metadata: {
+                        userId: userId || '',
+                        ...metadata,
+                    },
+                },
+            });
+
+            return {
+                sessionId: session.id,
+                url: session.url, // URL para redirigir al usuario al checkout
+                publishableKey: config().paymentMethod.stripe.publishableKey,
+            };
+        } catch (error) {
+            console.error('Error creando sesión de pago en Stripe:', error);
+            throw new BaseErrorException(
+                error.message || 'Error al crear la sesión de pago',
+                error.statusCode || 500
+            );
+        }
+    }
+
+    async handleWebhook(signature: string, payload: Buffer) {
+        try {
+            const webhookSecret = config().paymentMethod.stripe.webhookSecret;
+            
+            // Verificar la firma del webhook
+            const event = this.stripe.webhooks.constructEvent(
+                payload,
+                signature,
+                webhookSecret
+            );
+
+            // Manejar diferentes tipos de eventos
+            switch (event.type) {
+                case 'checkout.session.completed':
+                    const session = event.data.object as Stripe.Checkout.Session;
+                    console.log('Pago completado:', session.id);
+                    // Aquí puedes actualizar tu base de datos
+                    // Por ejemplo: marcar una reserva como pagada
+                    break;
+
+                case 'payment_intent.succeeded':
+                    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+                    console.log('PaymentIntent exitoso:', paymentIntent.id);
+                    break;
+
+                case 'payment_intent.payment_failed':
+                    const failedPayment = event.data.object as Stripe.PaymentIntent;
+                    console.log('Pago fallido:', failedPayment.id);
+                    break;
+
+                default:
+                    console.log(`Evento no manejado: ${event.type}`);
             }
 
-            const newPreference = new Preference(this.client)
-            const result = await newPreference.create({ body: preference })
-            return result.id
+            return { received: true };
         } catch (error) {
-            throw new BaseErrorException(error.message, 500)
+            console.error('Error procesando webhook de Stripe:', error);
+            throw new BaseErrorException(
+                'Error al procesar webhook',
+                400
+            );
+        }
+    }
+
+    async getPaymentStatus(sessionId: string) {
+        try {
+            const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+            return {
+                status: session.payment_status,
+                customerEmail: session.customer_email,
+                amountTotal: session.amount_total,
+                currency: session.currency,
+                metadata: session.metadata,
+            };
+        } catch (error) {
+            throw new BaseErrorException(
+                'Error al obtener el estado del pago',
+                500
+            );
         }
     }
 }
