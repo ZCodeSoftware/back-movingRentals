@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import 'dotenv/config';
-import express, { json, urlencoded } from 'express';
+import express, { json, urlencoded, raw } from 'express';
 import { AppModule } from './app.module';
 import config from './config';
 import { corsOptions } from './config/cors';
@@ -17,9 +17,17 @@ async function createServer(): Promise<express.Application> {
 
     const app = await NestFactory.create(AppModule, adapter, {
       logger: ['error', 'warn', 'log'],
+      rawBody: true, // Habilitar raw body para webhooks de Stripe
     });
 
     app.enableCors(corsOptions);
+    
+    // Global prefix para serverless
+    const globalPrefix = process.env.APP_GLOBAL_PREFIX || 'api/v1';
+    
+    // Configurar raw body solo para el webhook de Stripe
+    app.use(`/${globalPrefix}/payments/stripe/webhook`, express.raw({ type: 'application/json' }));
+    
     app.use(json({ limit: '5mb' }));
     app.use(urlencoded({ extended: true, limit: '5mb' }));
     app.useGlobalPipes(
@@ -29,8 +37,6 @@ async function createServer(): Promise<express.Application> {
       }),
     );
 
-    // Global prefix para serverless
-    const globalPrefix = process.env.APP_GLOBAL_PREFIX || 'api/v1';
     app.setGlobalPrefix(globalPrefix);
 
     const documentationConfig = new DocumentBuilder()
@@ -51,9 +57,16 @@ async function createServer(): Promise<express.Application> {
 
 // Función para desarrollo local
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true, // Habilitar raw body para webhooks de Stripe
+  });
 
   app.enableCors(corsOptions);
+  
+  // Configurar raw body solo para el webhook de Stripe
+  const globalPrefix = process.env.APP_GLOBAL_PREFIX || 'api/v1';
+  app.use(`/${globalPrefix}/payments/stripe/webhook`, raw({ type: 'application/json' }));
+  
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
   app.useGlobalPipes(
@@ -62,7 +75,7 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
-  app.setGlobalPrefix(process.env.APP_GLOBAL_PREFIX);
+  app.setGlobalPrefix(globalPrefix);
 
   const documentationConfig = new DocumentBuilder()
     .setTitle('MovingRentals')

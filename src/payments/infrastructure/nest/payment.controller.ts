@@ -1,4 +1,17 @@
-import { Body, Controller, Inject, Post, Logger, HttpCode } from "@nestjs/common";
+import { 
+    Body, 
+    Controller, 
+    Inject, 
+    Post, 
+    Get,
+    Query,
+    Logger, 
+    HttpCode,
+    Headers,
+    RawBodyRequest,
+    Req
+} from "@nestjs/common";
+import { Request } from 'express';
 import { IPaymentService } from "../../domain/services/payment.service.interface";
 
 @Controller('payments')
@@ -10,33 +23,52 @@ export class PaymentController {
         private readonly paymentService: IPaymentService
     ) { }
 
+    @Post('stripe/create-checkout-session')
+    async createCheckoutSession(@Body() body: any) {
+        this.logger.log('Creando sesión de checkout en Stripe');
+        return await this.paymentService.createPayment(body);
+    }
+
+    @Post('stripe/webhook')
+    @HttpCode(200)
+    async handleStripeWebhook(
+        @Headers('stripe-signature') signature: string,
+        @Req() request: RawBodyRequest<Request>
+    ) {
+        this.logger.log('Webhook recibido de Stripe');
+        
+        try {
+            // El payload debe ser el buffer raw del body
+            const payload = request.rawBody;
+            
+            if (!payload) {
+                throw new Error('No se recibió el payload del webhook');
+            }
+
+            return await this.paymentService.handleWebhook(signature, payload);
+        } catch (error) {
+            this.logger.error('Error procesando webhook de Stripe:', error);
+            throw error;
+        }
+    }
+
+    @Get('stripe/session-status')
+    async getSessionStatus(@Query('session_id') sessionId: string) {
+        this.logger.log(`Consultando estado de sesión: ${sessionId}`);
+        return await this.paymentService.getPaymentStatus(sessionId);
+    }
+
+    // Mantener endpoint de Mercado Pago temporalmente para compatibilidad
     @Post('mercadopago')
-    async createPayment(@Body() body: any) {
-        return await this.paymentService.createPayment(body)
+    async createPaymentLegacy(@Body() body: any) {
+        this.logger.warn('⚠️ Endpoint de Mercado Pago deprecado. Use /stripe/create-checkout-session');
+        throw new Error('Este endpoint ha sido migrado a Stripe. Use /payments/stripe/create-checkout-session');
     }
 
     @Post('mercadopago/webhook')
     @HttpCode(200)
-    async handleMercadoPagoWebhook(@Body() body: any) {
-        this.logger.log('Webhook recibido de Mercado Pago');
-        this.logger.log(`Tipo: ${body.type}`);
-        this.logger.log(`Datos: ${JSON.stringify(body)}`);
-
-        try {
-            // Aquí puedes procesar la notificación según el tipo
-            // body.type puede ser: payment, plan, subscription, invoice, point_integration_wh, etc.
-            // body.data.id contiene el ID del recurso (ej: payment_id)
-            
-            if (body.type === 'payment') {
-                this.logger.log(`Payment ID: ${body.data.id}`);
-                // Aquí puedes actualizar el estado del pago en tu base de datos
-                // usando body.data.id para buscar el pago en Mercado Pago
-            }
-
-            return { success: true };
-        } catch (error) {
-            this.logger.error('Error procesando webhook de Mercado Pago:', error);
-            return { success: false, error: error.message };
-        }
+    async handleMercadoPagoWebhookLegacy(@Body() body: any) {
+        this.logger.warn('⚠️ Webhook de Mercado Pago deprecado');
+        return { success: false, message: 'Webhook migrado a Stripe' };
     }
 }
