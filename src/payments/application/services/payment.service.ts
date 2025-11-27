@@ -93,6 +93,12 @@ export class PaymentService implements IPaymentService {
             const finalSuccessUrl = finalSuccessUrlFromBody || `${config().app.front.front_base_urls[0]}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
             const finalCancelUrl = finalCancelUrlFromBody || `${config().app.front.front_base_urls[0]}/payment/cancel`;
             
+            // Agregar número de reserva a la descripción si está disponible en metadata
+            let finalDescription = description || 'Servicio de Moov Adventures';
+            if (metadata.bookingNumber) {
+                finalDescription = `Reserva #${metadata.bookingNumber} - ${finalDescription}`;
+            }
+            
             const session = await this.stripe.checkout.sessions.create({
                 payment_method_types: ['card'],
                 line_items: [
@@ -100,8 +106,8 @@ export class PaymentService implements IPaymentService {
                         price_data: {
                             currency: currency.toLowerCase(),
                             product_data: {
-                                name: description || 'Servicio de Moov Adventures',
-                                description: description,
+                                name: finalDescription,
+                                description: finalDescription,
                             },
                             unit_amount: amount, // Monto en centavos
                         },
