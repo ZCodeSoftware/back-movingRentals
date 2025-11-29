@@ -276,6 +276,7 @@ export class BookingController {
     @Req() req: IUserRequest,
     @Query('isManual') isManual = false,
     @Query('isValidated') isValidated = false,
+    @Body() body?: any, // Aceptar payments desde el body (opcional)
   ) {
     const { email } = req.user;
     const language = lang ?? 'es';
@@ -286,6 +287,7 @@ export class BookingController {
       language,
       isManual,
       isValidated,
+      body?.payments, // Pasar payments al servicio
     );
   }
 
