@@ -1654,41 +1654,79 @@ export class ContractRepository implements IContractRepository {
           : newVehicleItem.vehicle._id.toString();
       const oldVehicleItem = oldVehiclesMap.get(vehicleId);
 
-      if (
-        oldVehicleItem &&
-        newVehicleItem.dates.end.toString() !==
-          oldVehicleItem.dates.end.toString()
-      ) {
-        const originalEndDate = new Date(oldVehicleItem.dates.end);
-        const newEndDate = new Date(newVehicleItem.dates.end);
+      if (oldVehicleItem) {
+        // Verificar si cambió la fecha de inicio O la fecha de fin
+        const startChanged = newVehicleItem.dates.start.toString() !== oldVehicleItem.dates.start.toString();
+        const endChanged = newVehicleItem.dates.end.toString() !== oldVehicleItem.dates.end.toString();
+        
+        if (startChanged || endChanged) {
+          const originalStartDate = new Date(oldVehicleItem.dates.start);
+          const originalEndDate = new Date(oldVehicleItem.dates.end);
+          const newStartDate = new Date(newVehicleItem.dates.start);
+          const newEndDate = new Date(newVehicleItem.dates.end);
 
-        const vehicle = await this.vehicleModel
-          .findById(vehicleId)
-          .session(session);
-        if (!vehicle || !vehicle.reservations) continue;
+          const vehicle = await this.vehicleModel
+            .findById(vehicleId)
+            .session(session);
+          if (!vehicle || !vehicle.reservations) continue;
 
-        const reservationsTyped = vehicle.reservations as ReservationWithId[];
+          const reservationsTyped = vehicle.reservations as ReservationWithId[];
 
-        const reservationIndex = reservationsTyped.findIndex((reservation) => {
-          const reservationEndTime = new Date(reservation.end).getTime();
-          const originalEndTime = originalEndDate.getTime();
-          return Math.abs(reservationEndTime - originalEndTime) <= 60000;
-        });
+          // Buscar la reserva que coincide con las fechas originales
+          const reservationIndex = reservationsTyped.findIndex((reservation) => {
+            // Si tenemos bookingId, usarlo como identificador principal
+            if (bookingId && (reservation as any).bookingId) {
+              return (reservation as any).bookingId === bookingId;
+            }
 
-        if (reservationIndex === -1) {
-          console.warn(
-            `No se encontró reserva coincidente para el vehículo ${vehicleId} con fecha ${originalEndDate}`,
+            // Fallback: usar fechas con tolerancia
+            const reservationStartTime = new Date(reservation.start).getTime();
+            const reservationEndTime = new Date(reservation.end).getTime();
+            const originalStartTime = originalStartDate.getTime();
+            const originalEndTime = originalEndDate.getTime();
+            
+            // Tolerancia de 1 minuto para diferencias de fecha
+            const startDiff = Math.abs(reservationStartTime - originalStartTime);
+            const endDiff = Math.abs(reservationEndTime - originalEndTime);
+            
+            return startDiff <= 60000 && endDiff <= 60000;
+          });
+
+          if (reservationIndex === -1) {
+            console.warn(
+              `No se encontró reserva coincidente para el vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ''} con fechas ${originalStartDate} - ${originalEndDate}`,
+            );
+            continue;
+          }
+
+          const reservationToUpdateId = reservationsTyped[reservationIndex]._id;
+
+          // Preparar el objeto de actualización
+          const updateFields: any = {};
+          if (startChanged) {
+            updateFields['reservations.$.start'] = newStartDate;
+          }
+          if (endChanged) {
+            updateFields['reservations.$.end'] = newEndDate;
+          }
+
+          // Actualizar la reserva con las nuevas fechas
+          await this.vehicleModel.updateOne(
+            { _id: vehicleId, 'reservations._id': reservationToUpdateId },
+            { $set: updateFields },
+            { session },
           );
-          continue;
+
+          console.log(
+            `Reserva actualizada para vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ''}:`,
+            {
+              oldStart: startChanged ? originalStartDate : 'sin cambios',
+              newStart: startChanged ? newStartDate : 'sin cambios',
+              oldEnd: endChanged ? originalEndDate : 'sin cambios',
+              newEnd: endChanged ? newEndDate : 'sin cambios',
+            }
+          );
         }
-
-        const reservationToUpdateId = reservationsTyped[reservationIndex]._id;
-
-        await this.vehicleModel.updateOne(
-          { _id: vehicleId, 'reservations._id': reservationToUpdateId },
-          { $set: { 'reservations.$.end': newEndDate } },
-          { session },
-        );
       }
     }
   }

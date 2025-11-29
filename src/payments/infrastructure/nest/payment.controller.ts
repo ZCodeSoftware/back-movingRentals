@@ -58,6 +58,20 @@ export class PaymentController {
         return await this.paymentService.getPaymentStatus(sessionId);
     }
 
+    @Post('stripe/generate-payment-link')
+    async generatePaymentLink(@Body() body: any) {
+        this.logger.log('Generando link de pago de Stripe');
+        const result = await this.paymentService.createPayment(body);
+        
+        // Retornar el link de pago y información adicional
+        return {
+            paymentLink: result.url,
+            sessionId: result.sessionId,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 horas
+            message: 'Link de pago generado exitosamente. Válido por 24 horas.'
+        };
+    }
+
     // Mantener endpoint de Mercado Pago temporalmente para compatibilidad
     @Post('mercadopago')
     async createPaymentLegacy(@Body() body: any) {
