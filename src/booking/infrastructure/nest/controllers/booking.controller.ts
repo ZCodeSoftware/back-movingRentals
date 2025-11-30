@@ -268,6 +268,12 @@ export class BookingController {
     type: 'boolean',
     description: 'Indicates if the booking is validated',
   })
+  @ApiQuery({
+    name: 'paidAmount',
+    required: false,
+    type: 'number',
+    description: 'Amount paid (for partial payments)',
+  })
   @UseGuards(AuthGuards)
   async validateBooking(
     @Param('id') id: string,
@@ -276,10 +282,15 @@ export class BookingController {
     @Req() req: IUserRequest,
     @Query('isManual') isManual = false,
     @Query('isValidated') isValidated = false,
+    @Query('paidAmount') paidAmount?: number,
     @Body() body?: any, // Aceptar payments desde el body (opcional)
   ) {
     const { email } = req.user;
     const language = lang ?? 'es';
+    
+    // Priorizar paidAmount del query param, luego del body
+    const finalPaidAmount = paidAmount !== undefined ? paidAmount : body?.paidAmount;
+    
     return await this.bookingService.validateBooking(
       id,
       paid,
@@ -287,7 +298,7 @@ export class BookingController {
       language,
       isManual,
       isValidated,
-      body?.payments, // Pasar payments al servicio
+      finalPaidAmount, // Pasar el monto pagado al servicio
     );
   }
 

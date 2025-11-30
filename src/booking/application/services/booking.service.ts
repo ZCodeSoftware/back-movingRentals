@@ -867,6 +867,7 @@ export class BookingService implements IBookingService {
     lang: string = 'es',
     isManual: boolean = false,
     isValidated: boolean = false,
+    paidAmount?: number, // Monto pagado (opcional, para pagos parciales)
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -927,7 +928,8 @@ export class BookingService implements IBookingService {
 
     booking.addStatus(status);
 
-    booking.payBooking(paid);
+    // Si se proporciona un monto pagado, usarlo; si no, usar el comportamiento por defecto
+    booking.payBooking(paid, paidAmount);
 
     isValidated && booking.validateBooking();
 

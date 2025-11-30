@@ -66,9 +66,10 @@ export class BookingModel extends BaseModel {
     this._commission = commission;
   }
 
-  payBooking(paid: boolean): void {
+  payBooking(paid: boolean, amount?: number): void {
     if (paid) {
-      this._totalPaid = this._total;
+      // Si se proporciona un monto específico, usarlo; si no, usar el total
+      this._totalPaid = amount !== undefined ? amount : this._total;
     }
   }
 
