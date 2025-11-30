@@ -12,6 +12,9 @@ let cachedServer: express.Application;
 
 async function createServer(): Promise<express.Application> {
   if (!cachedServer) {
+    // Configurar zona horaria de México (Tulum/Cancún)
+    process.env.TZ = 'America/Cancun';
+    
     const expressApp = express();
     const adapter = new ExpressAdapter(expressApp);
 
@@ -57,6 +60,14 @@ async function createServer(): Promise<express.Application> {
 
 // Función para desarrollo local
 async function bootstrap() {
+  // Configurar zona horaria de México (Tulum/Cancún)
+  process.env.TZ = 'America/Cancun';
+  
+  console.log('🌎 Zona horaria configurada:', process.env.TZ);
+  console.log('🕐 Hora actual del servidor:', new Date().toLocaleString('es-MX', { 
+    timeZone: 'America/Cancun' 
+  }));
+  
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // Habilitar raw body para webhooks de Stripe
   });
