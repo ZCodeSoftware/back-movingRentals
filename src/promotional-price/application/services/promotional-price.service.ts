@@ -61,10 +61,10 @@ export class PromotionalPriceService implements IPromotionalPriceService {
             const promoEnd = this.toMexicoTimezone(promoJson.endDate);
 
             // Verificar si hay solapamiento
+            // Dos rangos se solapan si uno comienza antes de que el otro termine
+            // y termina después de que el otro comience
             return (
-                (startDate >= promoStart && startDate <= promoEnd) ||
-                (endDate >= promoStart && endDate <= promoEnd) ||
-                (startDate <= promoStart && endDate >= promoEnd)
+                (startDate < promoEnd && endDate > promoStart)
             );
         });
 
@@ -143,10 +143,10 @@ export class PromotionalPriceService implements IPromotionalPriceService {
                     const promoEnd = this.toMexicoTimezone(promoJson.endDate);
 
                     // Verificar si hay solapamiento
+                    // Dos rangos se solapan si uno comienza antes de que el otro termine
+                    // y termina después de que el otro comience
                     return (
-                        (startDate >= promoStart && startDate <= promoEnd) ||
-                        (endDate >= promoStart && endDate <= promoEnd) ||
-                        (startDate <= promoStart && endDate >= promoEnd)
+                        (startDate < promoEnd && endDate > promoStart)
                     );
                 });
 
