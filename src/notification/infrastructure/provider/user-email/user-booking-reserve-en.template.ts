@@ -90,6 +90,7 @@ function formatDateTime(dateString?: string): string {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'America/Cancun',
     });
   } catch (e) {
     return dateString;
