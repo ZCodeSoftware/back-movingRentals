@@ -70,6 +70,11 @@ export class BookingModel extends BaseModel {
     if (paid) {
       // Si se proporciona un monto específico, usarlo; si no, usar el total
       this._totalPaid = amount !== undefined ? amount : this._total;
+      
+      // Si el monto pagado es igual o mayor al total, ya no es una reserva
+      if (this._totalPaid >= this._total) {
+        this._isReserve = false;
+      }
     }
   }
 

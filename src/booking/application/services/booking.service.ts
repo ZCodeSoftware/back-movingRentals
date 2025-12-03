@@ -875,6 +875,14 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Booking not found', HttpStatus.NOT_FOUND);
     }
     
+    // Guardar el estado anterior de isReserve para detectar si cambió
+    const bookingData = booking.toJSON();
+    const wasReserve = bookingData.isReserve;
+    const previousTotal = bookingData.total;
+    const previousTotalPaid = bookingData.totalPaid || 0;
+    
+    console.log(`[BookingService] validateBooking - Estado inicial: isReserve=${wasReserve}, total=${previousTotal}, totalPaid=${previousTotalPaid}`);
+    
     // Buscar el contrato asociado para verificar el source
     let contractSource = 'Web'; // Por defecto Web
     try {
@@ -929,11 +937,14 @@ export class BookingService implements IBookingService {
     booking.addStatus(status);
 
     // Si se proporciona un monto pagado, usarlo; si no, usar el comportamiento por defecto
+    console.log(`[BookingService] validateBooking - Antes de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
     booking.payBooking(paid, paidAmount);
+    console.log(`[BookingService] validateBooking - Después de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
 
     isValidated && booking.validateBooking();
 
     const updatedBooking = await this.bookingRepository.update(id, booking);
+    console.log(`[BookingService] validateBooking - Después de update: isReserve=${updatedBooking.toJSON().isReserve}, totalPaid=${updatedBooking.toJSON().totalPaid}`);
 
     if (!updatedBooking) {
       throw new BaseErrorException('Booking not updated', HttpStatus.NOT_FOUND);
@@ -959,19 +970,38 @@ export class BookingService implements IBookingService {
       console.error('[BookingService] Error actualizando status del contrato:', error.message);
     }
     
+    // Verificar si la reserva cambió de isReserve=true a isReserve=false (pago completo)
+    const updatedBookingData = updatedBooking.toJSON();
+    const isNowFullyPaid = wasReserve && !updatedBookingData.isReserve;
+    
+    console.log(`[BookingService] validateBooking - Estado final: isReserve=${updatedBookingData.isReserve}, totalPaid=${updatedBookingData.totalPaid}`);
+    console.log(`[BookingService] validateBooking - ¿Cambió de reserva a pago completo? ${isNowFullyPaid}`);
+    
     // Enviar correo según el estado resultante
     // NOTA: Para Efectivo desde Web, siempre se envía email de confirmación (APPROVED)
     console.log(`[BookingService] validateBooking - Status final: ${statusName}, Paid: ${paid}`);
     
     if (statusName === TypeStatus.APPROVED) {
-      // Pago aprobado - enviar correo de confirmación
-      console.log(`[BookingService] ✅ Pago APROBADO para booking ${id}, enviando correo de confirmación`);
-      console.log(`[BookingService] Método de pago: ${paymentMethodName}`);
-      this.eventEmitter.emit('send-booking.created', {
-        updatedBooking,
-        userEmail: email,
-        lang,
-      });
+      // Pago aprobado - verificar si es pago completo de una reserva o pago normal
+      if (isNowFullyPaid) {
+        // Era una reserva y ahora está completamente pagada - enviar email de confirmación completa
+        console.log(`[BookingService] ✅ RESERVA COMPLETAMENTE PAGADA para booking ${id}, enviando correo de confirmación completa`);
+        console.log(`[BookingService] Método de pago: ${paymentMethodName}`);
+        this.eventEmitter.emit('send-booking.confirmed', {
+          booking: updatedBooking,
+          userEmail: email,
+          lang,
+        });
+      } else {
+        // Pago normal o pago parcial - enviar email de aprobación
+        console.log(`[BookingService] ✅ Pago APROBADO para booking ${id}, enviando correo de confirmación`);
+        console.log(`[BookingService] Método de pago: ${paymentMethodName}`);
+        this.eventEmitter.emit('send-booking.created', {
+          updatedBooking,
+          userEmail: email,
+          lang,
+        });
+      }
 
       // Crear comisiones solo si el pago fue aprobado
       try {

@@ -285,7 +285,11 @@ export class BookingController {
     @Query('paidAmount') paidAmount?: number,
     @Body() body?: any, // Aceptar payments desde el body (opcional)
   ) {
-    const { email } = req.user;
+    // IMPORTANTE: Obtener el email del usuario dueño del booking, no del usuario autenticado
+    // El usuario autenticado puede ser un admin validando el pago de otro usuario
+    const user = await this.bookingService.findUserByBookingId(id);
+    const bookingOwnerEmail = user?.toJSON?.()?.email;
+    
     const language = lang ?? 'es';
     
     // Priorizar paidAmount del query param, luego del body
@@ -294,7 +298,7 @@ export class BookingController {
     return await this.bookingService.validateBooking(
       id,
       paid,
-      email,
+      bookingOwnerEmail, // Usar el email del dueño del booking
       language,
       isManual,
       isValidated,
