@@ -16,26 +16,6 @@ export class PromotionalPriceController {
         private readonly promotionalPriceService: IPromotionalPriceService,
     ) {}
 
-    /**
-     * Convierte una fecha a la zona horaria de México (America/Mexico_City)
-     * Asegura que la fecha se interprete correctamente sin importar desde dónde se acceda
-     */
-    private toMexicoTimezone(dateInput: string | Date): Date {
-        // Si es una cadena de fecha sin hora (YYYY-MM-DD), agregar la hora de México
-        if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-            // Agregar hora 00:00:00 en zona horaria de México
-            return new Date(`${dateInput}T00:00:00.000-06:00`);
-        }
-        
-        // Si ya tiene información de zona horaria o es un objeto Date, convertirlo
-        const date = new Date(dateInput);
-        
-        // Obtener la fecha en formato ISO y ajustarla a México
-        const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
-        
-        return mexicoDate;
-    }
-
     @Post()
     @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN)
     @UseGuards(AuthGuards, RoleGuard)
@@ -74,9 +54,9 @@ export class PromotionalPriceController {
         @Param('modelId') modelId: string,
         @Param('date') date: string,
     ) {
-        // Convertir la fecha a zona horaria de México antes de buscar
-        const mexicoDate = this.toMexicoTimezone(date);
-        return this.promotionalPriceService.findByModelAndDate(modelId, mexicoDate);
+        // Convertir la fecha recibida a Date sin modificar la zona horaria
+        const searchDate = new Date(date);
+        return this.promotionalPriceService.findByModelAndDate(modelId, searchDate);
     }
 
     @Put(':id')

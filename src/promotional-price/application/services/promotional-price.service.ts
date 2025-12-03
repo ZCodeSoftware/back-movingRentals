@@ -18,18 +18,27 @@ export class PromotionalPriceService implements IPromotionalPriceService {
     ) {}
 
     /**
-     * Convierte una fecha a objeto Date sin modificar la zona horaria
-     * Las fechas vienen del frontend con la zona horaria correcta
+     * Convierte una fecha a objeto Date manteniendo la zona horaria de México
+     * Las fechas vienen del frontend en zona horaria de México (America/Cancun)
+     * con formato ISO que incluye el offset (ej: 2026-01-15T08:01:00-05:00)
      */
     private toDate(dateInput: string | Date): Date {
-        // Simplemente convertir a Date sin modificar nada
-        return new Date(dateInput);
+        if (dateInput instanceof Date) {
+            return dateInput;
+        }
+        
+        const date = new Date(dateInput);
+        
+        if (isNaN(date.getTime())) {
+            throw new Error('Invalid date format');
+        }
+        
+        return date;
     }
 
     async create(data: ICreatePromotionalPrice): Promise<PromotionalPriceModel> {
         const { model, ...rest } = data;
 
-        // Validar que la fecha de inicio sea menor que la fecha de fin
         const startDate = this.toDate(data.startDate);
         const endDate = this.toDate(data.endDate);
 
@@ -37,7 +46,6 @@ export class PromotionalPriceService implements IPromotionalPriceService {
             throw new BaseErrorException('Start date must be before end date', 400);
         }
 
-        // Validar que no haya solapamiento con otros intervalos del mismo modelo
         const existingPromotions = await this.promotionalPriceRepository.findAll({
             model,
             isActive: true,
@@ -48,27 +56,7 @@ export class PromotionalPriceService implements IPromotionalPriceService {
             const promoStart = this.toDate(promoJson.startDate);
             const promoEnd = this.toDate(promoJson.endDate);
 
-            console.log('=== Checking overlap ===');
-            console.log('New promotion:', {
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString(),
-            });
-            console.log('Existing promotion:', {
-                id: promoJson._id,
-                description: promoJson.description,
-                startDate: promoStart.toISOString(),
-                endDate: promoEnd.toISOString(),
-            });
-
-            // Verificar si hay solapamiento
-            // Dos rangos se solapan si uno comienza antes de que el otro termine
-            // y termina después de que el otro comience
-            // Permitimos que una promoción termine exactamente cuando otra comienza
-            const overlaps = (startDate < promoEnd && endDate > promoStart);
-            console.log('Overlaps?', overlaps);
-            console.log('========================');
-
-            return overlaps;
+            return (startDate < promoEnd && endDate > promoStart);
         });
 
         if (hasOverlap) {
@@ -110,11 +98,9 @@ export class PromotionalPriceService implements IPromotionalPriceService {
     async update(id: string, data: IUpdatePromotionalPrice): Promise<PromotionalPriceModel> {
         const { model, ...rest } = data;
 
-        // Obtener la promoción actual
         const currentPromo = await this.promotionalPriceRepository.findById(id);
         const currentJson = currentPromo.toJSON();
 
-        // Validar fechas si se proporcionan ambas
         if (data.startDate && data.endDate) {
             const startDate = this.toDate(data.startDate);
             const endDate = this.toDate(data.endDate);
@@ -123,7 +109,6 @@ export class PromotionalPriceService implements IPromotionalPriceService {
                 throw new BaseErrorException('Start date must be before end date', 400);
             }
 
-            // Validar que no haya solapamiento con otros intervalos del mismo modelo (excluyendo el actual)
             const modelId = model || (
                 currentJson.model && 
                 typeof currentJson.model === 'object' && 
@@ -131,6 +116,7 @@ export class PromotionalPriceService implements IPromotionalPriceService {
                     ? String(currentJson.model._id) 
                     : null
             );
+            
             if (modelId) {
                 const existingPromotions = await this.promotionalPriceRepository.findAll({
                     model: modelId,
@@ -139,18 +125,12 @@ export class PromotionalPriceService implements IPromotionalPriceService {
 
                 const hasOverlap = existingPromotions.some((promo) => {
                     const promoJson = promo.toJSON();
-                    // Excluir la promoción actual de la validación
                     if (String(promoJson._id) === id) return false;
 
                     const promoStart = this.toDate(promoJson.startDate);
                     const promoEnd = this.toDate(promoJson.endDate);
 
-                    // Verificar si hay solapamiento
-                    // Dos rangos se solapan si uno comienza antes de que el otro termine
-                    // y termina después de que el otro comience
-                    return (
-                        (startDate < promoEnd && endDate > promoStart)
-                    );
+                    return (startDate < promoEnd && endDate > promoStart);
                 });
 
                 if (hasOverlap) {
