@@ -311,6 +311,8 @@ export class BookingRepository implements IBookingRepository {
 
   async update(id: string, booking: BookingModel): Promise<BookingModel> {
     const updateObject = booking.toJSON();
+    
+    console.log(`[BookingRepository] update - updateObject.isReserve: ${updateObject.isReserve}, totalPaid: ${updateObject.totalPaid}`);
 
     const filteredUpdateObject = Object.fromEntries(
       Object.entries(updateObject).filter(([key, value]) => {
@@ -325,6 +327,8 @@ export class BookingRepository implements IBookingRepository {
         return value !== null && value !== undefined;
       }),
     );
+    
+    console.log(`[BookingRepository] update - filteredUpdateObject.isReserve: ${filteredUpdateObject.isReserve}, totalPaid: ${filteredUpdateObject.totalPaid}`);
 
     // Extraer solo los IDs de las relaciones para la actualización
     const updateData = { ...filteredUpdateObject };
@@ -333,6 +337,8 @@ export class BookingRepository implements IBookingRepository {
         updateData[relation] = updateData[relation]._id;
       }
     });
+    
+    console.log(`[BookingRepository] update - updateData.isReserve: ${updateData.isReserve}, totalPaid: ${updateData.totalPaid}`);
 
     const updatedBooking = await this.bookingDB
       .findByIdAndUpdate(id, updateData, {

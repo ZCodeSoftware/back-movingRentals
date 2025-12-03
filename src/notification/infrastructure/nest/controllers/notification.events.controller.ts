@@ -134,28 +134,24 @@ export class NotificationEventController {
     try {
       const bookingId = booking?.toJSON?.()?._id;
       
-      // Buscar el contrato asociado al booking para verificar el source
+      // Buscar el contrato asociado al booking para verificar el source (solo para logging)
       const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
       
       if (contract) {
         const source = contract.source || 'Web';
         console.log(`[NotificationEventController] Contrato encontrado para cancelación - source: ${source}`);
-        
-        // Solo enviar email si el source es 'Dashboard'
-        if (source === 'Dashboard') {
-          console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email de cancelación');
-          await this.notificationEventService.sendBookingCancelled(
-            booking,
-            userEmail,
-            lang,
-          );
-          console.log('[NotificationEventController] ✅ Email de cancelación enviado exitosamente');
-        } else {
-          console.log('[NotificationEventController] ⏸️ Source es Web - NO se envía email de cancelación');
-        }
       } else {
-        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - NO se envía email de cancelación');
+        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado');
       }
+      
+      // SIEMPRE enviar email de cancelación, sin importar el source
+      console.log('[NotificationEventController] ✅ Enviando email de cancelación');
+      await this.notificationEventService.sendBookingCancelled(
+        booking,
+        userEmail,
+        lang,
+      );
+      console.log('[NotificationEventController] ✅ Email de cancelación enviado exitosamente');
     } catch (error) {
       console.error('Error sending booking cancellation emails:', error);
     }
