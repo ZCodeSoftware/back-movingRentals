@@ -59,10 +59,44 @@ export class CommissionService implements ICommissionService {
     
     if (shouldUpdateBooking) {
       try {
-        // Remover los campos concierge y commission del booking
-        await this.bookingRepository.removeFields(commissionDetails.bookingId, ['concierge', 'commission']);
+        console.log(`[deleteById] Assigning TIENDA to booking ${commissionDetails.bookingId}`);
+        
+        // Buscar el vendedor TIENDA por nombre (funciona en dev y prod)
+        const VehicleOwner = this.bookingRepository['bookingDB'].db.model('VehicleOwner');
+        const tiendaConcierge = await VehicleOwner.findOne({ name: 'TIENDA' }).lean();
+        
+        if (!tiendaConcierge) {
+          console.error('[deleteById] TIENDA concierge not found in database');
+          return;
+        }
+        
+        const TIENDA_CONCIERGE_ID = tiendaConcierge._id.toString();
+        console.log(`[deleteById] Found TIENDA concierge with ID: ${TIENDA_CONCIERGE_ID}`);
+        
+        // Obtener el booking actual
+        const currentBooking = await this.bookingRepository.findById(commissionDetails.bookingId);
+        if (!currentBooking) {
+          console.error(`[deleteById] Booking ${commissionDetails.bookingId} not found`);
+          return;
+        }
+        
+        // Crear un nuevo modelo con los datos actualizados
+        const bookingData = currentBooking.toJSON();
+        
+        // Extraer solo los IDs de las relaciones para evitar problemas con toJSON
+        const updatedBookingModel = BookingModel.create({
+          ...bookingData,
+          paymentMethod: bookingData.paymentMethod?._id || bookingData.paymentMethod,
+          status: bookingData.status?._id || bookingData.status,
+          concierge: TIENDA_CONCIERGE_ID,
+          commission: 0
+        });
+        
+        // Actualizar el booking
+        await this.bookingRepository.update(commissionDetails.bookingId, updatedBookingModel);
+        console.log(`[deleteById] Booking ${commissionDetails.bookingId} updated with TIENDA concierge after commission deletion`);
       } catch (error) {
-        console.error(`Error updating booking ${commissionDetails.bookingId}:`, error);
+        console.error(`[deleteById] Error updating booking ${commissionDetails.bookingId}:`, error);
         // No lanzamos el error para no fallar la eliminación de la comisión
       }
     }
@@ -126,13 +160,46 @@ export class CommissionService implements ICommissionService {
     
     // Solo actualizar los bookings si el source es 'booking' (no 'extension')
     if (source === 'booking') {
-      console.log(`[deleteByBookingNumberAndSource] Updating ${bookingIds.length} bookings`);
+      console.log(`[deleteByBookingNumberAndSource] Updating ${bookingIds.length} bookings with TIENDA concierge`);
+      
+      // Buscar el vendedor TIENDA por nombre (funciona en dev y prod)
+      const VehicleOwner = this.bookingRepository['bookingDB'].db.model('VehicleOwner');
+      const tiendaConcierge = await VehicleOwner.findOne({ name: 'TIENDA' }).lean();
+      
+      if (!tiendaConcierge) {
+        console.error('[deleteByBookingNumberAndSource] TIENDA concierge not found in database');
+        return { deletedCount };
+      }
+      
+      const TIENDA_CONCIERGE_ID = tiendaConcierge._id.toString();
+      console.log(`[deleteByBookingNumberAndSource] Found TIENDA concierge with ID: ${TIENDA_CONCIERGE_ID}`);
+      
       for (const bookingId of bookingIds) {
         try {
-          console.log(`[deleteByBookingNumberAndSource] Removing fields from booking ${bookingId}`);
-          // Remover los campos concierge y commission del booking
-          await this.bookingRepository.removeFields(bookingId, ['concierge', 'commission']);
-          console.log(`[deleteByBookingNumberAndSource] Successfully updated booking ${bookingId}`);
+          console.log(`[deleteByBookingNumberAndSource] Assigning TIENDA to booking ${bookingId}`);
+          
+          // Obtener el booking actual
+          const currentBooking = await this.bookingRepository.findById(bookingId);
+          if (!currentBooking) {
+            console.error(`[deleteByBookingNumberAndSource] Booking ${bookingId} not found`);
+            continue;
+          }
+          
+          // Crear un nuevo modelo con los datos actualizados
+          const bookingData = currentBooking.toJSON();
+          
+          // Extraer solo los IDs de las relaciones para evitar problemas con toJSON
+          const updatedBookingModel = BookingModel.create({
+            ...bookingData,
+            paymentMethod: bookingData.paymentMethod?._id || bookingData.paymentMethod,
+            status: bookingData.status?._id || bookingData.status,
+            concierge: TIENDA_CONCIERGE_ID,
+            commission: 0
+          });
+          
+          // Actualizar el booking
+          await this.bookingRepository.update(bookingId, updatedBookingModel);
+          console.log(`[deleteByBookingNumberAndSource] Successfully updated booking ${bookingId} with TIENDA`);
         } catch (error) {
           console.error(`[deleteByBookingNumberAndSource] Error updating booking ${bookingId}:`, error);
           // Continuamos con los demás bookings aunque uno falle

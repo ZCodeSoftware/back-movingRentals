@@ -285,22 +285,13 @@ export class BookingService implements IBookingService {
       };
     }
 
-    // 6.5. Si no viene concierge, buscar el de "WEB" por defecto
+    // 6.5. Si no viene concierge, asignar TIENDA por defecto
     let conciergeId = body.concierge;
     if (!conciergeId) {
-      try {
-        console.log('[BookingService] No se proporcionó concierge, buscando concierge WEB por defecto...');
-        // Buscar el vehicleOwner con nombre "WEB"
-        const webConcierge = await this.vehicleOwnerRepository.findByName('WEB');
-        if (webConcierge) {
-          conciergeId = webConcierge.toJSON()._id?.toString();
-          console.log(`[BookingService] Concierge WEB encontrado: ${conciergeId}`);
-        } else {
-          console.warn('[BookingService] No se encontró concierge WEB en la base de datos');
-        }
-      } catch (error) {
-        console.error('[BookingService] Error buscando concierge WEB:', error.message);
-      }
+      // ID fijo del vendedor TIENDA
+      const TIENDA_CONCIERGE_ID = '68f05300221a9f9d4b316517';
+      conciergeId = TIENDA_CONCIERGE_ID;
+      console.log(`[BookingService] No se proporcionó concierge, asignando TIENDA por defecto: ${conciergeId}`);
     }
 
     // 7. Crear el booking con los datos del carrito, metadata y delivery

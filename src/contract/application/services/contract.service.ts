@@ -133,6 +133,16 @@ export class ContractService implements IContractService {
     return contractData;
   }
 
+  async findAllMinimal(filters: { search?: string; limit?: number }): Promise<Array<{
+    _id: string;
+    bookingNumber: number;
+    email: string;
+    name: string;
+    lastName: string;
+  }>> {
+    return this.contractRepository.findAllMinimal(filters);
+  }
+
   async findAll(
     filters: IContractFilters,
   ): Promise<IPaginatedContractResponse> {
