@@ -92,7 +92,19 @@ export class BookingController {
     name: 'endDate',
     required: false,
     type: 'string',
-    description: 'Filter by end date',
+    description: 'Filter by creation end date',
+  })
+  @ApiQuery({
+    name: 'reservationStartDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by reservation start date (service dates)',
+  })
+  @ApiQuery({
+    name: 'reservationEndDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by reservation end date (service dates)',
   })
   @ApiQuery({
     name: 'page',

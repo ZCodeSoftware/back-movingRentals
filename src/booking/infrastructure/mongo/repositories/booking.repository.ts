@@ -89,12 +89,14 @@ export class BookingRepository implements IBookingRepository {
       userId,
       startDate,
       endDate,
+      reservationStartDate,
+      reservationEndDate,
       isReserve,
       page = 1,
       limit = 10,
     } = filters;
 
-    const query: any = {};
+    let query: any = {};
 
     if (status) query.status = new Types.ObjectId(String(status));
     if (paymentMethod)
@@ -111,6 +113,7 @@ export class BookingRepository implements IBookingRepository {
       query._id = { $in: userBookingIds };
     }
 
+    // Filtro por fecha de CREACIÓN del booking
     if (startDate || endDate) {
       query.createdAt = {};
       if (startDate) {
@@ -121,6 +124,107 @@ export class BookingRepository implements IBookingRepository {
         endOfDay.setUTCHours(23, 59, 59, 999);
         query.createdAt.$lte = endOfDay;
       }
+    }
+
+    // Filtro por fecha de RESERVA (fechas de los servicios en el cart)
+    // Este filtro busca bookings que tengan al menos un servicio cuyas fechas se solapen con el rango
+    if (reservationStartDate || reservationEndDate) {
+      const rangeStart = reservationStartDate ? new Date(reservationStartDate) : new Date('1970-01-01');
+      const rangeEnd = reservationEndDate ? (() => {
+        const endOfDay = new Date(reservationEndDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+        return endOfDay;
+      })() : new Date('2100-12-31');
+
+      console.log(`[BookingRepository] Filtrando por fecha de reserva: ${rangeStart.toISOString()} - ${rangeEnd.toISOString()}`);
+
+      // Obtener todos los bookings que cumplan con los otros filtros
+      const allBookings = await this.bookingDB.find(query).select('_id cart').lean();
+      const matchingIds: Types.ObjectId[] = [];
+
+      console.log(`[BookingRepository] Analizando ${allBookings.length} bookings...`);
+
+      for (const booking of allBookings) {
+        try {
+          const cart = JSON.parse(booking.cart || '{}');
+          let hasMatch = false;
+
+          // Verificar vehículos
+          if (cart.vehicles && Array.isArray(cart.vehicles)) {
+            for (const vehicle of cart.vehicles) {
+              if (vehicle.dates?.start && vehicle.dates?.end) {
+                const vehicleStart = new Date(vehicle.dates.start);
+                const vehicleEnd = new Date(vehicle.dates.end);
+                
+                // Verificar si hay solapamiento: el vehículo empieza antes o durante el rango Y termina después o durante el rango
+                if (vehicleStart <= rangeEnd && vehicleEnd >= rangeStart) {
+                  hasMatch = true;
+                  console.log(`[BookingRepository] Match encontrado en vehículo: ${vehicleStart.toISOString()} - ${vehicleEnd.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Verificar transfers
+          if (!hasMatch && cart.transfer && Array.isArray(cart.transfer)) {
+            for (const transfer of cart.transfer) {
+              if (transfer.date) {
+                const transferDate = new Date(transfer.date);
+                if (transferDate >= rangeStart && transferDate <= rangeEnd) {
+                  hasMatch = true;
+                  console.log(`[BookingRepository] Match encontrado en transfer: ${transferDate.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Verificar tours
+          if (!hasMatch && cart.tours && Array.isArray(cart.tours)) {
+            for (const tour of cart.tours) {
+              if (tour.date) {
+                const tourDate = new Date(tour.date);
+                if (tourDate >= rangeStart && tourDate <= rangeEnd) {
+                  hasMatch = true;
+                  console.log(`[BookingRepository] Match encontrado en tour: ${tourDate.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Verificar tickets
+          if (!hasMatch && cart.tickets && Array.isArray(cart.tickets)) {
+            for (const ticket of cart.tickets) {
+              if (ticket.date) {
+                const ticketDate = new Date(ticket.date);
+                if (ticketDate >= rangeStart && ticketDate <= rangeEnd) {
+                  hasMatch = true;
+                  console.log(`[BookingRepository] Match encontrado en ticket: ${ticketDate.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          if (hasMatch) {
+            matchingIds.push(booking._id);
+          }
+        } catch (error) {
+          console.error(`[BookingRepository] Error parsing cart for booking ${booking._id}:`, error);
+        }
+      }
+
+      console.log(`[BookingRepository] ${matchingIds.length} bookings coinciden con el filtro de fecha de reserva`);
+
+      // Reemplazar el query con solo los IDs que coinciden
+      query = { _id: { $in: matchingIds } };
+      
+      // Mantener otros filtros si existen
+      if (status) query.status = new Types.ObjectId(String(status));
+      if (paymentMethod) query.paymentMethod = new Types.ObjectId(String(paymentMethod));
+      if (isReserve !== undefined) query.isReserve = isReserve === 'true' || isReserve === true;
     }
 
     const pageNumber = parseInt(page as string, 10) || 1;

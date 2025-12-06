@@ -863,130 +863,117 @@ export class ContractRepository implements IContractRepository {
       matchConditions.createdAt = createdAtMatch;
     }
 
+    // Filtro por fecha de RESERVA (fechas de los servicios en el cart)
+    // Este filtro busca contratos que tengan al menos un servicio cuyas fechas se solapen con el rango
     if (filters.reservationDateStart || filters.reservationDateEnd) {
-      const reservationDateConditions: any[] = [];
+      const rangeStart = filters.reservationDateStart ? new Date(filters.reservationDateStart) : new Date('1970-01-01');
+      const rangeEnd = filters.reservationDateEnd ? (() => {
+        const endOfDay = new Date(filters.reservationDateEnd);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+        return endOfDay;
+      })() : new Date('2100-12-31');
 
-      // Helper para generar patrón regex que busque CUALQUIER fecha en formato ISO
-      // que esté dentro del rango especificado
-      const createFlexibleDatePattern = (): string => {
-        if (filters.reservationDateStart && filters.reservationDateEnd) {
-          const startDate = new Date(
-            filters.reservationDateStart + 'T00:00:00.000Z',
-          );
-          const endDate = new Date(
-            filters.reservationDateEnd + 'T23:59:59.999Z',
-          );
+      console.log(`[ContractRepository] Filtrando por fecha de reserva: ${rangeStart.toISOString()} - ${rangeEnd.toISOString()}`);
 
-          // Generar patrón que busque años-meses en el rango
-          const startYear = startDate.getFullYear();
-          const startMonth = startDate.getMonth() + 1;
-          const endYear = endDate.getFullYear();
-          const endMonth = endDate.getMonth() + 1;
+      // Obtener todos los contratos que cumplan con los otros filtros
+      // Primero ejecutar el pipeline hasta este punto para obtener los bookings
+      const contractsWithBookings = await this.contractModel.aggregate([
+        ...pipeline,
+        { $project: { _id: 1, 'bookingData.cart': 1, 'bookingData._id': 1 } }
+      ]).exec();
 
-          const yearMonthPatterns: string[] = [];
+      const matchingContractIds: mongoose.Types.ObjectId[] = [];
 
-          // Si es el mismo año
-          if (startYear === endYear) {
-            for (let m = startMonth; m <= endMonth; m++) {
-              const monthStr = String(m).padStart(2, '0');
-              yearMonthPatterns.push(`${startYear}-${monthStr}`);
-            }
-          } else {
-            // Año inicial: desde startMonth hasta 12
-            for (let m = startMonth; m <= 12; m++) {
-              const monthStr = String(m).padStart(2, '0');
-              yearMonthPatterns.push(`${startYear}-${monthStr}`);
-            }
+      console.log(`[ContractRepository] Analizando ${contractsWithBookings.length} contratos...`);
 
-            // Años intermedios (si hay)
-            for (let y = startYear + 1; y < endYear; y++) {
-              for (let m = 1; m <= 12; m++) {
-                const monthStr = String(m).padStart(2, '0');
-                yearMonthPatterns.push(`${y}-${monthStr}`);
+      for (const contract of contractsWithBookings) {
+        try {
+          const cart = JSON.parse(contract.bookingData?.cart || '{}');
+          let hasMatch = false;
+
+          // Verificar vehículos
+          if (cart.vehicles && Array.isArray(cart.vehicles)) {
+            for (const vehicle of cart.vehicles) {
+              if (vehicle.dates?.start && vehicle.dates?.end) {
+                const vehicleStart = new Date(vehicle.dates.start);
+                const vehicleEnd = new Date(vehicle.dates.end);
+                
+                // Verificar si hay solapamiento: el vehículo empieza antes o durante el rango Y termina después o durante el rango
+                if (vehicleStart <= rangeEnd && vehicleEnd >= rangeStart) {
+                  hasMatch = true;
+                  console.log(`[ContractRepository] Match encontrado en vehículo: ${vehicleStart.toISOString()} - ${vehicleEnd.toISOString()}`);
+                  break;
+                }
               }
-            }
-
-            // Año final: desde 01 hasta endMonth
-            for (let m = 1; m <= endMonth; m++) {
-              const monthStr = String(m).padStart(2, '0');
-              yearMonthPatterns.push(`${endYear}-${monthStr}`);
             }
           }
 
-          // Crear patrón que busque cualquiera de estos año-mes
-          return `(?:${yearMonthPatterns.join('|')})-(?:[0-2][0-9]|3[01])`;
-        } else if (filters.reservationDateStart) {
-          // Solo buscar desde esa fecha en adelante (año-mes-día o posterior)
-          const date = new Date(
-            filters.reservationDateStart + 'T00:00:00.000Z',
-          );
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          // Buscar ese mes y cualquier mes posterior
-          return `(?:${year}-(?:${month}|(?:0[${Number(month[1]) + 1}-9]|1[0-2]))|(?:${year + 1}|${year + 2}|${year + 3}|${year + 4})-(?:0[1-9]|1[0-2]))-(?:[0-2][0-9]|3[01])`;
-        } else if (filters.reservationDateEnd) {
-          // Solo buscar hasta esa fecha
-          const date = new Date(filters.reservationDateEnd + 'T23:59:59.999Z');
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          return `(?:${year}-(?:0[1-9]|${month}))-(?:[0-2][0-9]|3[01])`;
+          // Verificar transfers
+          if (!hasMatch && cart.transfer && Array.isArray(cart.transfer)) {
+            for (const transfer of cart.transfer) {
+              if (transfer.date) {
+                const transferDate = new Date(transfer.date);
+                if (transferDate >= rangeStart && transferDate <= rangeEnd) {
+                  hasMatch = true;
+                  console.log(`[ContractRepository] Match encontrado en transfer: ${transferDate.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Verificar tours
+          if (!hasMatch && cart.tours && Array.isArray(cart.tours)) {
+            for (const tour of cart.tours) {
+              if (tour.date) {
+                const tourDate = new Date(tour.date);
+                if (tourDate >= rangeStart && tourDate <= rangeEnd) {
+                  hasMatch = true;
+                  console.log(`[ContractRepository] Match encontrado en tour: ${tourDate.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Verificar tickets
+          if (!hasMatch && cart.tickets && Array.isArray(cart.tickets)) {
+            for (const ticket of cart.tickets) {
+              if (ticket.date) {
+                const ticketDate = new Date(ticket.date);
+                if (ticketDate >= rangeStart && ticketDate <= rangeEnd) {
+                  hasMatch = true;
+                  console.log(`[ContractRepository] Match encontrado en ticket: ${ticketDate.toISOString()}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          if (hasMatch) {
+            matchingContractIds.push(contract._id);
+          }
+        } catch (error) {
+          console.error(`[ContractRepository] Error parsing cart for contract ${contract._id}:`, error);
         }
-        return '';
-      };
+      }
 
-      const datePattern = createFlexibleDatePattern();
+      console.log(`[ContractRepository] ${matchingContractIds.length} contratos coinciden con el filtro de fecha de reserva`);
 
-      if (datePattern) {
-        // Buscar en vehículos (campo "dates.start" O "dates.end")
-        // IMPORTANTE: Buscar TANTO en start como en end para capturar reservas que solapen
-        const vehicleStartPattern = `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"start\\":\\"(${datePattern})`;
-        const vehicleEndPattern = `\\"vehicles\\":\\[.*?\\"dates\\":\\{.*?\\"end\\":\\"(${datePattern})`;
-
-        reservationDateConditions.push(
-          {
-            'bookingData.cart': {
-              $regex: new RegExp(vehicleStartPattern, 'i'),
-            },
-          },
-          {
-            'bookingData.cart': {
-              $regex: new RegExp(vehicleEndPattern, 'i'),
-            },
-          },
-        );
-
-        // Buscar en tours (campo "date")
-        const tourPattern = `\\"tours\\":\\[.*?\\"date\\":\\"(${datePattern})`;
-        reservationDateConditions.push({
-          'bookingData.cart': {
-            $regex: new RegExp(tourPattern, 'i'),
-          },
+      // Agregar filtro de IDs que coinciden al pipeline
+      if (matchingContractIds.length > 0) {
+        pipeline.push({
+          $match: {
+            _id: { $in: matchingContractIds }
+          }
         });
-
-        // Buscar en tickets (campo "date")
-        const ticketPattern = `\\"tickets\\":\\[.*?\\"date\\":\\"(${datePattern})`;
-        reservationDateConditions.push({
-          'bookingData.cart': {
-            $regex: new RegExp(ticketPattern, 'i'),
-          },
+      } else {
+        // Si no hay coincidencias, agregar un match que no devuelva nada
+        pipeline.push({
+          $match: {
+            _id: { $in: [] }
+          }
         });
-
-        // Buscar en transfers (campo "date")
-        const transferPattern = `\\"transfer\\":\\[.*?\\"date\\":\\"(${datePattern})`;
-        reservationDateConditions.push({
-          'bookingData.cart': {
-            $regex: new RegExp(transferPattern, 'i'),
-          },
-        });
-
-        // Agregar todas las condiciones con $or
-        if (reservationDateConditions.length > 0) {
-          pipeline.push({
-            $match: {
-              $or: reservationDateConditions,
-            },
-          });
-        }
       }
     }
 
