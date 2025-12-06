@@ -83,6 +83,38 @@ export class ContractController {
     return this.contractService.create(contractData, _id);
   }
 
+  @Get('list-minimal')
+  @HttpCode(200)
+  @ApiResponse({
+    status: 200,
+    description: 'Return minimal contract data for select lists (only _id, bookingNumber, email, name, lastName)',
+  })
+  @ApiResponse({ status: 404, description: 'Contracts not found' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: 'string',
+    description: 'Search in booking number, email, name, or last name',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: 'number',
+    description: 'Number of items to return (default: 100)',
+  })
+  async findAllMinimal(@Query() filters: any) {
+    if (filters.lang) {
+      delete filters.lang;
+    }
+    if (filters.limit) {
+      filters.limit = parseInt(filters.limit, 10);
+    } else {
+      filters.limit = 100; // Default limit
+    }
+
+    return this.contractService.findAllMinimal(filters);
+  }
+
   @Get()
   @HttpCode(200)
   /*   @Roles(

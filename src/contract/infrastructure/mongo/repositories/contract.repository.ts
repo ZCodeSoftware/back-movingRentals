@@ -426,6 +426,84 @@ export class ContractRepository implements IContractRepository {
       .exec();
   }
 
+  async findAllMinimal(filters: { search?: string; limit?: number }): Promise<Array<{
+    _id: string;
+    bookingNumber: number;
+    email: string;
+    name: string;
+    lastName: string;
+  }>> {
+    const limit = filters.limit || 100;
+    
+    const pipeline: any[] = [];
+    
+    // Lookup para obtener datos del booking
+    pipeline.push({
+      $lookup: {
+        from: 'booking',
+        localField: 'booking',
+        foreignField: '_id',
+        as: 'bookingData'
+      }
+    });
+    
+    pipeline.push({ $unwind: { path: '$bookingData', preserveNullAndEmptyArrays: true } });
+    
+    // Lookup para obtener datos del usuario
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'reservingUser',
+        foreignField: '_id',
+        as: 'userData'
+      }
+    });
+    
+    pipeline.push({ $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } });
+    
+    // Filtro de búsqueda
+    if (filters.search && filters.search.trim()) {
+      const searchRegex = new RegExp(filters.search.trim(), 'i');
+      pipeline.push({
+        $match: {
+          $or: [
+            { 'bookingData.bookingNumber': { $regex: searchRegex } },
+            { 'userData.email': { $regex: searchRegex } },
+            { 'userData.name': { $regex: searchRegex } },
+            { 'userData.lastName': { $regex: searchRegex } }
+          ]
+        }
+      });
+    }
+    
+    // Ordenar por número de booking descendente (más recientes primero)
+    pipeline.push({ $sort: { 'bookingData.bookingNumber': -1 } });
+    
+    // Limitar resultados
+    pipeline.push({ $limit: limit });
+    
+    // Proyectar solo los campos necesarios
+    pipeline.push({
+      $project: {
+        _id: 1,
+        bookingNumber: '$bookingData.bookingNumber',
+        email: '$userData.email',
+        name: '$userData.name',
+        lastName: '$userData.lastName'
+      }
+    });
+    
+    const results = await this.contractModel.aggregate(pipeline).exec();
+    
+    return results.map(r => ({
+      _id: r._id.toString(),
+      bookingNumber: r.bookingNumber || 0,
+      email: r.email || '',
+      name: r.name || '',
+      lastName: r.lastName || ''
+    }));
+  }
+
   async findById(id: string): Promise<ContractModel> {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`El ID del contrato "${id}" no es válido.`);

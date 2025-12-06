@@ -34,6 +34,13 @@ export interface IContractRepository {
   create(contract: ContractModel, userId: string): Promise<ContractModel>;
   findById(id: string): Promise<ContractModel>;
   findAll(filters: IContractFilters): Promise<IPaginatedContractResponse>;
+  findAllMinimal(filters: { search?: string; limit?: number }): Promise<Array<{
+    _id: string;
+    bookingNumber: number;
+    email: string;
+    name: string;
+    lastName: string;
+  }>>;
   update(id: string, contractData: any, userId: string): Promise<ContractModel>;
   createHistoryEvent(
     contractId: string,

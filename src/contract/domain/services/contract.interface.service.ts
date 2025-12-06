@@ -9,6 +9,13 @@ export interface IContractService {
   findById(id: string): Promise<ContractModel>;
   findByIdWithTotals(id: string): Promise<any>;
   findAll(filters: IContractFilters): Promise<IPaginatedContractResponse>;
+  findAllMinimal(filters: { search?: string; limit?: number }): Promise<Array<{
+    _id: string;
+    bookingNumber: number;
+    email: string;
+    name: string;
+    lastName: string;
+  }>>;
   update(id: string, contract: Partial<ICreateContract>, userId: string): Promise<ContractModel>;
   reportEvent(contractId: string, userId: string, eventData: ReportEventDTO): Promise<ContractHistory>;
   getBookingTotals(contractId: string): Promise<{
