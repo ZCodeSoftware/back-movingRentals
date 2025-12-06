@@ -9,4 +9,5 @@ export interface INotificationEventService {
   sendUserWelcome(email: string, frontendHost: string, lang: string): Promise<any>
   sendBookingCancelled(booking: BookingModel, userEmail: string, lang: string): Promise<any>;
   sendBookingConfirmed(booking: BookingModel, userEmail: string, lang: string): Promise<any>;
+  sendBookingRejected(booking: BookingModel, userEmail: string, lang: string): Promise<any>;
 }

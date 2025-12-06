@@ -1109,9 +1109,13 @@ export class BookingService implements IBookingService {
         lang,
       });
     } else if (statusName === TypeStatus.REJECTED) {
-      // Pago rechazado - NO enviar email
-      console.log(`[BookingService] Pago RECHAZADO para booking ${id}, NO se enviará email`);
-      // No se envía email cuando el pago es rechazado
+      // Pago rechazado - enviar correo de pago rechazado
+      console.log(`[BookingService] Pago RECHAZADO para booking ${id}, enviando correo de pago rechazado`);
+      this.eventEmitter.emit('send-booking.rejected', {
+        booking: updatedBooking,
+        userEmail: email,
+        lang,
+      });
     }
 
     return updatedBooking;
