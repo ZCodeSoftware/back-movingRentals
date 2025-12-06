@@ -17,6 +17,8 @@ import { generateUserBookingConfirmationEn } from './user-booking-content-en.tem
 import { generateUserBookingConfirmation } from './user-booking-content.template';
 import { generateUserBookingReserve } from './user-booking-reserve.template';
 import { generateUserBookingReserveEn } from './user-booking-reserve-en.template';
+import { generateUserBookingRejected } from './user-booking-rejected.template';
+import { generateUserBookingRejectedEn } from './user-booking-rejected-en.template';
 
 @Injectable()
 export class UserEmailProvider implements IUserEmailAdapter {
@@ -611,6 +613,62 @@ export class UserEmailProvider implements IUserEmailAdapter {
         `[${context}] Error en sendUserBookingCancelled:`,
         error,
       );
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async sendUserBookingRejected(
+    booking: BookingModel,
+    userEmail: string,
+    lang: string = 'es',
+    userData?: any,
+  ): Promise<any> {
+    const bookingData = booking.toJSON ? booking.toJSON() : (booking as any);
+    const bookingId =
+      (booking as any).bookingNumber || (booking as any).id || 'unknown';
+    const context = `booking-rejected-${bookingId}`;
+
+    // Normalizar el idioma (tomar solo el primer valor si viene duplicado)
+    const normalizedLang = lang?.split(',')[0]?.trim() || 'es';
+
+    this.logger.log(
+      `[${context}] Iniciando sendUserBookingRejected para: ${userEmail}, lang: ${normalizedLang}`,
+    );
+
+    try {
+      // Enriquecer el booking con datos completos de la BD
+      this.logger.log(`[${context}] Enriqueciendo cart con datos de la BD...`);
+      const enrichedBooking = await this.enrichBookingCart(booking);
+      
+      let emailContent: { subject: string; html: string };
+
+      this.logger.log(
+        `[${context}] Generando contenido del email de pago rechazado en idioma: ${normalizedLang}`,
+      );
+      
+      emailContent =
+        normalizedLang === 'es'
+          ? generateUserBookingRejected(enrichedBooking, userEmail, userData)
+          : generateUserBookingRejectedEn(enrichedBooking, userEmail, userData);
+
+      this.logger.log(`[${context}] Subject: ${emailContent.subject}`);
+      this.logger.log(
+        `[${context}] HTML length: ${emailContent.html?.length || 0} caracteres`,
+      );
+
+      const emailData = this.createBrevoEmailData(
+        { email: config().business.contact_email, name: 'MoovAdventures' },
+        userEmail,
+        emailContent.subject,
+        emailContent.html,
+      );
+
+      // Agregar tags para tracking
+      emailData.tags = ['booking-payment-rejected', normalizedLang, `booking-${bookingId}`];
+
+      return await this.sendEmailWithBrevo(emailData, context);
+    } catch (error) {
+      this.logger.error(`[${context}] Error en sendUserBookingRejected:`, error);
       throw new InternalServerErrorException(error.message);
     }
   }

@@ -18,4 +18,10 @@ export interface IUserEmailAdapter {
     userEmail: string,
     lang: string,
   ): Promise<any>;
+  sendUserBookingRejected(
+    booking: BookingModel,
+    userEmail: string,
+    lang: string,
+    userData?: any,
+  ): Promise<any>;
 }

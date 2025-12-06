@@ -557,6 +557,82 @@ export class NotificationEventService implements INotificationEventService {
     );
   }
 
+  async sendBookingRejected(
+    booking: BookingModel,
+    userEmail: string,
+    lang: string = 'es',
+  ): Promise<any> {
+    const bookingData: any = booking.toJSON ? booking.toJSON() : booking;
+    const bookingId = typeof bookingData._id === 'string' ? bookingData._id : String(bookingData._id);
+    const bookingIdForLogs = bookingData.bookingNumber || bookingData.id || bookingId;
+
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Proceso de notificación de pago rechazado iniciado.`,
+    );
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Email usuario: ${userEmail}, Idioma: ${lang}`,
+    );
+
+    // Obtener información del usuario para el email
+    let userData = null;
+    try {
+      const user = await this.findUserByBookingId(bookingId);
+      if (user) {
+        userData = user.toJSON();
+      }
+    } catch (error) {
+      this.logger.warn(`[Reserva #${bookingIdForLogs}] No se pudo obtener información del usuario: ${error.message}`);
+    }
+
+    try {
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Intentando enviar correo de pago rechazado al USUARIO...`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Timestamp inicio pago rechazado usuario: ${new Date().toISOString()}`,
+      );
+
+      const userResult = await Promise.race([
+        this.userEmailAdapter.sendUserBookingRejected(booking, userEmail, lang, userData),
+        this.createTimeoutPromise(120000, 'Usuario email timeout'), // 2 minutos
+      ]);
+
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Timestamp fin pago rechazado usuario: ${new Date().toISOString()}`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Correo de pago rechazado enviado con éxito al USUARIO.`,
+      );
+      this.logger.log(
+        `[Reserva #${bookingIdForLogs}] Resultado pago rechazado usuario: ${JSON.stringify(userResult)}`,
+      );
+    } catch (userError) {
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] [CRITICAL] Fallo al enviar email de pago rechazado al USUARIO.`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Error type: ${userError.constructor.name}`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Error message: ${userError.message}`,
+      );
+      this.logger.error(
+        `[Reserva #${bookingIdForLogs}] Stack: ${userError.stack}`,
+      );
+
+      console.error(
+        'Objeto de error completo (pago rechazado usuario):',
+        JSON.stringify(userError, Object.getOwnPropertyNames(userError)),
+      );
+
+      throw new BadRequestException(userError.message);
+    }
+
+    this.logger.log(
+      `[Reserva #${bookingIdForLogs}] Proceso de notificación de pago rechazado finalizado.`,
+    );
+  }
+
   private createTimeoutPromise(ms: number, message: string): Promise<never> {
     return new Promise((_, reject) => {
       setTimeout(() => {

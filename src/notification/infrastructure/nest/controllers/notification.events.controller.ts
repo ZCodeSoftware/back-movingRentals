@@ -188,6 +188,37 @@ export class NotificationEventController {
     }
   }
 
+  @OnEvent('send-booking.rejected')
+  async sendBookingRejected(payload: {
+    booking: BookingModel;
+    userEmail: string;
+    lang: string;
+  }) {
+    const { booking, userEmail, lang } = payload;
+    try {
+      const bookingId = booking?.toJSON?.()?._id;
+      
+      // Buscar el contrato asociado al booking para verificar el source
+      const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
+      
+      if (contract) {
+        const source = contract.source || 'Web';
+        console.log(`[NotificationEventController] Contrato encontrado para pago rechazado - source: ${source}`);
+      }
+      
+      // SIEMPRE enviar email cuando un pago es rechazado, independientemente del source
+      console.log('[NotificationEventController] ✅ Enviando email de pago rechazado');
+      await this.notificationEventService.sendBookingRejected(
+        booking,
+        userEmail,
+        lang,
+      );
+      console.log('[NotificationEventController] ✅ Email de pago rechazado enviado exitosamente');
+    } catch (error) {
+      console.error('Error sending booking rejection emails:', error);
+    }
+  }
+
   @OnEvent('send-contract.created')
   async contractCreate(payload: {
     contract: ContractModel;
