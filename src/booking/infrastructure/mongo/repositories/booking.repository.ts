@@ -126,17 +126,22 @@ export class BookingRepository implements IBookingRepository {
       }
     }
 
-    // Filtro por fecha de RESERVA (fechas de los servicios en el cart)
-    // Este filtro busca bookings que tengan al menos un servicio cuyas fechas se solapen con el rango
+    // Filtro por fecha de RESERVA (fechas de inicio de los servicios en el cart)
+    // Este filtro busca bookings que tengan al menos un servicio que INICIE en el rango especificado
     if (reservationStartDate || reservationEndDate) {
-      const rangeStart = reservationStartDate ? new Date(reservationStartDate) : new Date('1970-01-01');
-      const rangeEnd = reservationEndDate ? (() => {
-        const endOfDay = new Date(reservationEndDate);
-        endOfDay.setUTCHours(23, 59, 59, 999);
-        return endOfDay;
-      })() : new Date('2100-12-31');
+      // El frontend envía fechas en formato YYYY-MM-DD (ej: 2025-12-07)
+      // Necesitamos comparar solo las fechas (día) sin considerar las horas
+      
+      // Función para extraer solo la fecha (YYYY-MM-DD) de un Date object
+      const getDateOnly = (date: Date): string => {
+        return date.toISOString().split('T')[0];
+      };
+      
+      // Fechas del rango de filtro (solo día)
+      const filterStartDate = reservationStartDate || '1970-01-01';
+      const filterEndDate = reservationEndDate || '2100-12-31';
 
-      console.log(`[BookingRepository] Filtrando por fecha de reserva: ${rangeStart.toISOString()} - ${rangeEnd.toISOString()}`);
+      console.log(`[BookingRepository] Filtrando por fecha de INICIO de reserva: ${filterStartDate} - ${filterEndDate}`);
 
       // Obtener todos los bookings que cumplan con los otros filtros
       const allBookings = await this.bookingDB.find(query).select('_id cart').lean();
@@ -149,59 +154,62 @@ export class BookingRepository implements IBookingRepository {
           const cart = JSON.parse(booking.cart || '{}');
           let hasMatch = false;
 
-          // Verificar vehículos
+          // Verificar vehículos - solo verificar fecha de INICIO
           if (cart.vehicles && Array.isArray(cart.vehicles)) {
             for (const vehicle of cart.vehicles) {
-              if (vehicle.dates?.start && vehicle.dates?.end) {
+              if (vehicle.dates?.start) {
                 const vehicleStart = new Date(vehicle.dates.start);
-                const vehicleEnd = new Date(vehicle.dates.end);
+                const vehicleStartDate = getDateOnly(vehicleStart);
                 
-                // Verificar si hay solapamiento: el vehículo empieza antes o durante el rango Y termina después o durante el rango
-                if (vehicleStart <= rangeEnd && vehicleEnd >= rangeStart) {
+                // Verificar si la fecha de inicio está dentro del rango (comparación de strings YYYY-MM-DD)
+                if (vehicleStartDate >= filterStartDate && vehicleStartDate <= filterEndDate) {
                   hasMatch = true;
-                  console.log(`[BookingRepository] Match encontrado en vehículo: ${vehicleStart.toISOString()} - ${vehicleEnd.toISOString()}`);
+                  console.log(`[BookingRepository] Match encontrado en vehículo (inicio): ${vehicleStartDate}`);
                   break;
                 }
               }
             }
           }
 
-          // Verificar transfers
+          // Verificar transfers - verificar fecha del servicio
           if (!hasMatch && cart.transfer && Array.isArray(cart.transfer)) {
             for (const transfer of cart.transfer) {
               if (transfer.date) {
                 const transferDate = new Date(transfer.date);
-                if (transferDate >= rangeStart && transferDate <= rangeEnd) {
+                const transferDateOnly = getDateOnly(transferDate);
+                if (transferDateOnly >= filterStartDate && transferDateOnly <= filterEndDate) {
                   hasMatch = true;
-                  console.log(`[BookingRepository] Match encontrado en transfer: ${transferDate.toISOString()}`);
+                  console.log(`[BookingRepository] Match encontrado en transfer: ${transferDateOnly}`);
                   break;
                 }
               }
             }
           }
 
-          // Verificar tours
+          // Verificar tours - verificar fecha del servicio
           if (!hasMatch && cart.tours && Array.isArray(cart.tours)) {
             for (const tour of cart.tours) {
               if (tour.date) {
                 const tourDate = new Date(tour.date);
-                if (tourDate >= rangeStart && tourDate <= rangeEnd) {
+                const tourDateOnly = getDateOnly(tourDate);
+                if (tourDateOnly >= filterStartDate && tourDateOnly <= filterEndDate) {
                   hasMatch = true;
-                  console.log(`[BookingRepository] Match encontrado en tour: ${tourDate.toISOString()}`);
+                  console.log(`[BookingRepository] Match encontrado en tour: ${tourDateOnly}`);
                   break;
                 }
               }
             }
           }
 
-          // Verificar tickets
+          // Verificar tickets - verificar fecha del servicio
           if (!hasMatch && cart.tickets && Array.isArray(cart.tickets)) {
             for (const ticket of cart.tickets) {
               if (ticket.date) {
                 const ticketDate = new Date(ticket.date);
-                if (ticketDate >= rangeStart && ticketDate <= rangeEnd) {
+                const ticketDateOnly = getDateOnly(ticketDate);
+                if (ticketDateOnly >= filterStartDate && ticketDateOnly <= filterEndDate) {
                   hasMatch = true;
-                  console.log(`[BookingRepository] Match encontrado en ticket: ${ticketDate.toISOString()}`);
+                  console.log(`[BookingRepository] Match encontrado en ticket: ${ticketDateOnly}`);
                   break;
                 }
               }
@@ -216,7 +224,7 @@ export class BookingRepository implements IBookingRepository {
         }
       }
 
-      console.log(`[BookingRepository] ${matchingIds.length} bookings coinciden con el filtro de fecha de reserva`);
+      console.log(`[BookingRepository] ${matchingIds.length} bookings coinciden con el filtro de fecha de inicio de reserva`);
 
       // Reemplazar el query con solo los IDs que coinciden
       query = { _id: { $in: matchingIds } };
