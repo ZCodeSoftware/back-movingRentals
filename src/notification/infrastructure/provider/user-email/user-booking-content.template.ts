@@ -74,6 +74,7 @@ function formatDate(dateString?: string): string {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'America/Cancun',
     });
   } catch (e) {
     return dateString;
@@ -112,6 +113,7 @@ function formatDateTimeRange(startDate?: string, endDate?: string): string {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'America/Cancun',
     });
     
     const startTime = start.toLocaleTimeString('es-ES', {
@@ -137,6 +139,7 @@ function formatDateTimeRange(startDate?: string, endDate?: string): string {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
+        timeZone: 'America/Cancun',
       });
       return `Desde ${dateStr} a las ${startTime} hasta ${endDateStr} a las ${endTime}`;
     }
