@@ -1397,13 +1397,41 @@ export class BookingService implements IBookingService {
   async exportBookings(filters: any): Promise<Buffer> {
     const XLSX = require('xlsx');
     
+    console.log('[ExportBookings] Iniciando exportación...');
+    const startTime = Date.now();
+    
     // Obtener todas las reservas sin paginación
     const allFilters = { ...filters, page: 1, limit: 999999 };
     const result = await this.bookingRepository.findAll(allFilters);
     const bookings = result.data;
+    
+    console.log(`[ExportBookings] ${bookings.length} reservas obtenidas en ${Date.now() - startTime}ms`);
 
-    // Obtener información de contratos
+    // Obtener información de contratos en una sola consulta
     const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+    const bookingIds = bookings.map(b => b._id);
+    const contracts = await Contract.find({ booking: { $in: bookingIds } }).lean();
+    const contractsMap = new Map(contracts.map(c => [c.booking.toString(), c]));
+    
+    console.log(`[ExportBookings] ${contracts.length} contratos obtenidos en ${Date.now() - startTime}ms`);
+
+    // Obtener todos los concierges únicos en una sola consulta
+    const conciergeIds = [...new Set(bookings.map(b => b.concierge).filter(Boolean))];
+    const concierges = await Promise.all(
+      conciergeIds.map(async (id) => {
+        try {
+          const concierge = await this.vehicleOwnerRepository.findById(
+            typeof id === 'string' ? id : id.toString()
+          );
+          return { id: id.toString(), name: concierge.toJSON().name };
+        } catch (error) {
+          return { id: id.toString(), name: '-' };
+        }
+      })
+    );
+    const conciergesMap = new Map(concierges.map(c => [c.id, c.name]));
+    
+    console.log(`[ExportBookings] ${concierges.length} concierges obtenidos en ${Date.now() - startTime}ms`);
 
     const rows = [];
 
@@ -1417,7 +1445,7 @@ export class BookingService implements IBookingService {
         if (cart.vehicles && cart.vehicles.length > 0) {
           cart.vehicles.forEach((v: any) => {
             const vehicleName = v.vehicle?.name || 'Vehículo';
-            const dates = v.dates ? `${new Date(v.dates.start).toLocaleDateString()} - ${new Date(v.dates.end).toLocaleDateString()}` : '';
+            const dates = v.dates ? `${new Date(v.dates.start).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })} - ${new Date(v.dates.end).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })}` : '';
             services.push(`${vehicleName} (${dates})`);
           });
         }
@@ -1441,58 +1469,32 @@ export class BookingService implements IBookingService {
         }
 
         // Obtener hotel del cliente - solo desde metadata.hotel
-        // El cart.branch es la sucursal de Moving Rentals, NO el hotel del cliente
         let hotel = '-';
         if (booking.metadata && booking.metadata.hotel) {
           hotel = booking.metadata.hotel;
         }
 
-        // Obtener concierge - verificar múltiples ubicaciones
+        // Obtener concierge desde el mapa
         let conciergeName = '-';
-        
-        // 1. Intentar desde el aggregate (conciergeName)
         if ((booking as any).conciergeName) {
           conciergeName = (booking as any).conciergeName;
-        }
-        // 2. Si no viene del aggregate, buscar manualmente
-        else if (booking.concierge) {
-          try {
-            const concierge = await this.vehicleOwnerRepository.findById(
-              typeof booking.concierge === 'string' ? booking.concierge : booking.concierge.toString()
-            );
-            if (concierge) {
-              conciergeName = concierge.toJSON().name || '-';
-            }
-          } catch (error) {
-            // Silenciar el error si el concierge no existe (fue eliminado)
-            // Solo mostrar en consola para debug
-            if (error.statusCode !== 404) {
-              console.error('Error obteniendo concierge:', error.message);
-            }
-          }
+        } else if (booking.concierge) {
+          const conciergeId = typeof booking.concierge === 'string' ? booking.concierge : booking.concierge.toString();
+          conciergeName = conciergesMap.get(conciergeId) || '-';
         }
 
-        // Obtener monto de extensión del contrato (si existe)
+        // Obtener monto de extensión del contrato desde el mapa
         let extensionAmount = 0;
-        try {
-          const contract = await Contract.findOne({ booking: booking._id }).lean();
-          if (contract && contract.extension) {
-            extensionAmount = contract.extension.extensionAmount || 0;
-          }
-        } catch (error) {
-          console.error('Error obteniendo contrato:', error);
+        const contract = contractsMap.get(booking._id.toString());
+        if (contract && (contract as any).extension) {
+          extensionAmount = (contract as any).extension.extensionAmount || 0;
         }
 
         // Obtener medio de pago desde metadata
-        // Verificar múltiples ubicaciones posibles
         let paymentMedium = '-';
-        
-        // 1. Intentar desde booking.metadata.paymentMedium
         if (booking.metadata && booking.metadata.paymentMedium) {
           paymentMedium = booking.metadata.paymentMedium;
-        }
-        // 2. Intentar desde booking.paymentMedium (campo directo)
-        else if ((booking as any).paymentMedium) {
+        } else if ((booking as any).paymentMedium) {
           paymentMedium = (booking as any).paymentMedium;
         }
 
@@ -1507,7 +1509,7 @@ export class BookingService implements IBookingService {
           'Total Inicial': booking.total || 0,
           'Total General': totalGeneral,
           'Servicios': services.join('\n') || 'N/A',
-          'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : 'N/A',
+          'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' }) : 'N/A',
           'Hotel': hotel,
           'Nombre Cliente': booking.userContact ? `${booking.userContact.name || ''} ${booking.userContact.lastName || ''}`.trim() : 'N/A',
           'Email Cliente': booking.userContact?.email || 'N/A',
@@ -1520,6 +1522,8 @@ export class BookingService implements IBookingService {
         console.error('Error procesando booking:', booking.bookingNumber, error);
       }
     }
+    
+    console.log(`[ExportBookings] ${rows.length} filas procesadas en ${Date.now() - startTime}ms`);
 
     // Crear el libro de Excel
     const worksheet = XLSX.utils.json_to_sheet(rows);
