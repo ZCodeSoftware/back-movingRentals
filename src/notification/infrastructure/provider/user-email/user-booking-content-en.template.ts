@@ -83,15 +83,20 @@ function formatDateToEnglish(dateString?: string): string {
 function formatDateTimeToEnglish(dateString?: string): string {
   if (!dateString) return 'Date and time not specified';
   try {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: '2-digit',
+      timeZone: 'America/Cancun',
+    });
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true,
       timeZone: 'America/Cancun',
     });
+    return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
   }
@@ -113,15 +118,17 @@ function formatDateTimeRangeToEnglish(
     });
 
     const startTime = start.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'America/Cancun',
     });
-
+    
     const endTime = end.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'America/Cancun',
     });
 
     // If same day, show: "August 30, 2025, from 10:00 AM to 6:00 PM"

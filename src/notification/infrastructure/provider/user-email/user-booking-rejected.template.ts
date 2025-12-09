@@ -83,15 +83,20 @@ function formatDate(dateString?: string): string {
 function formatDateTime(dateString?: string): string {
   if (!dateString) return 'Fecha y hora no especificadas';
   try {
-    return new Date(dateString).toLocaleDateString('es-ES', {
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: '2-digit',
+      timeZone: 'America/Cancun',
+    });
+    const timeStr = date.toLocaleTimeString('es-ES', {
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true,
       timeZone: 'America/Cancun',
     });
+    return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
   }
