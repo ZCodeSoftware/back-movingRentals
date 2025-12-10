@@ -90,12 +90,28 @@ function formatDateTimeToEnglish(dateString?: string): string {
       day: 'numeric',
       timeZone: 'America/Cancun',
     });
-    const timeStr = date.toLocaleTimeString('en-US', {
+    
+    // Get hour and minutes in Cancun timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
       timeZone: 'America/Cancun',
     });
+    const parts = formatter.formatToParts(date);
+    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute = parts.find(p => p.type === 'minute')?.value || '00';
+    
+    // Convert to 12-hour format
+    const period = hour >= 12 ? 'PM' : 'AM';
+    if (hour === 0) {
+      hour = 12; // Midnight
+    } else if (hour > 12) {
+      hour = hour - 12;
+    }
+    // If hour is 12, keep it as 12 (noon or midnight)
+    
+    const timeStr = `${hour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
@@ -117,19 +133,41 @@ function formatDateTimeRangeToEnglish(
       day: 'numeric',
     });
 
-    const startTime = start.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'America/Cancun',
+    // Format start time
+    const startFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'America/Cancun',
     });
+    const startParts = startFormatter.formatToParts(start);
+    let startHour = parseInt(startParts.find(p => p.type === 'hour')?.value || '0');
+    const startMinute = startParts.find(p => p.type === 'minute')?.value || '00';
+    const startPeriod = startHour >= 12 ? 'PM' : 'AM';
+    if (startHour === 0) {
+      startHour = 12;
+    } else if (startHour > 12) {
+      startHour = startHour - 12;
+    }
+    const startTime = `${startHour}:${startMinute} ${startPeriod}`;
     
-    const endTime = end.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'America/Cancun',
+    // Format end time
+    const endFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'America/Cancun',
     });
+    const endParts = endFormatter.formatToParts(end);
+    let endHour = parseInt(endParts.find(p => p.type === 'hour')?.value || '0');
+    const endMinute = endParts.find(p => p.type === 'minute')?.value || '00';
+    const endPeriod = endHour >= 12 ? 'PM' : 'AM';
+    if (endHour === 0) {
+      endHour = 12;
+    } else if (endHour > 12) {
+      endHour = endHour - 12;
+    }
+    const endTime = `${endHour}:${endMinute} ${endPeriod}`;
 
     // If same day, show: "August 30, 2025, from 10:00 AM to 6:00 PM"
     if (start.toDateString() === end.toDateString()) {

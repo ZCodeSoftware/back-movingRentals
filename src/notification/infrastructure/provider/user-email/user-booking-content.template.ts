@@ -91,12 +91,28 @@ function formatDateTime(dateString?: string): string {
       day: 'numeric',
       timeZone: 'America/Cancun',
     });
-    const timeStr = date.toLocaleTimeString('es-ES', {
+    
+    // Obtener hora y minutos en zona horaria de Cancún
+    const formatter = new Intl.DateTimeFormat('es-ES', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
       timeZone: 'America/Cancun',
     });
+    const parts = formatter.formatToParts(date);
+    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute = parts.find(p => p.type === 'minute')?.value || '00';
+    
+    // Convertir a formato de 12 horas
+    const period = hour >= 12 ? 'p. m.' : 'a. m.';
+    if (hour === 0) {
+      hour = 12; // Medianoche
+    } else if (hour > 12) {
+      hour = hour - 12;
+    }
+    // Si hour es 12, mantenerlo como 12 (mediodía o medianoche)
+    
+    const timeStr = `${hour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
@@ -116,19 +132,41 @@ function formatDateTimeRange(startDate?: string, endDate?: string): string {
       timeZone: 'America/Cancun',
     });
     
-    const startTime = start.toLocaleTimeString('es-ES', {
+    // Formatear hora de inicio
+    const startFormatter = new Intl.DateTimeFormat('es-ES', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
       timeZone: 'America/Cancun',
     });
+    const startParts = startFormatter.formatToParts(start);
+    let startHour = parseInt(startParts.find(p => p.type === 'hour')?.value || '0');
+    const startMinute = startParts.find(p => p.type === 'minute')?.value || '00';
+    const startPeriod = startHour >= 12 ? 'p. m.' : 'a. m.';
+    if (startHour === 0) {
+      startHour = 12;
+    } else if (startHour > 12) {
+      startHour = startHour - 12;
+    }
+    const startTime = `${startHour}:${startMinute} ${startPeriod}`;
     
-    const endTime = end.toLocaleTimeString('es-ES', {
+    // Formatear hora de fin
+    const endFormatter = new Intl.DateTimeFormat('es-ES', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
       timeZone: 'America/Cancun',
     });
+    const endParts = endFormatter.formatToParts(end);
+    let endHour = parseInt(endParts.find(p => p.type === 'hour')?.value || '0');
+    const endMinute = endParts.find(p => p.type === 'minute')?.value || '00';
+    const endPeriod = endHour >= 12 ? 'p. m.' : 'a. m.';
+    if (endHour === 0) {
+      endHour = 12;
+    } else if (endHour > 12) {
+      endHour = endHour - 12;
+    }
+    const endTime = `${endHour}:${endMinute} ${endPeriod}`;
     
     // Si es el mismo día, mostrar: "30 de agosto de 2025, de 10:00 a.m. a 6:00 p.m."
     if (start.toDateString() === end.toDateString()) {

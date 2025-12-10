@@ -208,7 +208,7 @@ export class MovementRepository implements IMovementRepository {
         userId: string,
         reason?: string
     ): Promise<MovementModel> {
-        const movement = await this.movementDB.findById(movementId).populate('createdBy').populate('beneficiary').populate('vehicle');
+        const movement = await this.movementDB.findById(movementId).populate('createdBy').populate('beneficiary').populate('vehicle').populate('contract');
 
         if (!movement) {
             throw new BaseErrorException('Movimiento no encontrado', HttpStatus.NOT_FOUND);
@@ -224,6 +224,9 @@ export class MovementRepository implements IMovementRepository {
         movement.deletionReason = reason;
 
         const savedMovement = await movement.save();
+
+        // Guardar el contractId antes de procesar el histórico
+        const contractId = (movement as any).contract?._id || (movement as any).contract;
 
         // Si el movimiento tiene una entrada relacionada en el histórico del contrato, eliminarla también
         if (movement.contractHistoryEntry) {
@@ -257,7 +260,140 @@ export class MovementRepository implements IMovementRepository {
             }
         }
 
+        // Recalcular los totales del booking si el movimiento está asociado a un contrato
+        if (contractId) {
+            try {
+                console.log(`[MovementRepository] Recalculando totales del booking para el contrato: ${contractId}`);
+                
+                // Importar dinámicamente el servicio de contratos para evitar dependencias circulares
+                const Contract = this.movementDB.db.model('Contract');
+                const contract = await Contract.findById(contractId).populate('booking');
+                
+                if (contract && contract.booking) {
+                    // Obtener el timeline del contrato
+                    const ContractHistory = this.movementDB.db.model('ContractHistory');
+                    const timeline = await ContractHistory.find({ 
+                        contract: contractId 
+                    })
+                    .populate('eventType')
+                    .populate('createdBy', 'name lastName email')
+                    .sort({ createdAt: 1 })
+                    .lean();
+                    
+                    // Calcular los nuevos totales usando la misma lógica que BookingTotalsService
+                    const originalTotal = contract.booking.total || 0;
+                    let netTotal = originalTotal;
+                    
+                    for (const historyEntry of timeline) {
+                        // Ignorar movimientos eliminados
+                        if (historyEntry.isDeleted === true) {
+                            continue;
+                        }
+                        
+                        // Verificar si el evento tiene metadatos con información monetaria
+                        if (historyEntry.eventMetadata && historyEntry.eventMetadata.amount) {
+                            const amount = parseFloat(historyEntry.eventMetadata.amount);
+                            
+                            if (!isNaN(amount) && amount !== 0) {
+                                // EXCEPCIÓN: NO sumar el delivery al netTotal porque ya viene incluido en el total del booking
+                                const isDeliveryEvent = historyEntry.eventType?.name === 'DELIVERY';
+                                
+                                if (!isDeliveryEvent) {
+                                    // Determinar la dirección del movimiento
+                                    const eventName = historyEntry.eventType?.name || '';
+                                    const direction = this.determineMovementDirection(eventName);
+                                    
+                                    // Aplicar el ajuste al total neto
+                                    if (direction === 'IN') {
+                                        netTotal += amount;
+                                    } else {
+                                        netTotal -= amount;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Redondear a 2 decimales
+                    netTotal = Math.round(netTotal * 100) / 100;
+                    
+                    // Actualizar el contrato con los nuevos totales
+                    contract.bookingTotals = {
+                        originalTotal,
+                        netTotal
+                    };
+                    
+                    await contract.save();
+                    console.log(`[MovementRepository] Totales del booking recalculados: originalTotal=${originalTotal}, netTotal=${netTotal}`);
+                }
+            } catch (error) {
+                console.error('[MovementRepository] Error al recalcular totales del booking:', error);
+                // No lanzar error para no interrumpir la eliminación del movimiento
+            }
+        }
+
         return MovementModel.hydrate(savedMovement);
+    }
+
+    /**
+     * Determina la dirección del movimiento basándose en el tipo de evento
+     */
+    private determineMovementDirection(eventName: string): 'IN' | 'OUT' {
+        if (!eventName) return 'IN';
+
+        const eventNameUpper = eventName.toUpperCase();
+
+        // Eventos que típicamente representan ingresos (IN)
+        const incomeEvents = [
+            'EXTENSION DE RENTA',
+            'DELIVERY',
+            'TRANSFER',
+            'LLANTA PAGADA POR CLIENTE',
+            'CASCO PAGADO POR CLIENTE',
+            'WIFI',
+            'HORAS EXTRAS',
+            'VEHICULO PAGADO POR CLIENTE',
+            'CANDADO',
+            'ASIENTO BICICLETA PAGADO POR CLIENTE',
+            'ESPEJOS PAGADO POR CLIENTE',
+            'CANASTA PAGADA POR CLIENTE',
+            'PROPINA',
+            'REPARACION PAGADA POR CLIENTE',
+            'COMBUSTIBLE PAGADO POR CLIENTE',
+            'COPIA DE LLAVE - CLIENTE',
+            'LOCK - CLIENTE',
+            'TOURS',
+            'RIDE',
+            'LATE PICK UP',
+            'RENTA',
+            'IMPRESIONES A COLOR'
+        ];
+
+        // Eventos que típicamente representan gastos (OUT)
+        const expenseEvents = [
+            'ROBO',
+            'RESCATE VEHICULO',
+            'CANCELACION',
+            'CRASH',
+            'GASTO PARA TOURS'
+        ];
+
+        // Verificar si es un evento de ingreso
+        for (const incomeEvent of incomeEvents) {
+            if (eventNameUpper.includes(incomeEvent)) {
+                return 'IN';
+            }
+        }
+
+        // Verificar si es un evento de gasto
+        for (const expenseEvent of expenseEvents) {
+            if (eventNameUpper.includes(expenseEvent)) {
+                return 'OUT';
+            }
+        }
+
+        // Por defecto, considerar como ingreso
+        return 'IN';
     }
 
     async restoreMovement(movementId: string): Promise<MovementModel> {
