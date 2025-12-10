@@ -90,12 +90,27 @@ function formatDateTime(dateString?: string): string {
       day: 'numeric',
       timeZone: 'America/Cancun',
     });
-    const timeStr = date.toLocaleTimeString('en-US', {
+    // Get hour and minutes in Cancun timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
       timeZone: 'America/Cancun',
     });
+    const parts = formatter.formatToParts(date);
+    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute = parts.find(p => p.type === 'minute')?.value || '00';
+    
+    // Convert to 12-hour format
+    const period = hour >= 12 ? 'PM' : 'AM';
+    if (hour === 0) {
+      hour = 12; // Midnight
+    } else if (hour > 12) {
+      hour = hour - 12;
+    }
+    // If hour is 12, keep it as 12 (noon or midnight)
+    
+    const timeStr = `${hour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
