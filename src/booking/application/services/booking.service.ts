@@ -208,6 +208,59 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Cart is empty', HttpStatus.BAD_REQUEST);
     }
 
+    // 2.5. VALIDAR DISPONIBILIDAD DE VEHÍCULOS ANTES DE CREAR EL BOOKING
+    if (cartData.vehicles && cartData.vehicles.length > 0) {
+      for (const vehicleItem of cartData.vehicles) {
+        const vehicleId = typeof vehicleItem.vehicle === 'string' 
+          ? vehicleItem.vehicle 
+          : vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+        
+        if (!vehicleId) {
+          console.error('[BookingService] Vehicle ID not found in cart item');
+          continue;
+        }
+
+        const startDate = new Date(vehicleItem.dates.start);
+        const endDate = new Date(vehicleItem.dates.end);
+
+        // Verificar disponibilidad del vehículo
+        const vehicle = await this.vehicleRepository.findById(vehicleId);
+        if (!vehicle) {
+          throw new BaseErrorException(
+            `Vehicle ${vehicleId} not found`,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        const vehicleData = vehicle.toJSON();
+        
+        // Verificar si el vehículo tiene reservas que se solapen con las fechas solicitadas
+        if (vehicleData.reservations && vehicleData.reservations.length > 0) {
+          const hasConflict = vehicleData.reservations.some((reservation: any) => {
+            const reservationStart = new Date(reservation.start).getTime();
+            const reservationEnd = new Date(reservation.end).getTime();
+            const requestedStart = startDate.getTime();
+            const requestedEnd = endDate.getTime();
+
+            // Verificar si hay solapamiento de fechas
+            return (
+              (requestedStart >= reservationStart && requestedStart < reservationEnd) ||
+              (requestedEnd > reservationStart && requestedEnd <= reservationEnd) ||
+              (requestedStart <= reservationStart && requestedEnd >= reservationEnd)
+            );
+          });
+
+          if (hasConflict) {
+            const vehicleName = vehicleData.name || vehicleId;
+            throw new BaseErrorException(
+              `El vehículo ${vehicleName} no está disponible en las fechas seleccionadas (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})`,
+              HttpStatus.CONFLICT,
+            );
+          }
+        }
+      }
+    }
+
     // 4. Calcular el total del carrito
     let total = 0;
 
@@ -333,6 +386,59 @@ export class BookingService implements IBookingService {
       userId,
     );
 
+    // 8.5. CREAR RESERVAS EN LOS VEHÍCULOS
+    if (cartData.vehicles && cartData.vehicles.length > 0) {
+      const bookingId = bookingSave.toJSON()._id?.toString();
+      
+      for (const vehicleItem of cartData.vehicles) {
+        try {
+          const vehicleId = typeof vehicleItem.vehicle === 'string' 
+            ? vehicleItem.vehicle 
+            : vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+          
+          if (!vehicleId) {
+            console.error('[BookingService] Vehicle ID not found in cart item');
+            continue;
+          }
+
+          const startDate = new Date(vehicleItem.dates.start);
+          const endDate = new Date(vehicleItem.dates.end);
+
+          // Obtener el vehículo
+          const vehicle = await this.vehicleRepository.findById(vehicleId);
+          if (!vehicle) {
+            console.error(`[BookingService] Vehicle ${vehicleId} not found when creating reservation`);
+            continue;
+          }
+
+          // Agregar la reserva al vehículo
+          const vehicleData = vehicle.toJSON();
+          const updatedReservations = [
+            ...(vehicleData.reservations || []),
+            {
+              start: startDate.toISOString(),
+              end: endDate.toISOString(),
+              bookingId: bookingId,
+              reservationId: bookingId, // Usar el bookingId como reservationId también
+            }
+          ];
+
+          // Actualizar el vehículo con la nueva reserva
+          vehicle.setReservations(
+            updatedReservations.map(res => ReservationModel.create(res))
+          );
+
+          await this.vehicleRepository.update(vehicleId, vehicle);
+
+          console.log(`[BookingService] Reserva creada para vehículo ${vehicleId} (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})`);
+        } catch (error) {
+          console.error(`[BookingService] Error creating reservation for vehicle:`, error);
+          // No fallar la creación del booking si falla la creación de la reserva
+          // pero registrar el error para investigación
+        }
+      }
+    }
+
     const bookingJson = bookingSave.toJSON();
     const paymentMethodName = paymentMethods.toJSON().name;
     const bookingSource = (body as any).source || 'Web';
@@ -368,6 +474,7 @@ export class BookingService implements IBookingService {
         updatedBooking: bookingSave,
         userEmail: email,
         lang,
+        source: bookingSource, // ✅ Pasar el source directamente en el evento
       });
 
       console.log('[BookingService] ✅ Evento send-booking.created emitido');
@@ -659,17 +766,74 @@ export class BookingService implements IBookingService {
                 }
               }
               
-              // Descontar el monto del delivery del totalPaid si corresponde
-              if (currentBookingData.totalPaid && currentBookingData.deliveryCost) {
-                const newTotalPaid = Math.max(0, currentBookingData.totalPaid - currentBookingData.deliveryCost);
-                console.log(`[BookingService] Actualizando totalPaid: ${currentBookingData.totalPaid} - ${currentBookingData.deliveryCost} = ${newTotalPaid}`);
-                
-                // Actualizar el totalPaid del booking
-                await this.bookingRepository['bookingDB'].updateOne(
-                  { _id: id },
-                  { $set: { totalPaid: newTotalPaid } }
-                );
+              // AJUSTAR TOTALES SEGÚN LAS REGLAS:
+              // 1. Total General: SIEMPRE restar el delivery
+              // 2. Total Pagado: Solo restar si es igual al Total General (pago completo)
+              // 3. Total Inicial: Solo restar si el delivery fue incluido originalmente
+              
+              const deliveryCost = currentBookingData.deliveryCost || 0;
+              const currentTotal = currentBookingData.total || 0;
+              const currentTotalPaid = currentBookingData.totalPaid || 0;
+              
+              console.log(`[BookingService] Ajustando totales después de eliminar delivery:`);
+              console.log(`[BookingService] - Delivery Cost: ${deliveryCost}`);
+              console.log(`[BookingService] - Total Actual: ${currentTotal}`);
+              console.log(`[BookingService] - Total Pagado Actual: ${currentTotalPaid}`);
+              
+              // 1. Calcular nuevo Total General (SIEMPRE restar delivery)
+              const newTotal = Math.max(0, currentTotal - deliveryCost);
+              console.log(`[BookingService] - Nuevo Total General: ${currentTotal} - ${deliveryCost} = ${newTotal}`);
+              
+              // 2. Calcular nuevo Total Pagado
+              // Restar delivery si:
+              // a) Era pago completo (totalPaid === total)
+              // b) O si el totalPaid incluye el delivery (totalPaid >= deliveryCost)
+              let newTotalPaid = currentTotalPaid;
+              const wasFullyPaid = currentTotalPaid === currentTotal;
+              const totalPaidIncludesDelivery = currentTotalPaid >= deliveryCost;
+              
+              if (wasFullyPaid) {
+                newTotalPaid = Math.max(0, currentTotalPaid - deliveryCost);
+                console.log(`[BookingService] - Era pago completo, restando delivery del Total Pagado: ${currentTotalPaid} - ${deliveryCost} = ${newTotalPaid}`);
+              } else if (totalPaidIncludesDelivery && currentTotalPaid > 0) {
+                // Si el totalPaid incluye el delivery, restarlo
+                newTotalPaid = Math.max(0, currentTotalPaid - deliveryCost);
+                console.log(`[BookingService] - Total Pagado incluye delivery, restando: ${currentTotalPaid} - ${deliveryCost} = ${newTotalPaid}`);
+              } else {
+                console.log(`[BookingService] - Total Pagado NO incluye delivery o es 0, se mantiene en: ${newTotalPaid}`);
               }
+              
+              // 3. Determinar si el delivery fue incluido originalmente
+              // El delivery fue incluido originalmente si:
+              // - requiresDelivery está en true en el booking
+              // - O si está en el cart original
+              const deliveryWasOriginal = currentBookingData.requiresDelivery || hadDeliveryInCart;
+              
+              console.log(`[BookingService] - Delivery fue incluido originalmente: ${deliveryWasOriginal}`);
+              
+              // Actualizar el booking con los nuevos totales
+              const updateFields: any = {
+                total: newTotal,
+                totalPaid: newTotalPaid,
+                requiresDelivery: false,
+                deliveryType: null,
+                oneWayType: null,
+                deliveryAddress: null,
+                deliveryCost: 0
+              };
+              
+              await this.bookingRepository['bookingDB'].updateOne(
+                { _id: id },
+                { $set: updateFields }
+              );
+              
+              console.log(`[BookingService] ✅ Totales actualizados en la base de datos`);
+              console.log(`[BookingService] - Total General: ${currentTotal} → ${newTotal}`);
+              console.log(`[BookingService] - Total Pagado: ${currentTotalPaid} → ${newTotalPaid}`);
+              
+              // Actualizar el objeto updatedBooking para reflejar los cambios
+              (updatedBooking as any)._total = newTotal;
+              (updatedBooking as any)._totalPaid = newTotalPaid;
               
               console.log('[BookingService] Entrada de DELIVERY eliminada exitosamente del histórico');
             } else {
@@ -1100,8 +1264,19 @@ export class BookingService implements IBookingService {
         lang,
       });
     } else if (statusName === TypeStatus.REJECTED) {
-      // Pago rechazado - enviar correo de pago rechazado
-      console.log(`[BookingService] Pago RECHAZADO para booking ${id}, enviando correo de pago rechazado`);
+      // Pago rechazado - establecer totalPaid en 0 antes de enviar el correo
+      console.log(`[BookingService] Pago RECHAZADO para booking ${id}, estableciendo totalPaid en 0`);
+      
+      // Actualizar totalPaid a 0 en la base de datos
+      await this.bookingRepository['bookingDB'].updateOne(
+        { _id: id },
+        { $set: { totalPaid: 0 } }
+      );
+      
+      // Actualizar el objeto updatedBooking para reflejar el cambio
+      (updatedBooking as any)._totalPaid = 0;
+      
+      console.log(`[BookingService] totalPaid establecido en 0, enviando correo de pago rechazado`);
       this.eventEmitter.emit('send-booking.rejected', {
         booking: updatedBooking,
         userEmail: email,
@@ -1167,6 +1342,20 @@ export class BookingService implements IBookingService {
     if (!updatedBooking) {
       throw new BaseErrorException('Booking not updated', HttpStatus.NOT_FOUND);
     }
+
+    // Establecer totalPaid en 0 antes de enviar el correo de cancelación
+    console.log(`[BookingService] Reserva CANCELADA ${id}, estableciendo totalPaid en 0`);
+    
+    // Actualizar totalPaid a 0 en la base de datos
+    await this.bookingRepository['bookingDB'].updateOne(
+      { _id: id },
+      { $set: { totalPaid: 0 } }
+    );
+    
+    // Actualizar el objeto updatedBooking para reflejar el cambio
+    (updatedBooking as any)._totalPaid = 0;
+    
+    console.log(`[BookingService] totalPaid establecido en 0 para reserva cancelada`);
 
     // Obtener información del usuario para el email
     const user = await this.bookingRepository.findUserByBookingId(id);
