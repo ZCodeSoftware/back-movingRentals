@@ -291,11 +291,21 @@ export class ContractRepository implements IContractRepository {
     }
     if (difVehs.removed.length)
       autoDetails.push(
-        `Quitado(s) vehículo(s) ${difVehs.removed.map((v) => vehLabel(safeId(v.vehicle))).join(', ')}`,
+        `Quitado(s) vehículo(s): ${difVehs.removed.map((v) => {
+          const name = vehLabel(safeId(v.vehicle));
+          const start = v.dates?.start ? new Date(v.dates.start).toLocaleDateString('es-ES') : '';
+          const end = v.dates?.end ? new Date(v.dates.end).toLocaleDateString('es-ES') : '';
+          return start && end ? `${name} (${start} - ${end})` : name;
+        }).join(', ')}`,
       );
     if (difVehs.added.length)
       autoDetails.push(
-        `Agregado(s) vehículo(s) ${difVehs.added.map((v) => vehLabel(safeId(v.vehicle))).join(', ')}`,
+        `Agregado(s) vehículo(s): ${difVehs.added.map((v) => {
+          const name = vehLabel(safeId(v.vehicle));
+          const start = v.dates?.start ? new Date(v.dates.start).toLocaleDateString('es-ES') : '';
+          const end = v.dates?.end ? new Date(v.dates.end).toLocaleDateString('es-ES') : '';
+          return start && end ? `${name} (${start} - ${end})` : name;
+        }).join(', ')}`,
       );
     difVehs.updated.forEach(([ov, nv]) => {
       const cambios = [];
@@ -364,15 +374,15 @@ export class ContractRepository implements IContractRepository {
     // Combine detalles auto + details manual/user + reasonForChange (del fullUpdateData)
     let combinedDetails = '';
     if (autoDetails.length) combinedDetails += autoDetails.join('. ') + '.';
-    // Si el usuario mandó reasonForChange por fullUpdateData, agregarlo al final
-    const userDetailsFromUpdate =
-      typeof fullUpdateData?.reasonForChange === 'string'
-        ? fullUpdateData.reasonForChange
-        : '';
-    // User details puede estar como details, si no, sumar reasonForChange
-    if (details) combinedDetails += ' ' + details;
-    else if (userDetailsFromUpdate)
-      combinedDetails += ' ' + userDetailsFromUpdate;
+    
+    // Agregar el reasonForChange del usuario (puede venir como details o como fullUpdateData.reasonForChange)
+    const userReason = details || (typeof fullUpdateData?.reasonForChange === 'string' ? fullUpdateData.reasonForChange : '');
+    if (userReason) {
+    // Si ya hay autoDetails, agregar el reason del usuario al final
+    if (combinedDetails) combinedDetails += ' ';
+    combinedDetails += userReason;
+    }
+    
     combinedDetails = combinedDetails.trim();
     // --- DIFF DETECTION END ---
 
@@ -1377,7 +1387,7 @@ export class ContractRepository implements IContractRepository {
             }
           }
         } else if (
-          contractUpdateData.extension?.extensionAmount &&
+          contractUpdateData.extension?.extensionAmount !== undefined &&
           !isExtensionReason
         ) {
           // Si hay datos de extensión pero NO es una extensión real (ej: CRASH, CAMBIO DE VEHICULO, etc.)
@@ -2413,6 +2423,9 @@ export class ContractRepository implements IContractRepository {
       }
     }
 
+      // COMENTADO: El totalPaid NO debe modificarse al eliminar movimientos del histórico
+      // La lógica de ajuste de totales se maneja en booking.service.ts
+      /*
     // RESTAR MONTO DEL TOTALPAID: Si el evento tiene un monto, restarlo del totalPaid del booking
     if (historyEntry.eventMetadata && (historyEntry.eventMetadata as any).amount) {
       try {
@@ -2453,6 +2466,7 @@ export class ContractRepository implements IContractRepository {
         // No fallar la eliminación del historyEntry si falla la actualización del totalPaid
       }
     }
+      */
 
     // ELIMINAR DELIVERY DEL BOOKING: Si es un DELIVERY, quitar requiresDelivery y deliveryCost del booking
     const isDelivery =
@@ -2472,6 +2486,25 @@ export class ContractRepository implements IContractRepository {
         if (contract && contract.booking) {
           const booking = await this.bookingModel.findById(contract.booking);
           if (booking) {
+              // Obtener el costo del delivery antes de eliminarlo
+              const deliveryCost = booking.deliveryCost || 0;
+              const currentTotal = booking.total || 0;
+              const currentTotalPaid = booking.totalPaid || 0;
+
+              console.log('[softDeleteHistoryEntry] Ajustando totales:', {
+                deliveryCost,
+                totalAnterior: currentTotal,
+                totalPaidAnterior: currentTotalPaid
+              });
+
+              // AJUSTAR TOTALES: Total General - restar delivery, Total Pagado - mantener
+              const newTotal = Math.max(0, currentTotal - deliveryCost);
+              const newTotalPaid = currentTotalPaid; // NO modificar
+
+              // Actualizar totales
+              booking.total = newTotal;
+              booking.totalPaid = newTotalPaid;
+              
             // Quitar los campos de delivery del booking
             booking.requiresDelivery = false;
             booking.deliveryCost = 0;
@@ -2480,6 +2513,13 @@ export class ContractRepository implements IContractRepository {
             booking.deliveryAddress = undefined;
 
             await booking.save();
+
+              console.log('[softDeleteHistoryEntry] Totales ajustados:', {
+                totalNuevo: newTotal,
+                totalPaidNuevo: newTotalPaid,
+                deliveryEliminado: deliveryCost
+              });
+
 
             console.log(
               '[softDeleteHistoryEntry] Delivery eliminado del booking exitosamente',

@@ -78,7 +78,38 @@ function formatDate(dateString?: string): string {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'America/Cancun',
     });
+  } catch (e) {
+    return dateString;
+  }
+}
+
+function formatDateTime(dateString?: string): string {
+  if (!dateString) return 'Date and time not specified';
+  try {
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'America/Cancun',
+    });
+    
+    // Get hour and minutes in Cancun timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Cancun',
+    });
+    const parts = formatter.formatToParts(date);
+    const hour = parts.find(p => p.type === 'hour')?.value || '0';
+    const minute = parts.find(p => p.type === 'minute')?.value || '00';
+    const dayPeriod = parts.find(p => p.type === 'dayPeriod')?.value || 'AM';
+    
+    const timeStr = `${hour}:${minute} ${dayPeriod}`;
+    return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
   }
@@ -372,7 +403,7 @@ ${vehicles
 <div class="item-details vehicle-item">
 <p><strong>Name:</strong> ${v.name}</p>
 <p><strong>Category:</strong> ${v.category}</p>
-${v.startDate && v.endDate ? `<p><strong>Original Period:</strong> ${formatDate(v.startDate)} - ${formatDate(v.endDate)}</p>` : ''}
+${v.startDate && v.endDate ? `<p><strong>Original Period:</strong></p><p style="margin-left: 15px;">• Start: ${formatDateTime(v.startDate)}</p><p style="margin-left: 15px;">• End: ${formatDateTime(v.endDate)}</p>` : ''}
 ${v.passengers ? `<p><strong>Passengers:</strong> ${v.passengers}</p>` : ''}
 <p><strong>Subtotal:</strong> ${v.total.toFixed(2)} MXN</p>
 </div>

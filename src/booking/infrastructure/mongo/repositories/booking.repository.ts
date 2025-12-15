@@ -132,9 +132,14 @@ export class BookingRepository implements IBookingRepository {
       // El frontend envía fechas en formato YYYY-MM-DD (ej: 2025-12-07)
       // Necesitamos comparar solo las fechas (día) sin considerar las horas
       
-      // Función para extraer solo la fecha (YYYY-MM-DD) de un Date object
+      // Función para extraer solo la fecha (YYYY-MM-DD) de un Date object en zona horaria de México
       const getDateOnly = (date: Date): string => {
-        return date.toISOString().split('T')[0];
+        // Convertir a zona horaria de México (America/Cancun = UTC-5)
+        const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Cancun' }));
+        const year = mexicoDate.getFullYear();
+        const month = String(mexicoDate.getMonth() + 1).padStart(2, '0');
+        const day = String(mexicoDate.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
       };
       
       // Fechas del rango de filtro (solo día)

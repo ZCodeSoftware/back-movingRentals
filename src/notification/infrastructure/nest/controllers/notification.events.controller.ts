@@ -40,61 +40,59 @@ export class NotificationEventController {
     updatedBooking: BookingModel;
     userEmail: string;
     lang: string;
+    source?: string; // ✅ Agregar source como parámetro opcional
   }) {
     console.log('[NotificationEventController] 🎯 Evento send-booking.created recibido');
     console.log('[NotificationEventController] Payload:', {
       hasBooking: !!payload.updatedBooking,
       userEmail: payload.userEmail,
       lang: payload.lang,
+      source: payload.source,
       bookingId: payload.updatedBooking?.toJSON?.()?._id,
       isReserve: payload.updatedBooking?.toJSON?.()?.isReserve
     });
     
     try {
-      const { updatedBooking, userEmail, lang } = payload;
-      const bookingId = updatedBooking?.toJSON?.()?._id;
+      const { updatedBooking, userEmail, lang, source } = payload;
       
-      // Buscar el contrato asociado al booking para verificar el source
-      const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
+      // ✅ Usar el source del payload directamente (si viene)
+      // Si no viene, buscar en el contrato como fallback
+      let bookingSource = source || 'Web';
       
-      if (contract) {
-        const source = contract.source || 'Web';
-        console.log(`[NotificationEventController] Contrato encontrado - source: ${source}`);
+      if (!source) {
+        console.log('[NotificationEventController] ⚠️ Source no viene en el payload, buscando en contrato...');
+        const bookingId = updatedBooking?.toJSON?.()?._id;
+        const contract = await this.contractModel.findOne({ booking: bookingId }).lean();
         
-        // LÓGICA:
-        // - Dashboard: SIEMPRE enviar email inmediatamente
-        // - Web: Mantener lógica actual (solo enviar cuando se confirma el pago)
-        //   El BookingService ya maneja esto, así que para Web simplemente enviamos
-        //   el email cuando llegue el evento (que solo se emite en los momentos correctos)
-        
-        if (source === 'Dashboard') {
-          console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email inmediatamente');
-          await this.notificationEventService.sendBookingCreated(
-            updatedBooking,
-            userEmail,
-            lang,
-          );
-          console.log('[NotificationEventController] ✅ Email enviado exitosamente');
+        if (contract) {
+          bookingSource = contract.source || 'Web';
+          console.log(`[NotificationEventController] Contrato encontrado - source: ${bookingSource}`);
         } else {
-          // Source es 'Web' - Enviar email siguiendo la lógica actual
-          // (el BookingService ya decidió si debe emitir el evento o no)
-          console.log('[NotificationEventController] 📧 Source es Web - Enviando email según lógica de confirmación de pago');
-          await this.notificationEventService.sendBookingCreated(
-            updatedBooking,
-            userEmail,
-            lang,
-          );
-          console.log('[NotificationEventController] ✅ Email enviado exitosamente');
+          console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - Usando source por defecto: Web');
         }
       } else {
-        console.log('[NotificationEventController] ⚠️ No se encontró contrato asociado - Enviando email por defecto');
-        // Si no hay contrato, enviar el email (comportamiento por defecto)
-        await this.notificationEventService.sendBookingCreated(
-          updatedBooking,
-          userEmail,
-          lang,
-        );
+        console.log(`[NotificationEventController] ✅ Source recibido en payload: ${bookingSource}`);
       }
+      
+      // LÓGICA:
+      // - Dashboard: SIEMPRE enviar email inmediatamente
+      // - Web: Mantener lógica actual (solo enviar cuando se confirma el pago)
+      //   El BookingService ya maneja esto, así que para Web simplemente enviamos
+      //   el email cuando llegue el evento (que solo se emite en los momentos correctos)
+      
+      if (bookingSource === 'Dashboard') {
+        console.log('[NotificationEventController] ✅ Source es Dashboard - Enviando email inmediatamente');
+      } else {
+        console.log('[NotificationEventController] 📧 Source es Web - Enviando email según lógica de confirmación de pago');
+      }
+      
+      await this.notificationEventService.sendBookingCreated(
+        updatedBooking,
+        userEmail,
+        lang,
+      );
+      
+      console.log('[NotificationEventController] ✅ Email enviado exitosamente');
     } catch (error) {
       console.error('[NotificationEventController] ❌ Error enviando email:', error);
       throw error;
