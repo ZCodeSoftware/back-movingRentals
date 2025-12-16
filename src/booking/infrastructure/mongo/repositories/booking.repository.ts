@@ -134,12 +134,16 @@ export class BookingRepository implements IBookingRepository {
       
       // Función para extraer solo la fecha (YYYY-MM-DD) de un Date object en zona horaria de México
       const getDateOnly = (date: Date): string => {
-        // Convertir a zona horaria de México (America/Cancun = UTC-5)
-        const mexicoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Cancun' }));
-        const year = mexicoDate.getFullYear();
-        const month = String(mexicoDate.getMonth() + 1).padStart(2, '0');
-        const day = String(mexicoDate.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        // Usar Intl.DateTimeFormat para obtener la fecha en zona horaria de México
+        const formatter = new Intl.DateTimeFormat('en-CA', { 
+          timeZone: 'America/Cancun',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+        
+        // format() devuelve YYYY-MM-DD directamente con locale 'en-CA'
+        return formatter.format(date);
       };
       
       // Fechas del rango de filtro (solo día)

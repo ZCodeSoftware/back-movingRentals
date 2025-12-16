@@ -153,12 +153,16 @@ export function generateUserBookingCancellationEn(booking: BookingModel): {
     typeof bookingData.refundAmount === 'number' ? bookingData.refundAmount : 0;
   let totalReserva =
     typeof bookingData.total === 'number' ? bookingData.total : 0;
-  let totalPagado =
-    typeof bookingData.amountPaid === 'number'
-      ? bookingData.amountPaid
-      : typeof bookingData.totalPaid === 'number'
-        ? bookingData.totalPaid
-        : 0;
+  
+  // Logic for totalPagado:
+  // Simply use the totalPaid that comes in the booking
+  // The service already handles setting it to 0 when appropriate
+  let totalPagado = typeof bookingData.amountPaid === 'number'
+    ? bookingData.amountPaid
+    : typeof bookingData.totalPaid === 'number'
+      ? bookingData.totalPaid
+      : 0;
+  
   let refundMethod = bookingData.refundMethod || '';
   let refundTimeframe = bookingData.refundTimeframe || '';
   let cancellationFee =
@@ -481,35 +485,10 @@ ${ti.passengers ? `<p><strong>Passengers:</strong> ${ti.passengers}</p>` : ''}
 </div>`
     : ''
 }
-${
-  refundAmount > 0
-    ? `
-<div class="refund-summary">
-<h3><span class="emoji">💰</span> Refund Information:</h3>
-<p><strong>Total booking amount:</strong> $${totalReserva.toFixed(2)} MXN</p>
-<p><strong>Amount paid:</strong> $${totalPagado.toFixed(2)} MXN</p>
-<p><strong>Amount to refund:</strong> $${refundAmount.toFixed(2)} MXN</p>
-${refundMethod ? `<p><strong>Refund method:</strong> ${refundMethod}</p>` : ''}
-${refundTimeframe ? `<p><strong>Processing time:</strong> ${refundTimeframe}</p>` : ''}
-</div>`
-    : ''
-}
-${
-  cancellationFee > 0
-    ? `
-<div class="important-info">
-<h3><span class="emoji">💳</span> Cancellation Fee Applied:</h3>
-<p><strong>Cancellation fee:</strong> $${cancellationFee.toFixed(2)} MXN</p>
-<p><strong>Net refund:</strong> $${(refundAmount - cancellationFee).toFixed(2)} MXN</p>
-</div>`
-    : ''
-}
 <div class="section payment-summary">
 <h2>📊 Cancellation Summary:</h2>
-<p><strong>Original booking total:</strong> $${totalReserva.toFixed(2)} MXN</p>
-<p><strong>Amount that was paid:</strong> $${totalPagado.toFixed(2)} MXN</p>
-${cancellationFee > 0 ? `<p><strong>Cancellation fee:</strong> -$${cancellationFee.toFixed(2)} MXN</p>` : ''}
-<p><strong>Final refund amount:</strong> $${(refundAmount - (cancellationFee || 0)).toFixed(2)} MXN</p>
+<p><strong>Original booking total:</strong> ${totalReserva.toFixed(2)} MXN</p>
+<p><strong>Amount that was paid:</strong> ${totalPagado.toFixed(2)} MXN</p>
 </div>
 <div class="section contact-info">
 <h2><span class="emoji">📞</span> Questions about your cancellation?</h2>

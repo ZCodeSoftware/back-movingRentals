@@ -156,12 +156,16 @@ export function generateUserBookingCancellation(booking: BookingModel): {
     typeof bookingData.refundAmount === 'number' ? bookingData.refundAmount : 0;
   let totalReserva =
     typeof bookingData.total === 'number' ? bookingData.total : 0;
-  let totalPagado =
-    typeof bookingData.amountPaid === 'number'
-      ? bookingData.amountPaid
-      : typeof bookingData.totalPaid === 'number'
-        ? bookingData.totalPaid
-        : 0;
+  
+  // Lógica para totalPagado:
+  // Simplemente usar el totalPaid que viene en el booking
+  // El servicio ya se encarga de establecerlo en 0 cuando corresponde
+  let totalPagado = typeof bookingData.amountPaid === 'number'
+    ? bookingData.amountPaid
+    : typeof bookingData.totalPaid === 'number'
+      ? bookingData.totalPaid
+      : 0;
+  
   let refundMethod = bookingData.refundMethod || '';
   let refundTimeframe = bookingData.refundTimeframe || '';
   let cancellationFee =
@@ -484,35 +488,10 @@ ${ti.passengers ? `<p><strong>Pasajeros:</strong> ${ti.passengers}</p>` : ''}
 </div>`
     : ''
 }
-${
-  refundAmount > 0
-    ? `
-<div class="refund-summary">
-<h3><span class="emoji">💰</span> Información de Reembolso:</h3>
-<p><strong>Monto total de la reserva:</strong> $${totalReserva.toFixed(2)} MXN</p>
-<p><strong>Monto pagado:</strong> $${totalPagado.toFixed(2)} MXN</p>
-<p><strong>Monto a reembolsar:</strong> $${refundAmount.toFixed(2)} MXN</p>
-${refundMethod ? `<p><strong>Método de reembolso:</strong> ${refundMethod}</p>` : ''}
-${refundTimeframe ? `<p><strong>Tiempo de procesamiento:</strong> ${refundTimeframe}</p>` : ''}
-</div>`
-    : ''
-}
-${
-  cancellationFee > 0
-    ? `
-<div class="important-info">
-<h3><span class="emoji">💳</span> Tarifa de Cancelación Aplicada:</h3>
-<p><strong>Tarifa de cancelación:</strong> $${cancellationFee.toFixed(2)} MXN</p>
-<p><strong>Reembolso neto:</strong> $${(refundAmount - cancellationFee).toFixed(2)} MXN</p>
-</div>`
-    : ''
-}
 <div class="section payment-summary">
 <h2>📊 Resumen de Cancelación:</h2>
-<p><strong>Total original de la reserva:</strong> $${totalReserva.toFixed(2)} MXN</p>
-<p><strong>Monto que se había pagado:</strong> $${totalPagado.toFixed(2)} MXN</p>
-${cancellationFee > 0 ? `<p><strong>Tarifa de cancelación:</strong> -$${cancellationFee.toFixed(2)} MXN</p>` : ''}
-<p><strong>Monto final de reembolso:</strong> $${(refundAmount - (cancellationFee || 0)).toFixed(2)} MXN</p>
+<p><strong>Total original de la reserva:</strong> ${totalReserva.toFixed(2)} MXN</p>
+<p><strong>Monto que se había pagado:</strong> ${totalPagado.toFixed(2)} MXN</p>
 </div>
 <div class="section contact-info">
 <h2><span class="emoji">📞</span> ¿Preguntas sobre tu cancelación?</h2>
