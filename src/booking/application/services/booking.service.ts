@@ -1343,30 +1343,39 @@ export class BookingService implements IBookingService {
       throw new BaseErrorException('Booking not updated', HttpStatus.NOT_FOUND);
     }
 
-    // Establecer totalPaid en 0 antes de enviar el correo de cancelación
-    console.log(`[BookingService] Reserva CANCELADA ${id}, estableciendo totalPaid en 0`);
-    
-    // Actualizar totalPaid a 0 en la base de datos
-    await this.bookingRepository['bookingDB'].updateOne(
-      { _id: id },
-      { $set: { totalPaid: 0 } }
-    );
-    
-    // Actualizar el objeto updatedBooking para reflejar el cambio
-    (updatedBooking as any)._totalPaid = 0;
-    
-    console.log(`[BookingService] totalPaid establecido en 0 para reserva cancelada`);
-
     // Obtener información del usuario para el email
     const user = await this.bookingRepository.findUserByBookingId(id);
     const userEmail = user.toJSON().email || email;
 
     // Emitir evento para enviar emails de cancelación
+    // IMPORTANTE: El email se envía ANTES de modificar totalPaid
+    // para que el template pueda evaluar correctamente el estado original
     this.eventEmitter.emit('send-booking.cancelled', {
       booking: updatedBooking,
       userEmail,
       lang,
     });
+
+    // DESPUÉS de enviar el email, establecer totalPaid en 0 SOLO para estados NO APPROVED
+    const bookingData = updatedBooking.toJSON();
+    const statusName = bookingData.status?.name || '';
+    
+    if (statusName !== TypeStatus.APPROVED) {
+      console.log(`[BookingService] Reserva CANCELADA ${id} con estado ${statusName}, estableciendo totalPaid en 0`);
+      
+      // Actualizar totalPaid a 0 en la base de datos
+      await this.bookingRepository['bookingDB'].updateOne(
+        { _id: id },
+        { $set: { totalPaid: 0 } }
+      );
+      
+      // Actualizar el objeto updatedBooking para reflejar el cambio
+      (updatedBooking as any)._totalPaid = 0;
+      
+      console.log(`[BookingService] totalPaid establecido en 0 para reserva cancelada`);
+    } else {
+      console.log(`[BookingService] Reserva CANCELADA ${id} con estado APPROVED, manteniendo totalPaid original: ${bookingData.totalPaid}`);
+    }
 
     return updatedBooking;
   }
