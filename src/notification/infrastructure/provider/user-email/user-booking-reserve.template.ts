@@ -103,15 +103,24 @@ function formatDateTime(dateString?: string): string {
     const minute = parts.find(p => p.type === 'minute')?.value || '00';
     
     // Convertir a formato de 12 horas
-    const period = hour >= 12 ? 'p. m.' : 'a. m.';
-    if (hour === 0) {
-      hour = 12; // Medianoche
-    } else if (hour > 12) {
-      hour = hour - 12;
-    }
-    // Si hour es 12, mantenerlo como 12 (mediodía o medianoche)
+    let period: string;
+    let displayHour: number;
     
-    const timeStr = `${hour}:${minute} ${period}`;
+    if (hour === 0) {
+      displayHour = 12; // Medianoche
+      period = 'a. m.';
+    } else if (hour < 12) {
+      displayHour = hour;
+      period = 'a. m.';
+    } else if (hour === 12) {
+      displayHour = 12; // Mediodía
+      period = 'p. m.';
+    } else {
+      displayHour = hour - 12;
+      period = 'p. m.';
+    }
+    
+    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;

@@ -102,15 +102,24 @@ function formatDateTime(dateString?: string): string {
     const minute = parts.find(p => p.type === 'minute')?.value || '00';
     
     // Convert to 12-hour format
-    const period = hour >= 12 ? 'PM' : 'AM';
-    if (hour === 0) {
-      hour = 12; // Midnight
-    } else if (hour > 12) {
-      hour = hour - 12;
-    }
-    // If hour is 12, keep it as 12 (noon or midnight)
+    let period: string;
+    let displayHour: number;
     
-    const timeStr = `${hour}:${minute} ${period}`;
+    if (hour === 0) {
+      displayHour = 12; // Midnight
+      period = 'AM';
+    } else if (hour < 12) {
+      displayHour = hour;
+      period = 'AM';
+    } else if (hour === 12) {
+      displayHour = 12; // Noon
+      period = 'PM';
+    } else {
+      displayHour = hour - 12;
+      period = 'PM';
+    }
+    
+    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;

@@ -103,15 +103,24 @@ function formatDateTimeToEnglish(dateString?: string): string {
     const minute = parts.find(p => p.type === 'minute')?.value || '00';
     
     // Convert to 12-hour format
-    const period = hour >= 12 ? 'PM' : 'AM';
-    if (hour === 0) {
-      hour = 12; // Midnight
-    } else if (hour > 12) {
-      hour = hour - 12;
-    }
-    // If hour is 12, keep it as 12 (noon or midnight)
+    let period: string;
+    let displayHour: number;
     
-    const timeStr = `${hour}:${minute} ${period}`;
+    if (hour === 0) {
+      displayHour = 12; // Midnight
+      period = 'AM';
+    } else if (hour < 12) {
+      displayHour = hour;
+      period = 'AM';
+    } else if (hour === 12) {
+      displayHour = 12; // Noon
+      period = 'PM';
+    } else {
+      displayHour = hour - 12;
+      period = 'PM';
+    }
+    
+    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
@@ -143,13 +152,25 @@ function formatDateTimeRangeToEnglish(
     const startParts = startFormatter.formatToParts(start);
     let startHour = parseInt(startParts.find(p => p.type === 'hour')?.value || '0');
     const startMinute = startParts.find(p => p.type === 'minute')?.value || '00';
-    const startPeriod = startHour >= 12 ? 'PM' : 'AM';
+    
+    let startPeriod: string;
+    let displayStartHour: number;
+    
     if (startHour === 0) {
-      startHour = 12;
-    } else if (startHour > 12) {
-      startHour = startHour - 12;
+      displayStartHour = 12; // Midnight
+      startPeriod = 'AM';
+    } else if (startHour < 12) {
+      displayStartHour = startHour;
+      startPeriod = 'AM';
+    } else if (startHour === 12) {
+      displayStartHour = 12; // Noon
+      startPeriod = 'PM';
+    } else {
+      displayStartHour = startHour - 12;
+      startPeriod = 'PM';
     }
-    const startTime = `${startHour}:${startMinute} ${startPeriod}`;
+    
+    const startTime = `${displayStartHour}:${startMinute} ${startPeriod}`;
     
     // Format end time
     const endFormatter = new Intl.DateTimeFormat('en-US', {
@@ -161,13 +182,25 @@ function formatDateTimeRangeToEnglish(
     const endParts = endFormatter.formatToParts(end);
     let endHour = parseInt(endParts.find(p => p.type === 'hour')?.value || '0');
     const endMinute = endParts.find(p => p.type === 'minute')?.value || '00';
-    const endPeriod = endHour >= 12 ? 'PM' : 'AM';
+    
+    let endPeriod: string;
+    let displayEndHour: number;
+    
     if (endHour === 0) {
-      endHour = 12;
-    } else if (endHour > 12) {
-      endHour = endHour - 12;
+      displayEndHour = 12; // Midnight
+      endPeriod = 'AM';
+    } else if (endHour < 12) {
+      displayEndHour = endHour;
+      endPeriod = 'AM';
+    } else if (endHour === 12) {
+      displayEndHour = 12; // Noon
+      endPeriod = 'PM';
+    } else {
+      displayEndHour = endHour - 12;
+      endPeriod = 'PM';
     }
-    const endTime = `${endHour}:${endMinute} ${endPeriod}`;
+    
+    const endTime = `${displayEndHour}:${endMinute} ${endPeriod}`;
 
     // If same day, show: "August 30, 2025, from 10:00 AM to 6:00 PM"
     if (start.toDateString() === end.toDateString()) {
