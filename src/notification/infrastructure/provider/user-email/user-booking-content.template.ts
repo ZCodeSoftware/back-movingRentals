@@ -104,15 +104,24 @@ function formatDateTime(dateString?: string): string {
     const minute = parts.find(p => p.type === 'minute')?.value || '00';
     
     // Convertir a formato de 12 horas
-    const period = hour >= 12 ? 'p. m.' : 'a. m.';
-    if (hour === 0) {
-      hour = 12; // Medianoche
-    } else if (hour > 12) {
-      hour = hour - 12;
-    }
-    // Si hour es 12, mantenerlo como 12 (mediodía o medianoche)
+    let period: string;
+    let displayHour: number;
     
-    const timeStr = `${hour}:${minute} ${period}`;
+    if (hour === 0) {
+      displayHour = 12; // Medianoche
+      period = 'a. m.';
+    } else if (hour < 12) {
+      displayHour = hour;
+      period = 'a. m.';
+    } else if (hour === 12) {
+      displayHour = 12; // Mediodía
+      period = 'p. m.';
+    } else {
+      displayHour = hour - 12;
+      period = 'p. m.';
+    }
+    
+    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
@@ -142,13 +151,25 @@ function formatDateTimeRange(startDate?: string, endDate?: string): string {
     const startParts = startFormatter.formatToParts(start);
     let startHour = parseInt(startParts.find(p => p.type === 'hour')?.value || '0');
     const startMinute = startParts.find(p => p.type === 'minute')?.value || '00';
-    const startPeriod = startHour >= 12 ? 'p. m.' : 'a. m.';
+    
+    let startPeriod: string;
+    let displayStartHour: number;
+    
     if (startHour === 0) {
-      startHour = 12;
-    } else if (startHour > 12) {
-      startHour = startHour - 12;
+      displayStartHour = 12; // Medianoche
+      startPeriod = 'a. m.';
+    } else if (startHour < 12) {
+      displayStartHour = startHour;
+      startPeriod = 'a. m.';
+    } else if (startHour === 12) {
+      displayStartHour = 12; // Mediodía
+      startPeriod = 'p. m.';
+    } else {
+      displayStartHour = startHour - 12;
+      startPeriod = 'p. m.';
     }
-    const startTime = `${startHour}:${startMinute} ${startPeriod}`;
+    
+    const startTime = `${displayStartHour}:${startMinute} ${startPeriod}`;
     
     // Formatear hora de fin
     const endFormatter = new Intl.DateTimeFormat('es-ES', {
@@ -160,13 +181,25 @@ function formatDateTimeRange(startDate?: string, endDate?: string): string {
     const endParts = endFormatter.formatToParts(end);
     let endHour = parseInt(endParts.find(p => p.type === 'hour')?.value || '0');
     const endMinute = endParts.find(p => p.type === 'minute')?.value || '00';
-    const endPeriod = endHour >= 12 ? 'p. m.' : 'a. m.';
+    
+    let endPeriod: string;
+    let displayEndHour: number;
+    
     if (endHour === 0) {
-      endHour = 12;
-    } else if (endHour > 12) {
-      endHour = endHour - 12;
+      displayEndHour = 12; // Medianoche
+      endPeriod = 'a. m.';
+    } else if (endHour < 12) {
+      displayEndHour = endHour;
+      endPeriod = 'a. m.';
+    } else if (endHour === 12) {
+      displayEndHour = 12; // Mediodía
+      endPeriod = 'p. m.';
+    } else {
+      displayEndHour = endHour - 12;
+      endPeriod = 'p. m.';
     }
-    const endTime = `${endHour}:${endMinute} ${endPeriod}`;
+    
+    const endTime = `${displayEndHour}:${endMinute} ${endPeriod}`;
     
     // Si es el mismo día, mostrar: "30 de agosto de 2025, de 10:00 a.m. a 6:00 p.m."
     if (start.toDateString() === end.toDateString()) {
