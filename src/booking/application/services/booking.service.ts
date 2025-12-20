@@ -82,6 +82,34 @@ export class BookingService implements IBookingService {
 
     const bookingSave = await this.bookingRepository.create(bookingModel, id);
 
+    // Registrar pago inicial automáticamente si totalPaid > 0
+    if (booking.totalPaid && booking.totalPaid > 0) {
+      // Cuando se paga desde la web, siempre es STRIPE (crédito/débito)
+      // independientemente de si es reserva o pago completo
+      const paymentType = 'STRIPE';
+      const percentage = booking.isReserve 
+        ? Math.round((booking.totalPaid / booking.total) * 100) 
+        : 100;
+      
+      bookingSave.addPayment({
+        amount: booking.totalPaid,
+        paymentMethod: paymentMethod, // ID del método de pago
+        // NO incluir paymentMedium (viene de la web)
+        paymentDate: new Date(),
+        paymentType: paymentType,
+        percentage: percentage,
+        notes: booking.isReserve 
+          ? `Pago inicial (${percentage}%) - Crédito/Débito`
+          : `Pago completo - Crédito/Débito`,
+        status: 'PAID'
+      });
+      
+      // Actualizar el booking con el pago registrado
+      await this.bookingRepository.update(bookingSave.toJSON()._id.toString(), bookingSave);
+      
+      console.log(`[BookingService] Pago inicial registrado: ${booking.totalPaid} MXN (${percentage}%) - STRIPE (Crédito/Débito)`);
+    }
+
     // Obtener el email del usuario para enviar notificación
     // NOTA: Los emails solo se envían cuando el booking viene del Dashboard (source: 'Dashboard')
     // Para bookings de Web (source: 'Web'), NO se envían emails
@@ -1023,6 +1051,7 @@ export class BookingService implements IBookingService {
     isManual: boolean = false,
     isValidated: boolean = false,
     paidAmount?: number, // Monto pagado (opcional, para pagos parciales)
+    paymentsData?: any, // Datos de pagos desde el frontend
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -1095,6 +1124,126 @@ export class BookingService implements IBookingService {
     console.log(`[BookingService] validateBooking - Antes de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
     booking.payBooking(paid, paidAmount);
     console.log(`[BookingService] validateBooking - Después de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
+
+    // Registrar los pagos en el historial
+    // Obtener el usuario que está validando (para validatedBy)
+    let validatedBy: string | undefined;
+    let validatedAt: Date | undefined;
+    
+    try {
+      const validatingUser = await this.userRepository.findByEmail(email);
+      validatedBy = validatingUser?.toJSON()._id?.toString();
+      validatedAt = new Date();
+    } catch (error) {
+      console.warn('[BookingService] No se pudo obtener el usuario validador:', error);
+    }
+    
+    // PRIORIDAD 1: Si vienen paymentsData (array o formato {initial, final}), SOLO usar esos y limpiar todo lo demás
+    if (paymentsData && Array.isArray(paymentsData) && paymentsData.length > 0) {
+      // Caso: Validación desde dashboard con múltiples pagos (formato array)
+      // LIMPIAR el array de pagos existente y reemplazarlo con los nuevos
+      console.log('[BookingService] Reemplazando TODOS los pagos existentes con los del dashboard (formato array)');
+      console.log('[BookingService] Pagos a registrar:', paymentsData);
+      
+      // Limpiar pagos existentes
+      (booking as any)._payments = [];
+      
+      for (const paymentData of paymentsData) {
+        const paymentType = paymentData.paymentType || 
+                           (paymentData.paymentMethod?.toLowerCase().includes('credito') || 
+                            paymentData.paymentMethod?.toLowerCase().includes('debito') ? 'STRIPE' :
+                            paymentData.paymentMethod?.toLowerCase().includes('efectivo') ? 'CASH' :
+                            paymentData.paymentMethod?.toLowerCase().includes('transferencia') ? 'TRANSFER' : 'OTHER');
+        
+        booking.addPayment({
+          amount: paymentData.amount,
+          paymentMethod: paymentData.paymentMethodId || paymentData.paymentMethod,
+          paymentMedium: paymentData.paymentMedium,
+          paymentDate: paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+          paymentType: paymentType,
+          percentage: paymentData.percentage,
+          notes: paymentData.notes || `Pago validado - ${paymentData.paymentMedium || paymentType}`,
+          status: paymentData.status || 'PAID',
+          validatedBy: validatedBy,
+          validatedAt: validatedAt
+        });
+      }
+      
+      console.log(`[BookingService] ${paymentsData.length} pagos registrados desde dashboard (reemplazando existentes)`);
+      
+      // IMPORTANTE: NO ejecutar ninguna otra lógica de pagos
+    } else if (paymentsData?.initial && paymentsData?.final) {
+      // Caso: Confirmación de reserva con dos pagos (inicial + final) - formato {initial, final}
+      // LIMPIAR el array de pagos existente y reemplazarlo con los nuevos
+      console.log('[BookingService] Reemplazando TODOS los pagos existentes con los del dashboard (formato initial/final)');
+      console.log('[BookingService] Pagos a registrar:', paymentsData);
+      
+      // Limpiar pagos existentes
+      (booking as any)._payments = [];
+      
+      // Obtener el paymentMethod del booking (que ya es un ObjectId)
+      const paymentMethodData = booking.toJSON().paymentMethod;
+      const bookingPaymentMethodId = (paymentMethodData._id || paymentMethodData).toString();
+      
+      // Pago inicial
+      const initialPaymentType = paymentsData.initial.paymentMethod.toLowerCase().includes('credito') || 
+                                 paymentsData.initial.paymentMethod.toLowerCase().includes('debito') ? 'STRIPE' :
+                                 paymentsData.initial.paymentMethod.toLowerCase().includes('efectivo') ? 'CASH' :
+                                 paymentsData.initial.paymentMethod.toLowerCase().includes('transferencia') ? 'TRANSFER' : 'OTHER';
+      
+      booking.addPayment({
+        amount: paymentsData.initial.amount,
+        paymentMethod: bookingPaymentMethodId, // Usar el ObjectId del booking
+        paymentMedium: paymentsData.initial.paymentMedium,
+        paymentDate: paymentsData.initial.paidAt ? new Date(paymentsData.initial.paidAt) : new Date(),
+        paymentType: initialPaymentType,
+        percentage: paymentsData.initial.percentage,
+        status: paymentsData.initial.status || 'PAID',
+        notes: `Pago inicial (${paymentsData.initial.percentage}%) - ${paymentsData.initial.paymentMedium}`,
+        validatedBy: validatedBy,
+        validatedAt: validatedAt
+      });
+      
+      // Pago final
+      const finalPaymentType = paymentsData.final.paymentMethod.toLowerCase().includes('credito') || 
+                               paymentsData.final.paymentMethod.toLowerCase().includes('debito') ? 'STRIPE' :
+                               paymentsData.final.paymentMethod.toLowerCase().includes('efectivo') ? 'CASH' :
+                               paymentsData.final.paymentMethod.toLowerCase().includes('transferencia') ? 'TRANSFER' : 'OTHER';
+      
+      booking.addPayment({
+        amount: paymentsData.final.amount,
+        paymentMethod: bookingPaymentMethodId, // Usar el ObjectId del booking
+        paymentMedium: paymentsData.final.paymentMedium,
+        paymentDate: new Date(),
+        paymentType: finalPaymentType,
+        percentage: paymentsData.final.percentage,
+        status: paymentsData.final.status || 'PAID',
+        notes: `Pago final (${paymentsData.final.percentage}%) - ${paymentsData.final.paymentMedium}`,
+        validatedBy: validatedBy,
+        validatedAt: validatedAt
+      });
+      
+      console.log(`[BookingService] Pagos registrados: Inicial ${paymentsData.initial.amount} + Final ${paymentsData.final.amount}`);
+    } else if (paid && paidAmount && paidAmount > 0 && !paymentsData) {
+      // Caso: Pago único o validación simple SIN paymentsData
+      // Solo registrar si NO vienen paymentsData para evitar duplicados
+      const paymentType = paymentMethodName === 'Credito/Debito' ? 'STRIPE' : 
+                         paymentMethodName === 'Efectivo' ? 'CASH' :
+                         paymentMethodName === 'Transferencia' ? 'TRANSFER' : 'OTHER';
+      
+      booking.addPayment({
+        amount: paidAmount,
+        paymentMethod: paymentMethodName,
+        paymentDate: new Date(),
+        paymentType: paymentType,
+        notes: `Pago ${wasReserve ? 'parcial (anticipo)' : 'completo'} validado`,
+        status: 'PAID',
+        validatedBy: validatedBy,
+        validatedAt: validatedAt
+      });
+      
+      console.log(`[BookingService] Pago registrado: ${paidAmount} MXN - ${paymentMethodName} (${paymentType})`);
+    }
 
     isValidated && booking.validateBooking();
 

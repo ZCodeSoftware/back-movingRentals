@@ -5,5 +5,6 @@ export interface ICreateBooking {
   total: number;
   totalPaid?: number;
   isValidated?: boolean;
+  isReserve?: boolean;
   concierge?: string;
 }

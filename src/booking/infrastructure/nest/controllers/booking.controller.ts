@@ -307,6 +307,9 @@ export class BookingController {
     // Priorizar paidAmount del query param, luego del body
     const finalPaidAmount = paidAmount !== undefined ? paidAmount : body?.paidAmount;
     
+    // Extraer datos de pagos si vienen en el body
+    const paymentsData = body?.payments;
+    
     return await this.bookingService.validateBooking(
       id,
       paid,
@@ -315,6 +318,7 @@ export class BookingController {
       isManual,
       isValidated,
       finalPaidAmount, // Pasar el monto pagado al servicio
+      paymentsData, // Pasar los datos de pagos
     );
   }
 

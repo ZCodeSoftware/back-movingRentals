@@ -66,6 +66,41 @@ export class Booking {
 
   @Prop({ type: Number, required: false })
   deliveryDistance?: number;
+
+  @Prop({
+    type: [
+      {
+        amount: { type: Number, required: true },
+        paymentMethod: { type: mongoose.Schema.Types.ObjectId, ref: 'CatPaymentMethod', required: true },
+        paymentMedium: { 
+          type: String, 
+          enum: ['$', 'US$', 'E$', 'AR$', 'CAN', 'GBP', 'CLIP', 'CUENTA', 'PAYPAL', 'MERCADO PAGO', 'PAGO PENDIENTE', 'ZELLE', 'OTRO'], 
+          required: false 
+        },
+        paymentDate: { type: Date, required: true, default: Date.now },
+        paymentType: { type: String, enum: ['STRIPE', 'CASH', 'TRANSFER', 'OTHER'], required: true },
+        notes: { type: String, required: false },
+        percentage: { type: Number, required: false },
+        status: { type: String, enum: ['PAID', 'PENDING', 'FAILED'], required: true, default: 'PAID' },
+        validatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+        validatedAt: { type: Date, required: false }
+      }
+    ],
+    required: false,
+    default: []
+  })
+  payments?: Array<{
+    amount: number;
+    paymentMethod: mongoose.Types.ObjectId;
+    paymentMedium?: '$' | 'US$' | 'E$' | 'AR$' | 'CAN' | 'GBP' | 'CLIP' | 'CUENTA' | 'PAYPAL' | 'MERCADO PAGO' | 'PAGO PENDIENTE' | 'ZELLE' | 'OTRO';
+    paymentDate: Date;
+    paymentType: 'STRIPE' | 'CASH' | 'TRANSFER' | 'OTHER';
+    notes?: string;
+    percentage?: number;
+    status: 'PAID' | 'PENDING' | 'FAILED';
+    validatedBy?: mongoose.Types.ObjectId;
+    validatedAt?: Date;
+  }>;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
