@@ -188,6 +188,49 @@ export class BookingController {
     res.send(excelBuffer);
   }
 
+  
+  @Get('export/movements')
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiResponse({ status: 200, description: 'Export booking movements as Excel' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: 'string',
+    description: 'Filter by status ID',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by start date',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by end date',
+  })
+  async exportBookingMovements(
+    @Query() filters: any,
+    @Res() res: Response,
+  ) {
+    const excelBuffer = await this.bookingService.exportBookingMovements(filters);
+
+    const filename = `movimientos_reservas_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', excelBuffer.length);
+
+    res.send(excelBuffer);
+  }
+
   @Get('/user')
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Return Booking by User id' })
