@@ -119,7 +119,7 @@ export class MovementRepository implements IMovementRepository {
             hasPreviousPage: boolean;
         };
     }> {
-        const { page = 1, limit = 10, startDate, endDate, vehicleId } = filters;
+        const { page = 1, limit = 10, startDate, endDate, vehicleId, detail } = filters;
 
         const user = await this.userDB.findById(userId).populate('role');
 
@@ -153,12 +153,18 @@ export class MovementRepository implements IMovementRepository {
             }
         }
 
+        // Filtro por detalle (case-insensitive)
+        if (detail) {
+            query.detail = { $regex: detail, $options: 'i' };
+        }
+
         const otherFilters = { ...filters };
         delete otherFilters.page;
         delete otherFilters.limit;
         delete otherFilters.startDate;
         delete otherFilters.endDate;
         delete otherFilters.vehicleId;
+        delete otherFilters.detail;
 
         const finalQuery = { ...query, ...otherFilters };
 

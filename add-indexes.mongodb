@@ -1,0 +1,148 @@
+// 🚀 SCRIPT PARA AGREGAR ÍNDICES CRÍTICOS
+// Ejecutar este script en MongoDB Compass o mongo shell
+// Esto mejorará DRÁSTICAMENTE el rendimiento de las métricas
+
+// Conectar a tu base de datos
+use('moving-rentals'); // Cambiar por el nombre de tu BD
+
+// ============================================
+// ÍNDICES PARA BOOKINGS
+// ============================================
+
+// Índice para búsquedas por status y fecha de pago
+db.booking.createIndex(
+  { 
+    "status": 1, 
+    "payments.paymentDate": 1 
+  },
+  { 
+    name: "idx_status_payment_date",
+    background: true 
+  }
+);
+
+// Índice para búsquedas por status y createdAt
+db.booking.createIndex(
+  { 
+    "status": 1, 
+    "createdAt": 1 
+  },
+  { 
+    name: "idx_status_created",
+    background: true 
+  }
+);
+
+// Índice para payments.status
+db.booking.createIndex(
+  { 
+    "payments.status": 1 
+  },
+  { 
+    name: "idx_payments_status",
+    background: true 
+  }
+);
+
+// Índice compuesto para queries de métricas
+db.booking.createIndex(
+  { 
+    "status": 1,
+    "payments.status": 1,
+    "payments.paymentDate": 1
+  },
+  { 
+    name: "idx_metrics_composite",
+    background: true 
+  }
+);
+
+// ============================================
+// ÍNDICES PARA MOVEMENTS
+// ============================================
+
+// Índice para movements por dirección y fecha
+db.movement.createIndex(
+  { 
+    "direction": 1, 
+    "date": 1 
+  },
+  { 
+    name: "idx_direction_date",
+    background: true 
+  }
+);
+
+// Índice para movements por vehículo
+db.movement.createIndex(
+  { 
+    "vehicle": 1, 
+    "direction": 1, 
+    "date": 1 
+  },
+  { 
+    name: "idx_vehicle_direction_date",
+    background: true 
+  }
+);
+
+// Índice para isDeleted
+db.movement.createIndex(
+  { 
+    "isDeleted": 1 
+  },
+  { 
+    name: "idx_is_deleted",
+    background: true 
+  }
+);
+
+// ============================================
+// ÍNDICES PARA VEHICLES
+// ============================================
+
+// Índice para vehículos activos por categoría
+db.vehicle.createIndex(
+  { 
+    "isActive": 1,
+    "category": 1
+  },
+  { 
+    name: "idx_active_category",
+    background: true 
+  }
+);
+
+// ============================================
+// ÍNDICES PARA USERS
+// ============================================
+
+// Índice para bookings de usuarios
+db.user.createIndex(
+  { 
+    "bookings": 1 
+  },
+  { 
+    name: "idx_user_bookings",
+    background: true 
+  }
+);
+
+// ============================================
+// VERIFICAR ÍNDICES CREADOS
+// ============================================
+
+print("\n=== ÍNDICES EN BOOKING ===");
+db.booking.getIndexes().forEach(idx => print(JSON.stringify(idx, null, 2)));
+
+print("\n=== ÍNDICES EN MOVEMENT ===");
+db.movement.getIndexes().forEach(idx => print(JSON.stringify(idx, null, 2)));
+
+print("\n=== ÍNDICES EN VEHICLE ===");
+db.vehicle.getIndexes().forEach(idx => print(JSON.stringify(idx, null, 2)));
+
+print("\n=== ÍNDICES EN USER ===");
+db.user.getIndexes().forEach(idx => print(JSON.stringify(idx, null, 2)));
+
+print("\n✅ ÍNDICES CREADOS EXITOSAMENTE");
+print("⚡ El rendimiento de las métricas debería mejorar significativamente");
