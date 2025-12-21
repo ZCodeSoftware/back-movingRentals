@@ -395,7 +395,10 @@ export class MetricsRepository implements IMetricsRepository {
     const totalIncomeResult = await this.bookingModel.aggregate(incomePipeline);
     const totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
 
-    const expenseFilter: any = { direction: 'OUT' };
+    const expenseFilter: any = { 
+      direction: 'OUT',
+      isDeleted: { $ne: true }
+    };
     if (dateFilter) {
       expenseFilter.date = dateFilter; // CORRECCIÓN: usar 'date' en lugar de 'createdAt' para movements
     }
@@ -791,25 +794,55 @@ export class MetricsRepository implements IMetricsRepository {
   }
 
   async getCategoryUtilization(filters?: MetricsFilters): Promise<CategoryUtilization[]> {
+    const startTime = Date.now();
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
 
-    // Obtener todas las categorías
-    let categoryFilter: any = {};
-    if (filters?.vehicleType) {
-      categoryFilter.name = filters.vehicleType;
+    this.logger.log('[getCategoryUtilization] Iniciando cálculo de utilización por categoría');
+
+    // Usar cache para status IDs
+    const statusIds = await this.getApprovedStatusIds();
+
+    // 1. Obtener conteo de vehículos por categoría en UNA consulta
+    const vehicleCountPipeline: any[] = [
+      {
+        $match: {
+          isActive: true,
+          ...(filters?.vehicleType && { 'category.name': filters.vehicleType })
+        }
+      },
+      {
+        $lookup: {
+          from: 'cat_category',
+          localField: 'category',
+          foreignField: '_id',
+          as: 'categoryData'
+        }
+      },
+      {
+        $unwind: '$categoryData'
+      },
+      {
+        $group: {
+          _id: '$categoryData._id',
+          categoryName: { $first: '$categoryData.name' },
+          totalVehicles: { $sum: 1 }
+        }
+      }
+    ];
+
+    const vehicleCounts = await this.vehicleModel.aggregate(vehicleCountPipeline);
+    const categoryMap = new Map<string, { categoryName: string; totalVehicles: number; count: number }>();
+
+    // Inicializar el mapa con los conteos de vehículos
+    for (const vc of vehicleCounts) {
+      categoryMap.set(vc._id.toString(), {
+        categoryName: vc.categoryName,
+        totalVehicles: vc.totalVehicles,
+        count: 0
+      });
     }
 
-    const categories = await this.categoryModel.find(categoryFilter);
-
-    // Primero, contar el total de reservas para calcular porcentajes
-    // Solo considerar reservas APROBADAS
-    const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
-    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
-    
-    const statusIds = [];
-    if (approvedStatus) statusIds.push(approvedStatus._id);
-    if (completedStatus) statusIds.push(completedStatus._id);
-
+    // 2. Obtener bookings y extraer IDs de vehículos únicos
     const bookingFilter: any = {
       status: { $in: statusIds }
     };
@@ -817,106 +850,64 @@ export class MetricsRepository implements IMetricsRepository {
       bookingFilter.createdAt = dateFilter;
     }
 
-    const allBookings = await this.bookingModel.find(bookingFilter).select('cart');
+    const bookings = await this.bookingModel.find(bookingFilter).select('cart').lean();
+    
+    // Recolectar todos los IDs de vehículos únicos
+    const vehicleIds = new Set<string>();
+    const vehicleBookingCount = new Map<string, number>();
 
-    // Contar reservas por categoría y total general
-    const categoryBookings = new Map<string, { categoryId: string; categoryName: string; count: number; totalVehicles: number }>();
-    let totalBookingsCount = 0;
-
-    // Inicializar todas las categorías con 0
-    for (const category of categories) {
-      const totalVehicles = await this.vehicleModel.countDocuments({
-        category: category._id,
-        isActive: true
-      });
-
-      categoryBookings.set(category._id.toString(), {
-        categoryId: category._id.toString(),
-        categoryName: category.name,
-        count: 0,
-        totalVehicles
-      });
-    }
-
-    // Contar reservas por categoría
-    for (const booking of allBookings) {
+    for (const booking of bookings) {
       try {
         const cart = JSON.parse(booking.cart);
-
-        // Procesar vehículos
+        
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
             if (vehicleItem.vehicle) {
-              const vehicle = await this.vehicleModel.findById(vehicleItem.vehicle);
-              if (vehicle && vehicle.category) {
-                const categoryId = (vehicle.category as any).toString();
-                const categoryData = categoryBookings.get(categoryId);
-                if (categoryData) {
-                  categoryData.count++;
-                  totalBookingsCount++;
-                }
-              }
-            }
-          }
-        }
-
-        // Procesar tours
-        if (cart.tours && Array.isArray(cart.tours)) {
-          for (const tourItem of cart.tours) {
-            if (tourItem.tour && tourItem.tour.category) {
-              const categoryId = tourItem.tour.category._id;
-              const categoryData = categoryBookings.get(categoryId);
-              if (categoryData) {
-                const quantity = tourItem.quantity || 1;
-                categoryData.count += quantity;
-                totalBookingsCount += quantity;
-              }
-            }
-          }
-        }
-
-        // Procesar transfers
-        if (cart.transfer && Array.isArray(cart.transfer)) {
-          for (const transferItem of cart.transfer) {
-            if (transferItem.transfer && transferItem.transfer.category) {
-              const categoryId = transferItem.transfer.category._id;
-              const categoryData = categoryBookings.get(categoryId);
-              if (categoryData) {
-                const quantity = transferItem.quantity || 1;
-                categoryData.count += quantity;
-                totalBookingsCount += quantity;
-              }
-            }
-          }
-        }
-
-        // Procesar tickets
-        if (cart.tickets && Array.isArray(cart.tickets)) {
-          for (const ticketItem of cart.tickets) {
-            if (ticketItem.ticket && ticketItem.ticket.category) {
-              const categoryId = ticketItem.ticket.category._id;
-              const categoryData = categoryBookings.get(categoryId);
-              if (categoryData) {
-                const quantity = ticketItem.quantity || 1;
-                categoryData.count += quantity;
-                totalBookingsCount += quantity;
-              }
+              const vehicleId = vehicleItem.vehicle._id?.toString() || vehicleItem.vehicle.toString();
+              vehicleIds.add(vehicleId);
+              vehicleBookingCount.set(vehicleId, (vehicleBookingCount.get(vehicleId) || 0) + 1);
             }
           }
         }
       } catch (error) {
-        console.warn('Invalid cart JSON in booking:', booking._id);
+        this.logger.warn(`Error al procesar carrito del booking ${booking._id}:`, error);
       }
     }
 
-    // Calcular porcentajes de distribución
+    // 3. Obtener categorías de todos los vehículos en UNA consulta
+    if (vehicleIds.size > 0) {
+      const vehiclesWithCategories = await this.vehicleModel
+        .find({ _id: { $in: Array.from(vehicleIds) } })
+        .select('category')
+        .lean();
+
+      // Contar bookings por categoría
+      for (const vehicle of vehiclesWithCategories) {
+        if (vehicle.category) {
+          const categoryId = vehicle.category.toString();
+          const categoryData = categoryMap.get(categoryId);
+          if (categoryData) {
+            const vehicleId = vehicle._id.toString();
+            const bookingCount = vehicleBookingCount.get(vehicleId) || 0;
+            categoryData.count += bookingCount;
+          }
+        }
+      }
+    }
+
+    // 4. Calcular total de bookings
+    const totalBookingsCount = Array.from(categoryMap.values()).reduce((sum, cat) => sum + cat.count, 0);
+
+    // 5. Construir resultado
     const utilizations: CategoryUtilization[] = [];
 
-    for (const categoryData of categoryBookings.values()) {
-      const utilizationPercentage = totalBookingsCount > 0 ? (categoryData.count / totalBookingsCount) * 100 : 0;
+    for (const [categoryId, categoryData] of categoryMap.entries()) {
+      const utilizationPercentage = totalBookingsCount > 0 
+        ? (categoryData.count / totalBookingsCount) * 100 
+        : 0;
 
       utilizations.push({
-        categoryId: categoryData.categoryId,
+        categoryId,
         categoryName: categoryData.categoryName,
         utilizationPercentage: Math.round(utilizationPercentage * 100) / 100,
         totalBookings: categoryData.count,
@@ -949,6 +940,9 @@ export class MetricsRepository implements IMetricsRepository {
       // Ordenamiento por defecto: por utilizationPercentage descendente
       utilizations.sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
     }
+
+    const duration = Date.now() - startTime;
+    this.logger.log(`[getCategoryUtilization] Completado en ${duration}ms - ${utilizations.length} categorías`);
 
     return utilizations;
   }
@@ -1362,11 +1356,17 @@ export class MetricsRepository implements IMetricsRepository {
     // --- 2. OBTENER LOS DETALLES DE EGRESOS (MOVEMENTS) ---
     if (includeExpenses) {
       const expenseMatch: any = {
-        direction: 'OUT'
+        direction: 'OUT',
+        isDeleted: { $ne: true }
       };
       if (dateFilter) {
         // Usamos 'date' para los movimientos, no 'createdAt'
         expenseMatch.date = dateFilter;
+      }
+      
+      // Filtrar por tipo de movimiento si se especifica
+      if (filters?.movementType) {
+        expenseMatch.type = filters.movementType;
       }
 
       const expensePipeline = [
@@ -1378,7 +1378,8 @@ export class MetricsRepository implements IMetricsRepository {
             date: '$date',
             amount: '$amount',
             description: '$detail',
-            sourceId: '$_id'
+            sourceId: '$_id',
+            movementType: '$type'
           }
         }
       ];
