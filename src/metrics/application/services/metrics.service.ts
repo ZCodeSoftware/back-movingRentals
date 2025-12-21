@@ -10,6 +10,7 @@ import {
   PaymentMethodRevenue,
   PopularVehicle,
   TransactionDetail,
+  VehicleExpenses,
 } from '../../domain/types/metrics.type';
 import SymbolsMetrics from '../../symbols-metrics';
 
@@ -50,6 +51,10 @@ export class MetricsService implements IMetricsService {
 
   async getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]> {
     return await this.metricsRepository.getVehicleFinancialDetails(vehicleId, filters);
+  }
+
+  async getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]> {
+    return await this.metricsRepository.getVehicleExpenses(filters);
   }
 
 }

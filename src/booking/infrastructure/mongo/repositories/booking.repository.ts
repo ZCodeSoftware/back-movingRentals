@@ -334,6 +334,7 @@ export class BookingRepository implements IBookingRepository {
           metadata: 1,
           concierge: 1,
           paymentMedium: 1,
+          payments: 1,
           conciergeName: { $ifNull: ['$conciergeData.name', null] },
           status: '$statusData',
           paymentMethod: '$paymentMethodData',

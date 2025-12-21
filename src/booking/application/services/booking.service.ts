@@ -82,6 +82,34 @@ export class BookingService implements IBookingService {
 
     const bookingSave = await this.bookingRepository.create(bookingModel, id);
 
+    // Registrar pago inicial automáticamente si totalPaid > 0
+    if (booking.totalPaid && booking.totalPaid > 0) {
+      // Cuando se paga desde la web, siempre es STRIPE (crédito/débito)
+      // independientemente de si es reserva o pago completo
+      const paymentType = 'STRIPE';
+      const percentage = booking.isReserve 
+        ? Math.round((booking.totalPaid / booking.total) * 100) 
+        : 100;
+      
+      bookingSave.addPayment({
+        amount: booking.totalPaid,
+        paymentMethod: paymentMethod, // ID del método de pago
+        // NO incluir paymentMedium (viene de la web)
+        paymentDate: new Date(),
+        paymentType: paymentType,
+        percentage: percentage,
+        notes: booking.isReserve 
+          ? `Pago inicial (${percentage}%) - Crédito/Débito`
+          : `Pago completo - Crédito/Débito`,
+        status: 'PAID'
+      });
+      
+      // Actualizar el booking con el pago registrado
+      await this.bookingRepository.update(bookingSave.toJSON()._id.toString(), bookingSave);
+      
+      console.log(`[BookingService] Pago inicial registrado: ${booking.totalPaid} MXN (${percentage}%) - STRIPE (Crédito/Débito)`);
+    }
+
     // Obtener el email del usuario para enviar notificación
     // NOTA: Los emails solo se envían cuando el booking viene del Dashboard (source: 'Dashboard')
     // Para bookings de Web (source: 'Web'), NO se envían emails
@@ -1023,6 +1051,7 @@ export class BookingService implements IBookingService {
     isManual: boolean = false,
     isValidated: boolean = false,
     paidAmount?: number, // Monto pagado (opcional, para pagos parciales)
+    paymentsData?: any, // Datos de pagos desde el frontend
   ): Promise<BookingModel> {
     const booking = await this.bookingRepository.findById(id);
 
@@ -1095,6 +1124,126 @@ export class BookingService implements IBookingService {
     console.log(`[BookingService] validateBooking - Antes de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
     booking.payBooking(paid, paidAmount);
     console.log(`[BookingService] validateBooking - Después de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
+
+    // Registrar los pagos en el historial
+    // Obtener el usuario que está validando (para validatedBy)
+    let validatedBy: string | undefined;
+    let validatedAt: Date | undefined;
+    
+    try {
+      const validatingUser = await this.userRepository.findByEmail(email);
+      validatedBy = validatingUser?.toJSON()._id?.toString();
+      validatedAt = new Date();
+    } catch (error) {
+      console.warn('[BookingService] No se pudo obtener el usuario validador:', error);
+    }
+    
+    // PRIORIDAD 1: Si vienen paymentsData (array o formato {initial, final}), SOLO usar esos y limpiar todo lo demás
+    if (paymentsData && Array.isArray(paymentsData) && paymentsData.length > 0) {
+      // Caso: Validación desde dashboard con múltiples pagos (formato array)
+      // LIMPIAR el array de pagos existente y reemplazarlo con los nuevos
+      console.log('[BookingService] Reemplazando TODOS los pagos existentes con los del dashboard (formato array)');
+      console.log('[BookingService] Pagos a registrar:', paymentsData);
+      
+      // Limpiar pagos existentes
+      (booking as any)._payments = [];
+      
+      for (const paymentData of paymentsData) {
+        const paymentType = paymentData.paymentType || 
+                           (paymentData.paymentMethod?.toLowerCase().includes('credito') || 
+                            paymentData.paymentMethod?.toLowerCase().includes('debito') ? 'STRIPE' :
+                            paymentData.paymentMethod?.toLowerCase().includes('efectivo') ? 'CASH' :
+                            paymentData.paymentMethod?.toLowerCase().includes('transferencia') ? 'TRANSFER' : 'OTHER');
+        
+        booking.addPayment({
+          amount: paymentData.amount,
+          paymentMethod: paymentData.paymentMethodId || paymentData.paymentMethod,
+          paymentMedium: paymentData.paymentMedium,
+          paymentDate: paymentData.paymentDate ? new Date(paymentData.paymentDate) : new Date(),
+          paymentType: paymentType,
+          percentage: paymentData.percentage,
+          notes: paymentData.notes || `Pago validado - ${paymentData.paymentMedium || paymentType}`,
+          status: paymentData.status || 'PAID',
+          validatedBy: validatedBy,
+          validatedAt: validatedAt
+        });
+      }
+      
+      console.log(`[BookingService] ${paymentsData.length} pagos registrados desde dashboard (reemplazando existentes)`);
+      
+      // IMPORTANTE: NO ejecutar ninguna otra lógica de pagos
+    } else if (paymentsData?.initial && paymentsData?.final) {
+      // Caso: Confirmación de reserva con dos pagos (inicial + final) - formato {initial, final}
+      // LIMPIAR el array de pagos existente y reemplazarlo con los nuevos
+      console.log('[BookingService] Reemplazando TODOS los pagos existentes con los del dashboard (formato initial/final)');
+      console.log('[BookingService] Pagos a registrar:', paymentsData);
+      
+      // Limpiar pagos existentes
+      (booking as any)._payments = [];
+      
+      // Obtener el paymentMethod del booking (que ya es un ObjectId)
+      const paymentMethodData = booking.toJSON().paymentMethod;
+      const bookingPaymentMethodId = (paymentMethodData._id || paymentMethodData).toString();
+      
+      // Pago inicial
+      const initialPaymentType = paymentsData.initial.paymentMethod.toLowerCase().includes('credito') || 
+                                 paymentsData.initial.paymentMethod.toLowerCase().includes('debito') ? 'STRIPE' :
+                                 paymentsData.initial.paymentMethod.toLowerCase().includes('efectivo') ? 'CASH' :
+                                 paymentsData.initial.paymentMethod.toLowerCase().includes('transferencia') ? 'TRANSFER' : 'OTHER';
+      
+      booking.addPayment({
+        amount: paymentsData.initial.amount,
+        paymentMethod: bookingPaymentMethodId, // Usar el ObjectId del booking
+        paymentMedium: paymentsData.initial.paymentMedium,
+        paymentDate: paymentsData.initial.paidAt ? new Date(paymentsData.initial.paidAt) : new Date(),
+        paymentType: initialPaymentType,
+        percentage: paymentsData.initial.percentage,
+        status: paymentsData.initial.status || 'PAID',
+        notes: `Pago inicial (${paymentsData.initial.percentage}%) - ${paymentsData.initial.paymentMedium}`,
+        validatedBy: validatedBy,
+        validatedAt: validatedAt
+      });
+      
+      // Pago final
+      const finalPaymentType = paymentsData.final.paymentMethod.toLowerCase().includes('credito') || 
+                               paymentsData.final.paymentMethod.toLowerCase().includes('debito') ? 'STRIPE' :
+                               paymentsData.final.paymentMethod.toLowerCase().includes('efectivo') ? 'CASH' :
+                               paymentsData.final.paymentMethod.toLowerCase().includes('transferencia') ? 'TRANSFER' : 'OTHER';
+      
+      booking.addPayment({
+        amount: paymentsData.final.amount,
+        paymentMethod: bookingPaymentMethodId, // Usar el ObjectId del booking
+        paymentMedium: paymentsData.final.paymentMedium,
+        paymentDate: new Date(),
+        paymentType: finalPaymentType,
+        percentage: paymentsData.final.percentage,
+        status: paymentsData.final.status || 'PAID',
+        notes: `Pago final (${paymentsData.final.percentage}%) - ${paymentsData.final.paymentMedium}`,
+        validatedBy: validatedBy,
+        validatedAt: validatedAt
+      });
+      
+      console.log(`[BookingService] Pagos registrados: Inicial ${paymentsData.initial.amount} + Final ${paymentsData.final.amount}`);
+    } else if (paid && paidAmount && paidAmount > 0 && !paymentsData) {
+      // Caso: Pago único o validación simple SIN paymentsData
+      // Solo registrar si NO vienen paymentsData para evitar duplicados
+      const paymentType = paymentMethodName === 'Credito/Debito' ? 'STRIPE' : 
+                         paymentMethodName === 'Efectivo' ? 'CASH' :
+                         paymentMethodName === 'Transferencia' ? 'TRANSFER' : 'OTHER';
+      
+      booking.addPayment({
+        amount: paidAmount,
+        paymentMethod: paymentMethodName,
+        paymentDate: new Date(),
+        paymentType: paymentType,
+        notes: `Pago ${wasReserve ? 'parcial (anticipo)' : 'completo'} validado`,
+        status: 'PAID',
+        validatedBy: validatedBy,
+        validatedAt: validatedAt
+      });
+      
+      console.log(`[BookingService] Pago registrado: ${paidAmount} MXN - ${paymentMethodName} (${paymentType})`);
+    }
 
     isValidated && booking.validateBooking();
 
@@ -1631,6 +1780,34 @@ export class BookingService implements IBookingService {
     
     console.log(`[ExportBookings] ${concierges.length} concierges obtenidos en ${Date.now() - startTime}ms`);
 
+    // Obtener todos los métodos de pago únicos en una sola consulta
+    const paymentMethodIds = [...new Set(
+      bookings.flatMap(b => 
+        b.payments && Array.isArray(b.payments) 
+          ? b.payments.map((p: any) => {
+              if (!p.paymentMethod) return null;
+              const pmValue = typeof p.paymentMethod === 'string' ? p.paymentMethod : p.paymentMethod.toString();
+              // Verificar si es un ObjectId válido (24 caracteres hexadecimales)
+              return /^[0-9a-fA-F]{24}$/.test(pmValue) ? pmValue : null;
+            }).filter(Boolean)
+          : []
+      )
+    )];
+    
+    const paymentMethods = await Promise.all(
+      paymentMethodIds.map(async (id: string) => {
+        try {
+          const pm = await this.paymentMethodRepository.findById(id);
+          return { id: id, name: pm.toJSON().name };
+        } catch (error) {
+          return { id: id, name: '-' };
+        }
+      })
+    );
+    const paymentMethodsMap = new Map(paymentMethods.map(pm => [pm.id, pm.name]));
+    
+    console.log(`[ExportBookings] ${paymentMethods.length} métodos de pago obtenidos en ${Date.now() - startTime}ms`);
+
     const rows = [];
 
     for (const booking of bookings) {
@@ -1638,32 +1815,82 @@ export class BookingService implements IBookingService {
         // Parsear el cart para obtener los servicios y el hotel
         const cart = JSON.parse(booking.cart || '{}');
         
-        // Obtener servicios detallados
+        // Obtener servicios detallados y calcular fechas globales
         const services = [];
+        let globalStartDate: Date | null = null;
+        let globalEndDate: Date | null = null;
+        
         if (cart.vehicles && cart.vehicles.length > 0) {
-          cart.vehicles.forEach((v: any) => {
-            const vehicleName = v.vehicle?.name || 'Vehículo';
-            const dates = v.dates ? `${new Date(v.dates.start).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })} - ${new Date(v.dates.end).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })}` : '';
-            services.push(`${vehicleName} (${dates})`);
-          });
+        cart.vehicles.forEach((v: any) => {
+        const vehicleName = v.vehicle?.name || 'Vehículo';
+        const dates = v.dates ? `${new Date(v.dates.start).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })} - ${new Date(v.dates.end).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })}` : '';
+        services.push(`${vehicleName} (${dates})`);
+        
+        // Actualizar fechas globales
+        if (v.dates?.start) {
+        const startDate = new Date(v.dates.start);
+        if (!globalStartDate || startDate < globalStartDate) {
+        globalStartDate = startDate;
+        }
+        }
+        if (v.dates?.end) {
+        const endDate = new Date(v.dates.end);
+        if (!globalEndDate || endDate > globalEndDate) {
+        globalEndDate = endDate;
+        }
+        }
+        });
         }
         if (cart.transfer && cart.transfer.length > 0) {
-          cart.transfer.forEach((t: any) => {
-            const transferName = t.transfer?.name || 'Transfer';
-            services.push(transferName);
-          });
+        cart.transfer.forEach((t: any) => {
+        const transferName = t.transfer?.name || 'Transfer';
+        services.push(transferName);
+        
+        // Actualizar fechas globales con fecha del transfer
+        if (t.date) {
+        const transferDate = new Date(t.date);
+        if (!globalStartDate || transferDate < globalStartDate) {
+        globalStartDate = transferDate;
+        }
+        if (!globalEndDate || transferDate > globalEndDate) {
+        globalEndDate = transferDate;
+        }
+        }
+        });
         }
         if (cart.tours && cart.tours.length > 0) {
-          cart.tours.forEach((t: any) => {
-            const tourName = t.tour?.name || 'Tour';
-            services.push(tourName);
-          });
+        cart.tours.forEach((t: any) => {
+        const tourName = t.tour?.name || 'Tour';
+        services.push(tourName);
+        
+        // Actualizar fechas globales con fecha del tour
+        if (t.date) {
+        const tourDate = new Date(t.date);
+        if (!globalStartDate || tourDate < globalStartDate) {
+        globalStartDate = tourDate;
+        }
+        if (!globalEndDate || tourDate > globalEndDate) {
+        globalEndDate = tourDate;
+        }
+        }
+        });
         }
         if (cart.tickets && cart.tickets.length > 0) {
-          cart.tickets.forEach((t: any) => {
-            const ticketName = t.ticket?.name || 'Ticket';
-            services.push(ticketName);
-          });
+        cart.tickets.forEach((t: any) => {
+        const ticketName = t.ticket?.name || 'Ticket';
+        services.push(ticketName);
+        
+        // Actualizar fechas globales con fecha del ticket
+        if (t.date) {
+        const ticketDate = new Date(t.date);
+        if (!globalStartDate || ticketDate < globalStartDate) {
+        globalStartDate = ticketDate;
+        }
+        if (!globalEndDate || ticketDate > globalEndDate) {
+        globalEndDate = ticketDate;
+        }
+        }
+        });
         }
 
         // Obtener hotel del cliente - solo desde metadata.hotel
@@ -1699,19 +1926,49 @@ export class BookingService implements IBookingService {
         // Calcular total general (total + extensión si existe)
         const totalGeneral = (booking.total || 0) + extensionAmount;
 
+        // Extraer información de pagos individuales
+        const payment1 = booking.payments && booking.payments[0] ? booking.payments[0] : null;
+        const payment2 = booking.payments && booking.payments[1] ? booking.payments[1] : null;
+        
+        // Obtener nombres de métodos de pago desde el mapa o directamente si es string
+        const payment1MethodName = payment1 && payment1.paymentMethod 
+          ? (() => {
+              const pmValue = typeof payment1.paymentMethod === 'string' ? payment1.paymentMethod : payment1.paymentMethod.toString();
+              // Si es un ObjectId válido, buscar en el mapa; si no, es el nombre directo
+              return /^[0-9a-fA-F]{24}$/.test(pmValue) ? (paymentMethodsMap.get(pmValue) || '-') : pmValue;
+            })()
+          : '-';
+        const payment2MethodName = payment2 && payment2.paymentMethod 
+          ? (() => {
+              const pmValue = typeof payment2.paymentMethod === 'string' ? payment2.paymentMethod : payment2.paymentMethod.toString();
+              // Si es un ObjectId válido, buscar en el mapa; si no, es el nombre directo
+              return /^[0-9a-fA-F]{24}$/.test(pmValue) ? (paymentMethodsMap.get(pmValue) || '-') : pmValue;
+            })()
+          : '-'
+
         const row = {
+          'ID': booking._id?.toString() || 'N/A',
           'Número de Reserva': booking.bookingNumber || 'N/A',
-          'Estado': booking.status?.name || 'N/A',
-          'Método de Pago': booking.paymentMethod?.name || 'N/A',
-          'Medio de Pago': paymentMedium,
-          'Total Inicial': booking.total || 0,
-          'Total General': totalGeneral,
+          'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleString('es-MX', { timeZone: 'America/Cancun', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A',
+          'Inicio de Renta': globalStartDate ? globalStartDate.toLocaleString('es-MX', { timeZone: 'America/Cancun', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A',
+          'Fin de Renta': globalEndDate ? globalEndDate.toLocaleString('es-MX', { timeZone: 'America/Cancun', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A',
           'Servicios': services.join('\n') || 'N/A',
-          'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' }) : 'N/A',
-          'Hotel': hotel,
           'Nombre Cliente': booking.userContact ? `${booking.userContact.name || ''} ${booking.userContact.lastName || ''}`.trim() : 'N/A',
           'Email Cliente': booking.userContact?.email || 'N/A',
           'Teléfono Cliente': booking.userContact?.cellphone || 'N/A',
+          'Total Inicial': booking.total || 0,
+          'Total General': totalGeneral,
+          'Total Pagado': booking.totalPaid || 0,
+          'Método de Pago': booking.paymentMethod?.name || 'N/A',
+          'Medio de Pago': paymentMedium,
+          'Pago 1 - Monto': payment1 ? payment1.amount || 0 : '-',
+          'Pago 1 - Medio': payment1 ? payment1.paymentMedium || '-' : '-',
+          'Pago 1 - Método': payment1MethodName,
+          'Pago 2 - Monto': payment2 ? payment2.amount || 0 : '-',
+          'Pago 2 - Medio': payment2 ? payment2.paymentMedium || '-' : '-',
+          'Pago 2 - Método': payment2MethodName,
+          'Estado': booking.status?.name || 'N/A',
+          'Hotel': hotel,
           'Concierge': conciergeName
         };
 
@@ -1728,30 +1985,48 @@ export class BookingService implements IBookingService {
     
     // Ajustar el ancho de las columnas
     const columnWidths = [
-      { wch: 18 }, // Número de Reserva
-      { wch: 15 }, // Estado
-      { wch: 18 }, // Método de Pago
-      { wch: 18 }, // Medio de Pago
-      { wch: 15 }, // Total Inicial
-      { wch: 15 }, // Total General
-      { wch: 40 }, // Servicios
-      { wch: 18 }, // Fecha de Creación
-      { wch: 20 }, // Hotel
-      { wch: 25 }, // Nombre Cliente
-      { wch: 30 }, // Email Cliente
-      { wch: 18 }, // Teléfono Cliente
-      { wch: 20 }  // Concierge
+    { wch: 25 }, // ID
+    { wch: 18 }, // Número de Reserva
+    { wch: 20 }, // Fecha de Creaci��n
+    { wch: 20 }, // Inicio de Renta
+    { wch: 20 }, // Fin de Renta
+    { wch: 40 }, // Servicios
+    { wch: 25 }, // Nombre Cliente
+    { wch: 30 }, // Email Cliente
+    { wch: 18 }, // Teléfono Cliente
+    { wch: 15 }, // Total Inicial
+    { wch: 15 }, // Total General
+    { wch: 15 }, // Total Pagado
+    { wch: 18 }, // Método de Pago
+    { wch: 18 }, // Medio de Pago
+    { wch: 15 }, // Pago 1 - Monto
+        { wch: 15 }, // Pago 1 - Medio
+        { wch: 15 }, // Pago 1 - Método
+        { wch: 15 }, // Pago 2 - Monto
+        { wch: 15 }, // Pago 2 - Medio
+        { wch: 15 }, // Pago 2 - Método
+    { wch: 15 }, // Estado
+    { wch: 20 }, // Hotel
+    { wch: 20 }  // Concierge
     ];
     worksheet['!cols'] = columnWidths;
-
-    // Habilitar wrap text para la columna de servicios
+    
+    // Habilitar wrap text para las columnas de servicios y detalle de pagos
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
     for (let R = range.s.r; R <= range.e.r; ++R) {
-      const cellAddress = XLSX.utils.encode_cell({ r: R, c: 6 }); // Columna G (Servicios)
-      if (worksheet[cellAddress]) {
-        if (!worksheet[cellAddress].s) worksheet[cellAddress].s = {};
-        worksheet[cellAddress].s.alignment = { wrapText: true, vertical: 'top' };
-      }
+    // Columna F (Servicios)
+    const servicesCell = XLSX.utils.encode_cell({ r: R, c: 5 });
+    if (worksheet[servicesCell]) {
+    if (!worksheet[servicesCell].s) worksheet[servicesCell].s = {};
+    worksheet[servicesCell].s.alignment = { wrapText: true, vertical: 'top' };
+    }
+    
+    // Columna O (Detalle de Pagos)
+    const paymentsCell = XLSX.utils.encode_cell({ r: R, c: 14 });
+    if (worksheet[paymentsCell]) {
+    if (!worksheet[paymentsCell].s) worksheet[paymentsCell].s = {};
+    worksheet[paymentsCell].s.alignment = { wrapText: true, vertical: 'top' };
+    }
     }
 
     const workbook = XLSX.utils.book_new();
@@ -1762,4 +2037,166 @@ export class BookingService implements IBookingService {
 
     return excelBuffer;
   }
+  async exportBookingMovements(filters: any): Promise<Buffer> {
+    const XLSX = require('xlsx');
+    
+    console.log('[ExportMovements] Iniciando exportación de movimientos...');
+    const startTime = Date.now();
+    
+    // Obtener todas las reservas con sus contratos
+    const allFilters = { ...filters, page: 1, limit: 999999 };
+    const result = await this.bookingRepository.findAll(allFilters);
+    const bookings = result.data;
+    
+    console.log(`[ExportMovements] ${bookings.length} reservas obtenidas en ${Date.now() - startTime}ms`);
+
+    // Obtener todos los contratos con sus movimientos desde el timeline
+    const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+    const ContractHistory = this.bookingRepository['bookingDB'].db.model('ContractHistory');
+    
+    const bookingIds = bookings.map(b => b._id);
+    const contracts = await Contract.find({ booking: { $in: bookingIds } }).lean();
+    
+    console.log(`[ExportMovements] ${contracts.length} contratos obtenidos`);
+    
+    // Obtener el timeline (historial) de cada contrato
+    const contractIds = contracts.map(c => c._id);
+    const timelineEntries = await ContractHistory.find({
+    contract: { $in: contractIds },
+    isDeleted: { $ne: true },
+    action: 'NOTE_ADDED', // Solo las notas que representan movimientos
+    eventType: { $exists: true, $ne: null }
+    })
+    .populate('eventType')
+    .lean();
+    
+    console.log(`[ExportMovements] ${timelineEntries.length} entradas de timeline obtenidas`);
+    
+    // Obtener todos los métodos de pago únicos de los movimientos
+    const movementPaymentMethodIds = [...new Set(
+    timelineEntries
+    .map((entry: any) => entry.eventMetadata?.paymentMethod)
+    .filter(pm => pm && /^[0-9a-fA-F]{24}$/.test(pm.toString()))
+    )];
+    
+    const movementPaymentMethods = await Promise.all(
+    movementPaymentMethodIds.map(async (id: any) => {
+    try {
+    const pm = await this.paymentMethodRepository.findById(id.toString());
+    return { id: id.toString(), name: pm.toJSON().name };
+    } catch (error) {
+    return { id: id.toString(), name: '-' };
+    }
+    })
+    );
+    const movementPaymentMethodsMap = new Map(movementPaymentMethods.map(pm => [pm.id, pm.name]));
+    
+    console.log(`[ExportMovements] ${movementPaymentMethods.length} métodos de pago de movimientos obtenidos`);
+    
+    // Crear un mapa de contratos por booking
+    const contractsMap = new Map(contracts.map(c => [c.booking.toString(), c]));
+    
+    // Crear un mapa de movimientos por contrato desde el timeline
+    const movementsMap = new Map();
+    timelineEntries.forEach((entry: any) => {
+    const contractId = entry.contract.toString();
+    if (!movementsMap.has(contractId)) {
+    movementsMap.set(contractId, []);
+    }
+    
+    // Obtener el nombre del método de pago
+    const paymentMethodId = entry.eventMetadata?.paymentMethod;
+    let paymentMethodName = '-';
+    if (paymentMethodId && /^[0-9a-fA-F]{24}$/.test(paymentMethodId.toString())) {
+    paymentMethodName = movementPaymentMethodsMap.get(paymentMethodId.toString()) || paymentMethodId.toString();
+    }
+    
+    // Transformar la entrada del timeline a formato de movimiento
+    const movement = {
+    type: entry.eventType?.name || entry.details || 'Movimiento',
+    amount: entry.eventMetadata?.amount || 0,
+    paymentMethod: paymentMethodName,
+    paymentMedium: entry.eventMetadata?.paymentMedium || '-',
+    date: entry.createdAt,
+    detail: entry.details || '-'
+    };
+    
+    movementsMap.get(contractId).push(movement);
+    });
+    
+    const rows = [];
+    
+    // Procesar cada booking y sus movimientos
+    for (const booking of bookings) {
+    const contract = contractsMap.get(booking._id.toString());
+    if (!contract) continue;
+    
+    const contractMovements = movementsMap.get((contract as any)._id.toString()) || [];
+      
+      // Si no hay movimientos, agregar una fila con la info básica
+      if (contractMovements.length === 0) {
+        rows.push({
+          'Número de Reserva': booking.bookingNumber || 'N/A',
+          'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleString('es-MX', { timeZone: 'America/Cancun', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A',
+          'Cliente': booking.userContact ? `${booking.userContact.name || ''} ${booking.userContact.lastName || ''}`.trim() : 'N/A',
+          'Total Reserva': booking.total || 0,
+          'Estado Reserva': booking.status?.name || 'N/A',
+          'Tipo de Movimiento': '-',
+          'Monto': 0,
+          'Medio de Pago': '-',
+          'Método de Pago': '-',
+          'Fecha Movimiento': '-',
+          'Detalle': 'Sin movimientos registrados'
+        });
+      } else {
+        // Agregar una fila por cada movimiento
+        for (const movement of contractMovements) {
+          rows.push({
+            'Número de Reserva': booking.bookingNumber || 'N/A',
+            'Fecha de Creación': booking.createdAt ? new Date(booking.createdAt).toLocaleString('es-MX', { timeZone: 'America/Cancun', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A',
+            'Cliente': booking.userContact ? `${booking.userContact.name || ''} ${booking.userContact.lastName || ''}`.trim() : 'N/A',
+            'Total Reserva': booking.total || 0,
+            'Estado Reserva': booking.status?.name || 'N/A',
+            'Tipo de Movimiento': movement.type || '-',
+            'Monto': movement.amount || 0,
+            'Medio de Pago': movement.paymentMedium || '-',
+            'Método de Pago': movement.paymentMethod || '-',
+            'Fecha Movimiento': movement.date ? new Date(movement.date).toLocaleString('es-MX', { timeZone: 'America/Cancun', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '-',
+            'Detalle': movement.detail || '-'
+          });
+        }
+      }
+    }
+    
+    console.log(`[ExportMovements] ${rows.length} filas procesadas en ${Date.now() - startTime}ms`);
+    
+    // Crear el worksheet y workbook
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    
+    // Ajustar el ancho de las columnas
+    const columnWidths = [
+      { wch: 18 }, // Número de Reserva
+      { wch: 20 }, // Fecha de Creación
+      { wch: 25 }, // Cliente
+      { wch: 15 }, // Total Reserva
+      { wch: 15 }, // Estado Reserva
+      { wch: 30 }, // Tipo de Movimiento
+      { wch: 12 }, // Dirección
+      { wch: 15 }, // Monto
+      { wch: 20 }, // Método de Pago
+      { wch: 20 }, // Fecha Movimiento
+      { wch: 40 }  // Detalle
+    ];
+    worksheet['!cols'] = columnWidths;
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Movimientos');
+    
+    // Generar el buffer del archivo Excel
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    return excelBuffer;
+  }
+
 }
+

@@ -3,6 +3,19 @@ import { Identifier } from '../../../core/domain/value-objects/identifier';
 import { CatPaymentMethodModel } from './cat-payment-method.model';
 import { CatStatusModel } from './cat-status.model';
 
+export interface IPaymentEntry {
+  amount: number;
+  paymentMethod: string;
+  paymentMedium?: '$' | 'US$' | 'E$' | 'AR$' | 'CAN' | 'GBP' | 'CLIP' | 'CUENTA' | 'PAYPAL' | 'MERCADO PAGO' | 'PAGO PENDIENTE' | 'ZELLE' | 'OTRO';
+  paymentDate: Date;
+  paymentType: 'STRIPE' | 'CASH' | 'TRANSFER' | 'OTHER';
+  notes?: string;
+  percentage?: number;
+  status: 'PAID' | 'PENDING' | 'FAILED';
+  validatedBy?: string;
+  validatedAt?: Date;
+}
+
 export class BookingModel extends BaseModel {
   private _cart: string;
   private _limitCancelation: Date;
@@ -22,6 +35,7 @@ export class BookingModel extends BaseModel {
   private _deliveryAddress?: string;
   private _deliveryCost?: number;
   private _deliveryDistance?: number;
+  private _payments?: IPaymentEntry[];
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -45,9 +59,58 @@ export class BookingModel extends BaseModel {
       deliveryAddress: this._deliveryAddress,
       deliveryCost: this._deliveryCost,
       deliveryDistance: this._deliveryDistance,
+      payments: this._payments || [],
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
+  }
+
+  addPayment(payment: Partial<IPaymentEntry> & { amount: number; paymentMethod: string; paymentType: 'STRIPE' | 'CASH' | 'TRANSFER' | 'OTHER' }): void {
+    if (!this._payments) {
+      this._payments = [];
+    }
+    this._payments.push({
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      paymentMedium: payment.paymentMedium,
+      paymentDate: payment.paymentDate || new Date(),
+      paymentType: payment.paymentType,
+      notes: payment.notes,
+      percentage: payment.percentage,
+      status: payment.status || 'PAID',
+      validatedBy: payment.validatedBy,
+      validatedAt: payment.validatedAt
+    });
+  }
+
+  getPayments(): IPaymentEntry[] {
+    return this._payments || [];
+  }
+
+  getTotalPaidFromPayments(): number {
+    if (!this._payments || this._payments.length === 0) {
+      return 0;
+    }
+    return this._payments
+      .filter(p => p.status === 'PAID')
+      .reduce((sum, p) => sum + p.amount, 0);
+  }
+
+  getPaymentsByType(type: 'STRIPE' | 'CASH' | 'TRANSFER' | 'OTHER'): IPaymentEntry[] {
+    if (!this._payments) {
+      return [];
+    }
+    return this._payments.filter(p => p.paymentType === type);
+  }
+
+  isFullyPaid(): boolean {
+    const totalPaid = this.getTotalPaidFromPayments();
+    return totalPaid >= this._total;
+  }
+
+  getRemainingAmount(): number {
+    const totalPaid = this.getTotalPaidFromPayments();
+    return Math.max(0, this._total - totalPaid);
   }
 
   addPaymentMethod(paymentMethod: CatPaymentMethodModel): void {
@@ -111,6 +174,7 @@ export class BookingModel extends BaseModel {
     newBooking._deliveryAddress = booking.deliveryAddress;
     newBooking._deliveryCost = booking.deliveryCost;
     newBooking._deliveryDistance = booking.deliveryDistance;
+    newBooking._payments = booking.payments || [];
 
     return newBooking;
   }
@@ -140,6 +204,7 @@ export class BookingModel extends BaseModel {
     newBooking._deliveryAddress = booking.deliveryAddress;
     newBooking._deliveryCost = booking.deliveryCost;
     newBooking._deliveryDistance = booking.deliveryDistance;
+    newBooking._payments = booking.payments || [];
     newBooking._createdAt = booking.createdAt;
     newBooking._updatedAt = booking.updatedAt;
 

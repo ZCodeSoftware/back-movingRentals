@@ -26,6 +26,7 @@ export interface IBookingService {
     isManual?: boolean,
     isValidated?: boolean,
     paidAmount?: number,
+    paymentsData?: any,
   ): Promise<BookingModel>;
   cancelBooking(
     id: string,
@@ -38,4 +39,5 @@ export interface IBookingService {
     lang?: string,
   ): Promise<BookingModel>;
   exportBookings(filters: any): Promise<Buffer>;
+  exportBookingMovements(filters: any): Promise<Buffer>;
 }

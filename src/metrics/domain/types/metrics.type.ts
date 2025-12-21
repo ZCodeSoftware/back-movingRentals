@@ -9,10 +9,9 @@ export interface MetricsFilters {
     max: number;
   };
   vehicleType?: string;
-  bookingStatus?: string;
   clientType?: 'new' | 'recurring';
-  location?: string; // Para transfers
-  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName';
+  transactionType?: 'INCOME' | 'EXPENSE';
+  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName' | 'expenses' | 'vehicleName';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -73,3 +72,12 @@ export type TransactionDetail = {
   description: string;
   sourceId: string;
 };
+
+export interface VehicleExpenses {
+  vehicleId: string;
+  vehicleName: string;
+  vehicleTag: string;
+  categoryName: string;
+  totalExpenses: number;
+  expenseCount: number;
+}
