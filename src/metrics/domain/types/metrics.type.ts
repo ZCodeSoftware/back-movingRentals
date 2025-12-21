@@ -74,6 +74,7 @@ export type TransactionDetail = {
   amount: number;
   description: string;
   sourceId: string;
+  movementType?: string;
 };
 
 export interface VehicleExpenses {
