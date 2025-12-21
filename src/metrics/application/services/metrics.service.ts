@@ -45,7 +45,7 @@ export class MetricsService implements IMetricsService {
     return await this.metricsRepository.getPopularVehicles(filters);
   }
 
-  async getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]> {
+  async getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }> {
     return await this.metricsRepository.getTransactionDetails(filters);
   }
 

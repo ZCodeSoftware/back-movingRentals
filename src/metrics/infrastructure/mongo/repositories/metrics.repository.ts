@@ -1199,9 +1199,13 @@ export class MetricsRepository implements IMetricsRepository {
     return { $gte: start, $lt: end };
   }
 
-  async getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]> {
+  async getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
     let combinedTransactions: TransactionDetail[] = [];
+
+    // Parámetros de paginación
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
 
     // Verificar si se debe incluir ingresos
     const includeIncome = !filters?.transactionType || filters.transactionType === 'INCOME';
@@ -1283,7 +1287,20 @@ export class MetricsRepository implements IMetricsRepository {
     // Ordenar por fecha, del más reciente al más antiguo
     combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    return combinedTransactions;
+    // --- 4. APLICAR PAGINACIÓN ---
+    const total = combinedTransactions.length;
+    const totalPages = Math.ceil(total / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedData = combinedTransactions.slice(startIndex, endIndex);
+
+    return {
+      data: paginatedData,
+      total,
+      page,
+      limit,
+      totalPages
+    };
   }
 
   async getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]> {
