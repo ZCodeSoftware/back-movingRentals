@@ -188,11 +188,12 @@ export class MetricsController {
   @Get('transaction-details')
   @ApiOperation({
     summary: 'Get detailed list of income and expenses',
-    description: 'Retrieves a chronological list of all income (from bookings) and expenses (from movements) within a given period.'
+    description: 'Retrieves a chronological list of all income (from bookings) and expenses (from movements) within a given period. Can be filtered by transaction type.'
   })
   @ApiQuery({ name: 'dateFilterType', required: false, enum: ['day', 'week', 'month', 'year', 'range'], description: 'Type of date filter to apply' })
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date for range filter (ISO 8601 format)', example: '2024-01-01' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date for range filter (ISO 8601 format)', example: '2024-12-31' })
+  @ApiQuery({ name: 'transactionType', required: false, enum: ['INCOME', 'EXPENSE'], description: 'Filter by transaction type (INCOME for ingresos, EXPENSE for egresos)' })
   @ApiResponse({
     status: 200,
     description: 'Transaction details retrieved successfully.',
@@ -394,6 +395,39 @@ export class MetricsController {
     return await this.metricsService.getPopularVehicles(filters);
   }
 
+  @Get('vehicle-expenses')
+  @ApiOperation({
+    summary: 'Get vehicle expenses (maintenance costs)',
+    description: 'Retrieves total expenses and expense count for each vehicle. Results can be sorted by expenses, vehicle name, count, or category name in ascending or descending order.'
+  })
+  @ApiQuery({ name: 'dateFilterType', required: false, enum: ['day', 'week', 'month', 'year', 'range'], description: 'Type of date filter to apply' })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date for range filter (ISO 8601 format)', example: '2024-01-01' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date for range filter (ISO 8601 format)', example: '2024-12-31' })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['expenses', 'vehicleName', 'count', 'categoryName'], description: 'Field to sort by', example: 'expenses' })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order (ascending or descending)', example: 'desc' })
+  @ApiResponse({
+    status: 200,
+    description: 'Vehicle expenses retrieved successfully',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          vehicleId: { type: 'string', example: '507f1f77bcf86cd799439011' },
+          vehicleName: { type: 'string', example: 'Ford Transit' },
+          vehicleTag: { type: 'string', example: 'TRK-001' },
+          categoryName: { type: 'string', example: 'Trucks' },
+          totalExpenses: { type: 'number', example: 5000 },
+          expenseCount: { type: 'number', example: 12 }
+        }
+      }
+    }
+  })
+  async getVehicleExpenses(@Query() filtersDto: MetricsFiltersDTO) {
+    const filters = this.transformFilters(filtersDto);
+    return await this.metricsService.getVehicleExpenses(filters);
+  }
+
   private transformFilters(filtersDto: MetricsFiltersDTO): MetricsFilters {
     const filters: MetricsFilters = {};
 
@@ -422,16 +456,12 @@ export class MetricsController {
       filters.vehicleType = filtersDto.vehicleType;
     }
 
-    if (filtersDto.bookingStatus) {
-      filters.bookingStatus = filtersDto.bookingStatus;
-    }
-
     if (filtersDto.clientType) {
       filters.clientType = filtersDto.clientType;
     }
 
-    if (filtersDto.location) {
-      filters.location = filtersDto.location;
+    if (filtersDto.transactionType) {
+      filters.transactionType = filtersDto.transactionType as 'INCOME' | 'EXPENSE';
     }
 
     if (filtersDto.sortBy) {

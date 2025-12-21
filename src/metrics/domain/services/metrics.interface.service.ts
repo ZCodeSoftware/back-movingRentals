@@ -7,6 +7,7 @@ import {
   PaymentMethodRevenue,
   PopularVehicle,
   TransactionDetail,
+  VehicleExpenses,
 } from '../types/metrics.type';
 
 export interface IMetricsService {
@@ -18,4 +19,5 @@ export interface IMetricsService {
   getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]>;
   getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]>;
   getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]>;
+  getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]>;
 }
