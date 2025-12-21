@@ -16,7 +16,7 @@ export class PaymentService implements IPaymentService {
         private readonly userRepository: IUserRepository
     ) {
         this.stripe = new Stripe(config().paymentMethod.stripe.secretKey, {
-            apiVersion: '2025-11-17.clover', // Usa la versión más reciente
+            apiVersion: '2025-12-15.clover', // Usa la versión más reciente
         });
     }
 
