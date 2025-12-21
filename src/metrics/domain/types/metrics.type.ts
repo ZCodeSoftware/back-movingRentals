@@ -13,6 +13,9 @@ export interface MetricsFilters {
   transactionType?: 'INCOME' | 'EXPENSE';
   sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName' | 'expenses' | 'vehicleName';
   sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+  movementType?: string;
 }
 
 export interface MetricComparison {

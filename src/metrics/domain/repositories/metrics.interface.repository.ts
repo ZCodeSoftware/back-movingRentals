@@ -17,7 +17,7 @@ export interface IMetricsRepository {
   getBookingDurations(filters?: MetricsFilters): Promise<BookingDuration[]>;
   getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]>;
   getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]>;
-  getTransactionDetails(filters?: MetricsFilters): Promise<TransactionDetail[]>;
+  getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }>;
   getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]>;
   getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]>;
 }
