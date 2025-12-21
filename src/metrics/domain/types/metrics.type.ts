@@ -11,7 +11,7 @@ export interface MetricsFilters {
   vehicleType?: string;
   clientType?: 'new' | 'recurring';
   transactionType?: 'INCOME' | 'EXPENSE';
-  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName' | 'expenses' | 'vehicleName';
+  sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName' | 'expenses' | 'vehicleName' | 'amount';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;

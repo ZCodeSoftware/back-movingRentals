@@ -26,6 +26,11 @@ import { BOOKING_STATUS, EXCLUDED_BOOKING_STATUSES } from '../../nest/constants/
 @Injectable()
 export class MetricsRepository implements IMetricsRepository {
   private readonly logger = new Logger(MetricsRepository.name);
+  
+  // Cache para optimizar consultas frecuentes
+  private statusCache: Map<string, any[]> = new Map();
+  private vehicleCache: Map<string, any> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
   constructor(
     @InjectModel('User') private readonly userModel: Model<User>,
@@ -36,6 +41,71 @@ export class MetricsRepository implements IMetricsRepository {
     @InjectModel('CatCategory') private readonly categoryModel: Model<CatCategory>,
     @InjectModel('CatStatus') private readonly statusModel: Model<CatStatus>,
   ) { }
+
+  /**
+   * Obtiene los IDs de status APPROVED y COMPLETED con cache
+   */
+  private async getApprovedStatusIds(): Promise<any[]> {
+    const cacheKey = 'APPROVED_COMPLETED_IDS';
+    
+    if (this.statusCache.has(cacheKey)) {
+      return this.statusCache.get(cacheKey);
+    }
+
+    const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED }).lean();
+    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED }).lean();
+    
+    const statusIds = [];
+    if (approvedStatus) statusIds.push(approvedStatus._id);
+    if (completedStatus) statusIds.push(completedStatus._id);
+    
+    this.statusCache.set(cacheKey, statusIds);
+    
+    setTimeout(() => {
+      this.statusCache.delete(cacheKey);
+      this.logger.debug('[Cache] Status IDs cache invalidado');
+    }, this.CACHE_TTL);
+    
+    return statusIds;
+  }
+
+  /**
+   * Obtiene múltiples vehículos de una vez con cache
+   */
+  private async getVehiclesBatch(vehicleIds: string[]): Promise<Map<string, any>> {
+    const result = new Map<string, any>();
+    const idsToFetch: string[] = [];
+
+    // Verificar cache primero
+    for (const id of vehicleIds) {
+      if (this.vehicleCache.has(id)) {
+        result.set(id, this.vehicleCache.get(id));
+      } else {
+        idsToFetch.push(id);
+      }
+    }
+
+    // Fetch los que no están en cache
+    if (idsToFetch.length > 0) {
+      const vehicles = await this.vehicleModel
+        .find({ _id: { $in: idsToFetch } })
+        .populate('category')
+        .lean();
+
+      for (const vehicle of vehicles) {
+        const id = vehicle._id.toString();
+        this.vehicleCache.set(id, vehicle);
+        result.set(id, vehicle);
+
+        // Invalidar cache después del TTL
+        setTimeout(() => {
+          this.vehicleCache.delete(id);
+        }, this.CACHE_TTL);
+      }
+    }
+
+    return result;
+  }
 
   /**
    * Agrega filtros para excluir bookings cancelados y rechazados
@@ -106,70 +176,96 @@ export class MetricsRepository implements IMetricsRepository {
     if (approvedStatus) statusIds.push(approvedStatus._id);
     if (completedStatus) statusIds.push(completedStatus._id);
 
+    if (statusIds.length === 0) {
+      this.logger.warn(`[getVehicleFinancialDetails] No se encontraron estados APPROVED o COMPLETED`);
+      return [...expenseDetails];
+    }
+
+    // Obtener TODAS las reservas APROBADAS/COMPLETADAS y filtrar en memoria
     const incomeMatch: any = {
-      cart: new RegExp(vehicleId),
       status: { $in: statusIds }
     };
 
     const bookings: HydratedDocument<Booking>[] = await this.bookingModel.find(incomeMatch);
     const incomeDetails: TransactionDetail[] = [];
+    let processedBookings = 0;
+    let skippedBookings = 0;
 
     for (const booking of bookings) {
       try {
         const cart = JSON.parse(booking.cart);
         const payments = (booking as any).payments || [];
         
+        // Verificar si el vehículo está realmente en el carrito
+        let vehicleFoundInCart = false;
+        
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
-          // Calcular el total del carrito para prorratear
-          let cartTotal = 0;
-          
-          // Sumar todos los items del carrito
-          if (cart.vehicles) {
-            cartTotal += cart.vehicles.reduce((sum: number, v: any) => sum + (v.total || 0), 0);
-          }
-          if (cart.tours) {
-            cartTotal += cart.tours.reduce((sum: number, t: any) => sum + ((t.tour?.price || 0) * (t.quantity || 1)), 0);
-          }
-          if (cart.transfer) {
-            cartTotal += cart.transfer.reduce((sum: number, t: any) => sum + ((t.transfer?.price || 0) * (t.quantity || 1)), 0);
-          }
-          if (cart.tickets) {
-            cartTotal += cart.tickets.reduce((sum: number, t: any) => sum + ((t.ticket?.totalPrice || 0) * (t.quantity || 1)), 0);
-          }
-
           for (const vehicleItem of cart.vehicles) {
             const vehicleInCartId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
             if (vehicleInCartId === vehicleId) {
-              const vehicleItemTotal = vehicleItem.total || 0;
-              
-              // Procesar cada pago individualmente
-              for (const payment of payments) {
-                if (payment.status === 'PAID') {
-                  // Filtrar por fecha si existe
-                  if (dateFilter) {
-                    const paymentDate = new Date(payment.paymentDate);
-                    if (paymentDate < dateFilter.$gte || paymentDate >= dateFilter.$lt) {
-                      continue;
-                    }
+              vehicleFoundInCart = true;
+              break;
+            }
+          }
+        }
+
+        // Si el vehículo no está en el carrito, saltar esta reserva
+        if (!vehicleFoundInCart) {
+          skippedBookings++;
+          continue;
+        }
+
+        processedBookings++;
+        
+        // Calcular el total del carrito para prorratear
+        let cartTotal = 0;
+        
+        // Sumar todos los items del carrito
+        if (cart.vehicles) {
+          cartTotal += cart.vehicles.reduce((sum: number, v: any) => sum + (v.total || 0), 0);
+        }
+        if (cart.tours) {
+          cartTotal += cart.tours.reduce((sum: number, t: any) => sum + ((t.tour?.price || 0) * (t.quantity || 1)), 0);
+        }
+        if (cart.transfer) {
+          cartTotal += cart.transfer.reduce((sum: number, t: any) => sum + ((t.transfer?.price || 0) * (t.quantity || 1)), 0);
+        }
+        if (cart.tickets) {
+          cartTotal += cart.tickets.reduce((sum: number, t: any) => sum + ((t.ticket?.totalPrice || 0) * (t.quantity || 1)), 0);
+        }
+
+        for (const vehicleItem of cart.vehicles) {
+          const vehicleInCartId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+          if (vehicleInCartId === vehicleId) {
+            const vehicleItemTotal = vehicleItem.total || 0;
+            
+            // Procesar cada pago individualmente
+            for (const payment of payments) {
+              if (payment.status === 'PAID') {
+                // Filtrar por fecha si existe
+                if (dateFilter) {
+                  const paymentDate = new Date(payment.paymentDate);
+                  if (paymentDate < dateFilter.$gte || paymentDate >= dateFilter.$lt) {
+                    continue;
                   }
-
-                  // Prorratear el pago según la proporción del vehículo
-                  const proratedAmount = cartTotal > 0 
-                    ? (vehicleItemTotal / cartTotal) * payment.amount 
-                    : payment.amount;
-
-                  this.logger.debug(`[getVehicleFinancialDetails] Booking #${booking.bookingNumber}, Pago ${payment.paymentType}: ` +
-                    `vehicleTotal=${vehicleItemTotal}, cartTotal=${cartTotal}, paymentAmount=${payment.amount}, ` +
-                    `proratedAmount=${proratedAmount.toFixed(2)}`);
-
-                  incomeDetails.push({
-                    type: 'INCOME',
-                    date: payment.paymentDate,
-                    amount: Math.round(proratedAmount * 100) / 100,
-                    description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}`,
-                    sourceId: booking._id.toString(),
-                  });
                 }
+
+                // Prorratear el pago según la proporción del vehículo
+                const proratedAmount = cartTotal > 0 
+                  ? (vehicleItemTotal / cartTotal) * payment.amount 
+                  : payment.amount;
+
+                this.logger.debug(`[getVehicleFinancialDetails] Booking #${booking.bookingNumber}, Pago ${payment.paymentType}: ` +
+                  `vehicleTotal=${vehicleItemTotal}, cartTotal=${cartTotal}, paymentAmount=${payment.amount}, ` +
+                  `proratedAmount=${proratedAmount.toFixed(2)}`);
+
+                incomeDetails.push({
+                  type: 'INCOME',
+                  date: payment.paymentDate,
+                  amount: Math.round(proratedAmount * 100) / 100,
+                  description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}`,
+                  sourceId: booking._id.toString(),
+                });
               }
             }
           }
@@ -178,6 +274,8 @@ export class MetricsRepository implements IMetricsRepository {
         this.logger.warn(`Error al procesar el carrito del booking ${booking._id}:`, error);
       }
     }
+
+    this.logger.log(`[getVehicleFinancialDetails] Procesadas ${processedBookings} reservas con el vehículo, omitidas ${skippedBookings} sin el vehículo`);
 
     // --- 3. COMBINAR Y ORDENAR LOS RESULTADOS ---
     const combinedTransactions = [...incomeDetails, ...expenseDetails];
@@ -1037,15 +1135,11 @@ export class MetricsRepository implements IMetricsRepository {
   }
 
   async getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]> {
+    const startTime = Date.now();
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
     
-    // Solo considerar reservas APROBADAS
-    const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
-    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
-    
-    const statusIds = [];
-    if (approvedStatus) statusIds.push(approvedStatus._id);
-    if (completedStatus) statusIds.push(completedStatus._id);
+    // ✅ Usar cache para status IDs
+    const statusIds = await this.getApprovedStatusIds();
 
     const matchStage: any = {
       status: { $in: statusIds }
@@ -1062,16 +1156,12 @@ export class MetricsRepository implements IMetricsRepository {
       };
     }
 
-    const bookings = await this.bookingModel.find(matchStage).select('cart');
-    const vehicleStats = new Map<string, {
-      vehicleId: string;
-      name: string;
-      tag: string;
-      categoryName: string;
-      image?: string;
-      revenue: number;
-      bookingCount: number;
-    }>();
+    // ✅ Usar .lean() para mejor rendimiento
+    const bookings = await this.bookingModel.find(matchStage).select('cart').lean();
+    
+    // ✅ Primero recolectar todos los IDs de vehículos
+    const vehicleIds = new Set<string>();
+    const vehicleRevenueMap = new Map<string, { revenue: number; bookingCount: number }>();
 
     for (const booking of bookings) {
       try {
@@ -1079,49 +1169,59 @@ export class MetricsRepository implements IMetricsRepository {
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
             if (vehicleItem.vehicle && vehicleItem.total) {
-              const vehicle = await this.vehicleModel
-                .findById(vehicleItem.vehicle)
-                .populate('category');
+              const vehicleId = vehicleItem.vehicle._id?.toString() || vehicleItem.vehicle.toString();
+              vehicleIds.add(vehicleId);
 
-              if (vehicle && vehicle.category) {
-                const category = vehicle.category as any;
-
-                // Aplicar filtro de tipo de vehículo si existe
-                if (filters?.vehicleType && category.name !== filters.vehicleType) {
-                  continue;
-                }
-
-                const vehicleId = vehicle._id.toString();
-                const existing = vehicleStats.get(vehicleId);
-
-                if (existing) {
-                  existing.revenue += vehicleItem.total;
-                  existing.bookingCount += 1;
-                } else {
-                  vehicleStats.set(vehicleId, {
-                    vehicleId,
-                    name: vehicle.name,
-                    tag: vehicle.tag,
-                    categoryName: category.name,
-                    image: vehicle.images && vehicle.images.length > 0 ? vehicle.images[0] : undefined,
-                    revenue: vehicleItem.total,
-                    bookingCount: 1
-                  });
-                }
+              const existing = vehicleRevenueMap.get(vehicleId);
+              if (existing) {
+                existing.revenue += vehicleItem.total;
+                existing.bookingCount += 1;
+              } else {
+                vehicleRevenueMap.set(vehicleId, {
+                  revenue: vehicleItem.total,
+                  bookingCount: 1
+                });
               }
             }
           }
         }
       } catch (error) {
-        console.warn('Invalid cart JSON in booking:', booking._id);
+        this.logger.warn('Invalid cart JSON in booking:', booking._id);
       }
     }
 
-    const result = Array.from(vehicleStats.values());
+    // ✅ UNA SOLA consulta para obtener todos los vehículos
+    const vehiclesMap = await this.getVehiclesBatch(Array.from(vehicleIds));
+
+    // ✅ Construir resultado usando el Map
+    const vehicleStats: PopularVehicle[] = [];
+
+    for (const [vehicleId, stats] of vehicleRevenueMap.entries()) {
+      const vehicle = vehiclesMap.get(vehicleId);
+      
+      if (vehicle && vehicle.category) {
+        const category = vehicle.category as any;
+
+        // Aplicar filtro de tipo de vehículo si existe
+        if (filters?.vehicleType && category.name !== filters.vehicleType) {
+          continue;
+        }
+
+        vehicleStats.push({
+          vehicleId,
+          name: vehicle.name,
+          tag: vehicle.tag,
+          categoryName: category.name,
+          image: vehicle.images && vehicle.images.length > 0 ? vehicle.images[0] : undefined,
+          revenue: stats.revenue,
+          bookingCount: stats.bookingCount
+        });
+      }
+    }
 
     // Aplicar ordenamiento
     if (filters?.sortBy && filters?.sortOrder) {
-      result.sort((a, b) => {
+      vehicleStats.sort((a, b) => {
         let comparison = 0;
 
         switch (filters.sortBy) {
@@ -1139,10 +1239,13 @@ export class MetricsRepository implements IMetricsRepository {
       });
     } else {
       // Ordenamiento por defecto: por bookingCount descendente, luego por revenue descendente
-      result.sort((a, b) => b.bookingCount - a.bookingCount || b.revenue - a.revenue);
+      vehicleStats.sort((a, b) => b.bookingCount - a.bookingCount || b.revenue - a.revenue);
     }
 
-    return result;
+    const duration = Date.now() - startTime;
+    this.logger.log(`[getPopularVehicles] Completado en ${duration}ms - ${vehicleStats.length} vehículos`);
+
+    return vehicleStats;
   }
 
   private isDateInRange(date: Date, dateFilter: any): boolean {
@@ -1284,8 +1387,16 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     // --- 3. ORDENAR LOS RESULTADOS ---
-    // Ordenar por fecha, del más reciente al más antiguo
-    combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Aplicar ordenamiento según los filtros
+    if (filters?.sortBy === 'amount' && filters?.sortOrder) {
+      // Ordenar por monto
+      combinedTransactions.sort((a, b) => {
+        return filters.sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+      });
+    } else {
+      // Ordenamiento por defecto: por fecha, del más reciente al más antiguo
+      combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
 
     // --- 4. APLICAR PAGINACIÓN ---
     const total = combinedTransactions.length;

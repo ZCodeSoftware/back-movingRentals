@@ -194,6 +194,10 @@ export class MetricsController {
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date for range filter (ISO 8601 format)', example: '2024-01-01' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date for range filter (ISO 8601 format)', example: '2024-12-31' })
   @ApiQuery({ name: 'transactionType', required: false, enum: ['INCOME', 'EXPENSE'], description: 'Filter by transaction type (INCOME for ingresos, EXPENSE for egresos)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number for pagination', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items per page', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, enum: ['amount'], description: 'Field to sort by', example: 'amount' })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order (ascending or descending)', example: 'desc' })
   @ApiResponse({
     status: 200,
     description: 'Transaction details retrieved successfully.',
@@ -470,6 +474,14 @@ export class MetricsController {
 
     if (filtersDto.sortOrder) {
       filters.sortOrder = filtersDto.sortOrder;
+    }
+
+    if (filtersDto.page) {
+      filters.page = filtersDto.page;
+    }
+
+    if (filtersDto.limit) {
+      filters.limit = filtersDto.limit;
     }
 
     return filters;
