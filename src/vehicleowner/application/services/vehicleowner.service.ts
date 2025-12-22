@@ -42,6 +42,10 @@ export class VehicleOwnerService implements IVehicleOwnerService {
         return this.vehicleownerRepository.findAllOwners();
     }
 
+    async findAllOwnersSimple(): Promise<Array<{ _id: string; name: string }>> {
+        return this.vehicleownerRepository.findAllOwnersSimple();
+    }
+
     async update(id: string, vehicleowner: IUpdateVehicleOwner): Promise<VehicleOwnerModel> {
         const vehicleownerModel = VehicleOwnerModel.create(vehicleowner);
         return this.vehicleownerRepository.update(id, vehicleownerModel);

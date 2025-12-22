@@ -145,6 +145,20 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         return owners.map(owner => VehicleOwnerModel.hydrate(owner));
     }
 
+    async findAllOwnersSimple(): Promise<Array<{ _id: string; name: string }>> {
+        const owners = await this.vehicleownerDB
+            .find({ isConcierge: false, deletedAt: null })
+            .select('_id name')
+            .sort({ name: 1 })
+            .lean()
+            .exec();
+        
+        return owners.map(owner => ({
+            _id: owner._id.toString(),
+            name: owner.name
+        }));
+    }
+
     async update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {
         const updateObject = vehicleowner.toJSON();
         

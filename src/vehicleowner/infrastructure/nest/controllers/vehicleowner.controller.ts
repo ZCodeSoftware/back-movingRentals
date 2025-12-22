@@ -57,6 +57,16 @@ export class VehicleOwnerController {
         return this.vehicleownerService.findAllOwners();
     }
 
+    @Get('owners/simple')
+    @HttpCode(200)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
+    @UseGuards(AuthGuards, RoleGuard)
+    @ApiResponse({ status: 200, description: 'Return all non-concierge VehicleOwners with minimal data (id and name only)' })
+    @ApiResponse({ status: 404, description: 'VehicleOwners not found' })
+    async findOwnersSimple() {
+        return this.vehicleownerService.findAllOwnersSimple();
+    }
+
     @Get(':id')
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return VehicleOwner by id' })
