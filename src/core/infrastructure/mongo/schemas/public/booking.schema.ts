@@ -71,7 +71,7 @@ export class Booking {
     type: [
       {
         amount: { type: Number, required: true },
-        paymentMethod: { type: mongoose.Schema.Types.ObjectId, ref: 'CatPaymentMethod', required: true },
+        paymentMethod: { type: mongoose.Schema.Types.Mixed, required: false },
         paymentMedium: { 
           type: String, 
           enum: ['$', 'US$', 'E$', 'AR$', 'CAN', 'GBP', 'CLIP', 'CUENTA', 'PAYPAL', 'MERCADO PAGO', 'PAGO PENDIENTE', 'ZELLE', 'OTRO'], 
@@ -91,7 +91,7 @@ export class Booking {
   })
   payments?: Array<{
     amount: number;
-    paymentMethod: mongoose.Types.ObjectId;
+    paymentMethod: mongoose.Types.ObjectId | string;
     paymentMedium?: '$' | 'US$' | 'E$' | 'AR$' | 'CAN' | 'GBP' | 'CLIP' | 'CUENTA' | 'PAYPAL' | 'MERCADO PAGO' | 'PAGO PENDIENTE' | 'ZELLE' | 'OTRO';
     paymentDate: Date;
     paymentType: 'STRIPE' | 'CASH' | 'TRANSFER' | 'OTHER';
