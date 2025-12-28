@@ -91,36 +91,14 @@ function formatDateTimeToEnglish(dateString?: string): string {
       timeZone: 'America/Cancun',
     });
     
-    // Get hour and minutes in Cancun timezone
-    const formatter = new Intl.DateTimeFormat('en-US', {
+    // Get hour and minutes in Cancun timezone with 12-hour format
+    const timeStr = date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: 'America/Cancun',
     });
-    const parts = formatter.formatToParts(date);
-    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-    const minute = parts.find(p => p.type === 'minute')?.value || '00';
     
-    // Convert to 12-hour format
-    let period: string;
-    let displayHour: number;
-    
-    if (hour === 0) {
-      displayHour = 12; // Midnight
-      period = 'AM';
-    } else if (hour < 12) {
-      displayHour = hour;
-      period = 'AM';
-    } else if (hour === 12) {
-      displayHour = 12; // Noon
-      period = 'PM';
-    } else {
-      displayHour = hour - 12;
-      period = 'PM';
-    }
-    
-    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
@@ -140,67 +118,24 @@ function formatDateTimeRangeToEnglish(
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'America/Cancun',
     });
 
-    // Format start time
-    const startFormatter = new Intl.DateTimeFormat('en-US', {
+    // Format start time with 12-hour format
+    const startTime = start.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: 'America/Cancun',
     });
-    const startParts = startFormatter.formatToParts(start);
-    let startHour = parseInt(startParts.find(p => p.type === 'hour')?.value || '0');
-    const startMinute = startParts.find(p => p.type === 'minute')?.value || '00';
     
-    let startPeriod: string;
-    let displayStartHour: number;
-    
-    if (startHour === 0) {
-      displayStartHour = 12; // Midnight
-      startPeriod = 'AM';
-    } else if (startHour < 12) {
-      displayStartHour = startHour;
-      startPeriod = 'AM';
-    } else if (startHour === 12) {
-      displayStartHour = 12; // Noon
-      startPeriod = 'PM';
-    } else {
-      displayStartHour = startHour - 12;
-      startPeriod = 'PM';
-    }
-    
-    const startTime = `${displayStartHour}:${startMinute} ${startPeriod}`;
-    
-    // Format end time
-    const endFormatter = new Intl.DateTimeFormat('en-US', {
+    // Format end time with 12-hour format
+    const endTime = end.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: 'America/Cancun',
     });
-    const endParts = endFormatter.formatToParts(end);
-    let endHour = parseInt(endParts.find(p => p.type === 'hour')?.value || '0');
-    const endMinute = endParts.find(p => p.type === 'minute')?.value || '00';
-    
-    let endPeriod: string;
-    let displayEndHour: number;
-    
-    if (endHour === 0) {
-      displayEndHour = 12; // Midnight
-      endPeriod = 'AM';
-    } else if (endHour < 12) {
-      displayEndHour = endHour;
-      endPeriod = 'AM';
-    } else if (endHour === 12) {
-      displayEndHour = 12; // Noon
-      endPeriod = 'PM';
-    } else {
-      displayEndHour = endHour - 12;
-      endPeriod = 'PM';
-    }
-    
-    const endTime = `${displayEndHour}:${endMinute} ${endPeriod}`;
 
     // If same day, show: "August 30, 2025, from 10:00 AM to 6:00 PM"
     if (start.toDateString() === end.toDateString()) {
@@ -211,6 +146,7 @@ function formatDateTimeRangeToEnglish(
         year: 'numeric',
         month: 'long',
         day: 'numeric',
+        timeZone: 'America/Cancun',
       });
       return `From ${dateStr} at ${startTime} to ${endDateStr} at ${endTime}`;
     }

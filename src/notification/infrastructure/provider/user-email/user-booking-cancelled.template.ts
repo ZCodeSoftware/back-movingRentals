@@ -96,36 +96,13 @@ function formatDateTime(dateString?: string): string {
       timeZone: 'America/Cancun',
     });
     
-    // Obtener hora y minutos en zona horaria de Cancún
-    const formatter = new Intl.DateTimeFormat('es-ES', {
+    // Obtener hora y minutos en zona horaria de Cancún con formato de 12 horas
+    const timeStr = date.toLocaleTimeString('es-ES', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: 'America/Cancun',
     });
-    const parts = formatter.formatToParts(date);
-    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-    const minute = parts.find(p => p.type === 'minute')?.value || '00';
-    
-    // Convertir a formato de 12 horas
-    let period: string;
-    let displayHour: number;
-    
-    if (hour === 0) {
-      displayHour = 12; // Medianoche
-      period = 'a. m.';
-    } else if (hour < 12) {
-      displayHour = hour;
-      period = 'a. m.';
-    } else if (hour === 12) {
-      displayHour = 12; // Mediodía
-      period = 'p. m.';
-    } else {
-      displayHour = hour - 12;
-      period = 'p. m.';
-    }
-    
-    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
