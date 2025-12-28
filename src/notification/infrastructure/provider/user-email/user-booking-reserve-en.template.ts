@@ -90,36 +90,13 @@ function formatDateTime(dateString?: string): string {
       day: 'numeric',
       timeZone: 'America/Cancun',
     });
-    // Get hour and minutes in Cancun timezone
-    const formatter = new Intl.DateTimeFormat('en-US', {
+    // Get hour and minutes in Cancun timezone with 12-hour format
+    const timeStr = date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: 'America/Cancun',
     });
-    const parts = formatter.formatToParts(date);
-    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-    const minute = parts.find(p => p.type === 'minute')?.value || '00';
-    
-    // Convert to 12-hour format
-    let period: string;
-    let displayHour: number;
-    
-    if (hour === 0) {
-      displayHour = 12; // Midnight
-      period = 'AM';
-    } else if (hour < 12) {
-      displayHour = hour;
-      period = 'AM';
-    } else if (hour === 12) {
-      displayHour = 12; // Noon
-      period = 'PM';
-    } else {
-      displayHour = hour - 12;
-      period = 'PM';
-    }
-    
-    const timeStr = `${displayHour}:${minute} ${period}`;
     return `${dateStr}, ${timeStr}`;
   } catch (e) {
     return dateString;
