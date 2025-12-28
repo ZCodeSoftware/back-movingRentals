@@ -712,57 +712,47 @@ export class MetricsRepository implements IMetricsRepository {
     return result;
   }
 
-  async getPaymentMethodRevenue(): Promise<PaymentMethodRevenue[]> {
-    // Es buena práctica asegurarse de que el ingreso proviene de reservas finalizadas.
-    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED }).select('_id');
-    if (!completedStatus) {
-      this.logger.warn(`[getPaymentMethodRevenue] Estado '${BOOKING_STATUS.APPROVED}' no encontrado, el resultado puede ser impreciso.`);
+  async getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]> {
+    const dateFilter = this.buildDateFilter(filters?.dateFilter);
+    
+    // Obtener IDs de status APROBADAS y COMPLETADAS
+    const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
+    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
+    
+    const statusIds = [];
+    if (approvedStatus) statusIds.push(approvedStatus._id);
+    if (completedStatus) statusIds.push(completedStatus._id);
+
+    if (statusIds.length === 0) {
+      this.logger.warn(`[getPaymentMethodRevenue] Status '${BOOKING_STATUS.APPROVED}' o '${BOOKING_STATUS.COMPLETED}' no encontrados`);
       return [];
     }
 
+    // Usar payments.paymentDate para filtrar por fecha
     const aggregationPipeline: any[] = [
-      {
-        // Paso 1: Filtrar solo los documentos relevantes.
-        $match: {
-          status: completedStatus._id, // Solo reservas completadas.
-          totalPaid: { $exists: true, $gt: 0 },
-          paymentMethod: { $ne: null }
-        }
+      { $match: { status: { $in: statusIds } } },
+      { $unwind: { path: '$payments', preserveNullAndEmptyArrays: false } },
+      { 
+        $match: { 
+          'payments.status': 'PAID',
+          ...(dateFilter && { 'payments.paymentDate': dateFilter })
+        } 
       },
       {
-        // Paso 2: Agrupar por el campo 'paymentMethod' y sumar 'totalPaid'.
         $group: {
-          _id: '$paymentMethod', // Agrupa por el ObjectId del método de pago.
-          revenue: { $sum: '$totalPaid' } // Suma el total pagado para cada grupo.
+          _id: '$payments.paymentType',
+          revenue: { $sum: '$payments.amount' }
         }
       },
       {
-        // Paso 3: Unir con la colección de métodos de pago para obtener el nombre.
-        $lookup: {
-          from: 'cat_payment_method', // El nombre de la colección de métodos de pago.
-          localField: '_id',
-          foreignField: '_id',
-          as: 'paymentMethodInfo'
-        }
-      },
-      {
-        // Paso 4: Descomprimir el array resultado del $lookup.
-        $unwind: {
-          path: '$paymentMethodInfo',
-          preserveNullAndEmptyArrays: true // Mantener registros aunque el método de pago no se encuentre.
-        }
-      },
-      {
-        // Paso 5: Formatear la salida final.
         $project: {
-          _id: 0, // No incluir el campo _id.
+          _id: 0,
           paymentMethodId: '$_id',
-          paymentMethodName: { $ifNull: ['$paymentMethodInfo.name', 'No especificado'] }, // Usar el nombre o un texto por defecto.
+          paymentMethodName: '$_id',
           revenue: '$revenue'
         }
       },
       {
-        // Paso 6: Ordenar los resultados por los ingresos de mayor a menor.
         $sort: {
           revenue: -1
         }
@@ -1334,7 +1324,12 @@ export class MetricsRepository implements IMetricsRepository {
       
       // Filtrar por tipo de movimiento si se especifica
       if (filters?.movementType) {
-        expenseMatch.type = filters.movementType;
+        // Si es MANTENIMIENTO, incluir también MANTENIMIENTO VEHICULO
+        if (filters.movementType === 'MANTENIMIENTO') {
+          expenseMatch.type = { $in: ['MANTENIMIENTO', 'MANTENIMIENTO VEHICULO'] };
+        } else {
+          expenseMatch.type = filters.movementType;
+        }
       }
 
       const expensePipeline = [
