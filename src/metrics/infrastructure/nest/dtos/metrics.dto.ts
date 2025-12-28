@@ -45,6 +45,10 @@ export class MetricsFiltersDTO {
   transactionType?: 'INCOME' | 'EXPENSE';
 
   @IsOptional()
+  @IsString()
+  movementType?: string;
+
+  @IsOptional()
   @IsIn(['revenue', 'bookingCount', 'categoryName', 'utilizationPercentage', 'duration', 'count', 'amount'])
   sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'amount';
 

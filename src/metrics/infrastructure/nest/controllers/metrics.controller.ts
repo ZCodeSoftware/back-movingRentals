@@ -468,6 +468,10 @@ export class MetricsController {
       filters.transactionType = filtersDto.transactionType as 'INCOME' | 'EXPENSE';
     }
 
+    if (filtersDto.movementType) {
+      filters.movementType = filtersDto.movementType;
+    }
+
     if (filtersDto.sortBy) {
       filters.sortBy = filtersDto.sortBy;
     }
