@@ -9,6 +9,7 @@ import { ICommissionRepository } from '../../../commission/domain/repositories/c
 import SymbolsCommission from '../../../commission/symbols-commission';
 import { TypeStatus } from '../../../core/domain/enums/type-status.enum';
 import { BaseErrorException } from '../../../core/domain/exceptions/base.error.exception';
+import { getTranslation, formatDate } from '../../../core/utils/translations.helper';
 import SymbolsUser from '../../../user/symbols-user';
 import { IVehicleRepository } from '../../../vehicle/domain/repositories/vehicle.interface.repository';
 import { ReservationModel } from '../../../vehicle/domain/models/reservation.model';
@@ -56,6 +57,77 @@ export class BookingService implements IBookingService {
 
   async create(booking: ICreateBooking, id: string, lang: string = 'es'): Promise<BookingModel> {
     const { paymentMethod, ...res } = booking;
+    
+    // ✅ VALIDAR DISPONIBILIDAD DE VEHÍCULOS ANTES DE CREAR EL BOOKING
+    // Parsear el cart para verificar si hay vehículos
+    if (booking.cart) {
+      try {
+        const cartData = JSON.parse(booking.cart);
+        
+        if (cartData.vehicles && cartData.vehicles.length > 0) {
+          for (const vehicleItem of cartData.vehicles) {
+            const vehicleId = typeof vehicleItem.vehicle === 'string' 
+              ? vehicleItem.vehicle 
+              : vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+            
+            if (!vehicleId) {
+              console.error('[BookingService.create] Vehicle ID not found in cart item');
+              continue;
+            }
+
+            const startDate = new Date(vehicleItem.dates.start);
+            const endDate = new Date(vehicleItem.dates.end);
+
+            // Verificar disponibilidad del vehículo
+            const vehicle = await this.vehicleRepository.findById(vehicleId);
+            if (!vehicle) {
+              throw new BaseErrorException(
+                `Vehicle ${vehicleId} not found`,
+                HttpStatus.NOT_FOUND,
+              );
+            }
+
+            const vehicleData = vehicle.toJSON();
+            
+            // Verificar si el vehículo tiene reservas que se solapen con las fechas solicitadas
+            if (vehicleData.reservations && vehicleData.reservations.length > 0) {
+              const hasConflict = vehicleData.reservations.some((reservation: any) => {
+                const reservationStart = new Date(reservation.start).getTime();
+                const reservationEnd = new Date(reservation.end).getTime();
+                const requestedStart = startDate.getTime();
+                const requestedEnd = endDate.getTime();
+
+                // Verificar si hay solapamiento de fechas
+                return (
+                  (requestedStart >= reservationStart && requestedStart < reservationEnd) ||
+                  (requestedEnd > reservationStart && requestedEnd <= reservationEnd) ||
+                  (requestedStart <= reservationStart && requestedEnd >= reservationEnd)
+                );
+              });
+
+              if (hasConflict) {
+                const vehicleName = vehicleData.name || vehicleId;
+                const formattedStartDate = formatDate(startDate, lang);
+                const formattedEndDate = formatDate(endDate, lang);
+                
+                throw new BaseErrorException(
+                  getTranslation('vehicleNotAvailable', lang, vehicleName, formattedStartDate, formattedEndDate),
+                  HttpStatus.CONFLICT,
+                );
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Si es un error de validación, propagarlo
+        if (error instanceof BaseErrorException) {
+          throw error;
+        }
+        // Para otros errores (ej: JSON parse), registrar pero continuar
+        console.error('[BookingService.create] Error validating vehicle availability:', error);
+      }
+    }
+    
     const bookingModel = BookingModel.create(res);
 
     const catPaymentMethod =
@@ -432,15 +504,56 @@ export class BookingService implements IBookingService {
           const startDate = new Date(vehicleItem.dates.start);
           const endDate = new Date(vehicleItem.dates.end);
 
-          // Obtener el vehículo
+          // ✅ VALIDACIÓN ATÓMICA: Obtener el vehículo y verificar disponibilidad en tiempo real
+          // Esta validación se hace justo antes de crear la reserva para evitar race conditions
           const vehicle = await this.vehicleRepository.findById(vehicleId);
           if (!vehicle) {
             console.error(`[BookingService] Vehicle ${vehicleId} not found when creating reservation`);
-            continue;
+            // Si el vehículo no existe, cancelar el booking
+            await this.cancelBooking(bookingId, email, lang);
+            throw new BaseErrorException(
+              `El vehículo ${vehicleId} no fue encontrado. La reserva ha sido cancelada.`,
+              HttpStatus.NOT_FOUND,
+            );
           }
 
-          // Agregar la reserva al vehículo
-          const vehicleData = vehicle.toJSON();
+          // ✅ RE-VALIDAR DISPONIBILIDAD justo antes de crear la reserva (protección contra race conditions)
+          // Esto asegura que ningún otro usuario haya reservado el vehículo entre la validación inicial y este momento
+          const vehicleData = vehicle.toJSON() as any;
+          if (vehicleData.reservations && Array.isArray(vehicleData.reservations) && vehicleData.reservations.length > 0) {
+            const hasConflict = vehicleData.reservations.some((reservation: any) => {
+              const reservationStart = new Date(reservation.start).getTime();
+              const reservationEnd = new Date(reservation.end).getTime();
+              const requestedStart = startDate.getTime();
+              const requestedEnd = endDate.getTime();
+
+              // Verificar si hay solapamiento de fechas
+              return (
+                (requestedStart >= reservationStart && requestedStart < reservationEnd) ||
+                (requestedEnd > reservationStart && requestedEnd <= reservationEnd) ||
+                (requestedStart <= reservationStart && requestedEnd >= reservationEnd)
+              );
+            });
+
+            if (hasConflict) {
+              const vehicleName = vehicleData.name || vehicleId;
+              
+              console.error(`[BookingService] ❌ CONFLICTO DETECTADO: El vehículo ${vehicleName} ya no está disponible`);
+              
+              // Cancelar el booking que acabamos de crear
+              await this.cancelBooking(bookingId, email, lang);
+              
+              const formattedStartDate = formatDate(startDate, lang);
+              const formattedEndDate = formatDate(endDate, lang);
+              
+              throw new BaseErrorException(
+                getTranslation('vehicleNotAvailableRaceCondition', lang, vehicleName, formattedStartDate, formattedEndDate),
+                HttpStatus.CONFLICT,
+              );
+            }
+          }
+
+          // ✅ Si llegamos aquí, el vehículo está disponible - crear la reserva INMEDIATAMENTE
           const updatedReservations = [
             ...(vehicleData.reservations || []),
             {
@@ -458,11 +571,16 @@ export class BookingService implements IBookingService {
 
           await this.vehicleRepository.update(vehicleId, vehicle);
 
-          console.log(`[BookingService] Reserva creada para vehículo ${vehicleId} (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})`);
+          console.log(`[BookingService] ✅ Reserva creada exitosamente para vehículo ${vehicleId} (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})`);
         } catch (error) {
-          console.error(`[BookingService] Error creating reservation for vehicle:`, error);
-          // No fallar la creación del booking si falla la creación de la reserva
-          // pero registrar el error para investigación
+          console.error(`[BookingService] ❌ Error creating reservation for vehicle:`, error);
+          // Si es un error de conflicto o NOT_FOUND, propagarlo para que el usuario lo vea
+          if (error instanceof BaseErrorException && 
+              (error.statusCode === HttpStatus.CONFLICT || error.statusCode === HttpStatus.NOT_FOUND)) {
+            throw error;
+          }
+          // Para otros errores, registrar pero no fallar
+          console.error(`[BookingService] Error no crítico al crear reserva, continuando...`);
         }
       }
     }
@@ -2037,6 +2155,161 @@ export class BookingService implements IBookingService {
 
     return excelBuffer;
   }
+
+  async exportBookingsSimple(filters: any): Promise<Buffer> {
+  const XLSX = require('xlsx');
+  
+  console.log('[ExportBookingsSimple] Iniciando exportación simplificada...');
+  const startTime = Date.now();
+  
+  // Obtener todas las reservas sin paginación
+  const allFilters = { ...filters, page: 1, limit: 999999 };
+  const result = await this.bookingRepository.findAll(allFilters);
+  const bookings = result.data;
+  
+  console.log(`[ExportBookingsSimple] ${bookings.length} reservas obtenidas en ${Date.now() - startTime}ms`);
+  
+  // Obtener información de contratos en una sola consulta con populate de reservingUser
+  const Contract = this.bookingRepository['bookingDB'].db.model('Contract');
+  const bookingIds = bookings.map(b => b._id);
+  const contracts = await Contract.find({ booking: { $in: bookingIds } })
+  .populate('reservingUser')
+  .lean();
+  const contractsMap = new Map(contracts.map(c => [c.booking.toString(), c]));
+    
+    console.log(`[ExportBookingsSimple] ${contracts.length} contratos obtenidos en ${Date.now() - startTime}ms`);
+
+    // Obtener todos los concierges únicos en una sola consulta
+    const conciergeIds = [...new Set(bookings.map(b => b.concierge).filter(Boolean))];
+    const concierges = await Promise.all(
+      conciergeIds.map(async (id) => {
+        try {
+          const concierge = await this.vehicleOwnerRepository.findById(
+            typeof id === 'string' ? id : id.toString()
+          );
+          return { id: id.toString(), name: concierge.toJSON().name };
+        } catch (error) {
+          return { id: id.toString(), name: '-' };
+        }
+      })
+    );
+    const conciergesMap = new Map(concierges.map(c => [c.id, c.name]));
+    
+    console.log(`[ExportBookingsSimple] ${concierges.length} concierges obtenidos en ${Date.now() - startTime}ms`);
+
+    const rows = [];
+
+    for (const booking of bookings) {
+      try {
+        // Parsear el cart para obtener los servicios
+        const cart = JSON.parse(booking.cart || '{}');
+        
+        // Obtener servicios simplificados
+        const services = [];
+        
+        if (cart.vehicles && cart.vehicles.length > 0) {
+          cart.vehicles.forEach((v: any) => {
+            const vehicleName = v.vehicle?.name || 'Vehículo';
+            services.push(vehicleName);
+          });
+        }
+        if (cart.transfer && cart.transfer.length > 0) {
+          cart.transfer.forEach((t: any) => {
+            const transferName = t.transfer?.name || 'Transfer';
+            services.push(transferName);
+          });
+        }
+        if (cart.tours && cart.tours.length > 0) {
+          cart.tours.forEach((t: any) => {
+            const tourName = t.tour?.name || 'Tour';
+            services.push(tourName);
+          });
+        }
+        if (cart.tickets && cart.tickets.length > 0) {
+          cart.tickets.forEach((t: any) => {
+            const ticketName = t.ticket?.name || 'Ticket';
+            services.push(ticketName);
+          });
+        }
+
+        // Obtener hotel del cliente - solo desde metadata.hotel
+        let hotel = '-';
+        if (booking.metadata && booking.metadata.hotel) {
+          hotel = booking.metadata.hotel;
+        }
+
+        // Obtener concierge desde el mapa
+        let conciergeName = '-';
+        if ((booking as any).conciergeName) {
+          conciergeName = (booking as any).conciergeName;
+        } else if (booking.concierge) {
+          const conciergeId = typeof booking.concierge === 'string' ? booking.concierge : booking.concierge.toString();
+          conciergeName = conciergesMap.get(conciergeId) || '-';
+        }
+
+        // Obtener monto de extensión del contrato desde el mapa
+        let extensionAmount = 0;
+        const contract = contractsMap.get(booking._id.toString());
+        if (contract && (contract as any).extension) {
+        extensionAmount = (contract as any).extension.extensionAmount || 0;
+        }
+        
+        // Obtener medio de pago desde metadata
+        let paymentMedium = '-';
+        if (booking.metadata && booking.metadata.paymentMedium) {
+        paymentMedium = booking.metadata.paymentMedium;
+        } else if ((booking as any).paymentMedium) {
+        paymentMedium = (booking as any).paymentMedium;
+        }
+        
+        // Calcular total general (total + extensión si existe)
+        const totalGeneral = (booking.total || 0) + extensionAmount;
+        
+        // Obtener información del cliente desde el contrato (con type assertion)
+        const reservingUser = (contract as any)?.reservingUser;
+        const clientName = reservingUser ? `${reservingUser.name || ''} ${reservingUser.lastName || ''}`.trim() : '-';
+        const clientEmail = reservingUser?.email || '-';
+        const clientPhone = reservingUser?.cellphone || '-';
+          
+          // Crear fila simplificada
+          rows.push({
+          'N° Reserva': booking.bookingNumber || '-',
+          'Estado': booking.status?.name || '-',
+          'Método de Pago': booking.paymentMethod?.name || '-',
+          'Medio de Pago': paymentMedium,
+          'Total Inicial': booking.total || 0,
+          'Total General': totalGeneral,
+          'Servicios': services.join(', ') || '-',
+          'Fecha de Creación': booking.createdAt
+          ? new Date(booking.createdAt).toLocaleDateString('es-MX', { timeZone: 'America/Cancun' })
+          : '-',
+          'Hotel': hotel,
+          'Nombre Cliente': clientName,
+          'Email Cliente': clientEmail,
+          'Teléfono Cliente': clientPhone,
+          'Concierge': conciergeName
+          });
+      } catch (error) {
+        console.error(`[ExportBookingsSimple] Error procesando booking ${booking._id}:`, error);
+        // Continuar con el siguiente booking
+      }
+    }
+
+    console.log(`[ExportBookingsSimple] ${rows.length} filas procesadas en ${Date.now() - startTime}ms`);
+
+    // Crear el libro de Excel
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reservas');
+
+    // Generar el buffer
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    console.log(`[ExportBookingsSimple] Exportación completada en ${Date.now() - startTime}ms`);
+
+    return excelBuffer;
+  }
+
   async exportBookingMovements(filters: any): Promise<Buffer> {
     const XLSX = require('xlsx');
     
