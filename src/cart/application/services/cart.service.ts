@@ -76,6 +76,42 @@ export class CartService implements ICartService {
         const vehicles = selectedItems && await Promise.all(selectedItems?.map(async (i) => {
             const vehicleModel = await this.vehicleRepository.findById(i.vehicle);
             if (!vehicleModel) throw new BaseErrorException('Vehicle not found', 404);
+            
+            // VALIDAR DISPONIBILIDAD DEL VEHÍCULO PARA LAS FECHAS SELECCIONADAS
+            if (i.dates && i.dates.start && i.dates.end) {
+                const vehicleData = vehicleModel.toJSON() as any;
+                const requestedStart = new Date(i.dates.start);
+                const requestedEnd = new Date(i.dates.end);
+                
+                // Verificar si el vehículo tiene reservas que se solapen con las fechas solicitadas
+                if (vehicleData.reservations && Array.isArray(vehicleData.reservations) && vehicleData.reservations.length > 0) {
+                    const hasConflict = vehicleData.reservations.some((reservation: any) => {
+                        const reservationStart = new Date(reservation.start).getTime();
+                        const reservationEnd = new Date(reservation.end).getTime();
+                        const requestedStartTime = requestedStart.getTime();
+                        const requestedEndTime = requestedEnd.getTime();
+
+                        // Verificar si hay solapamiento de fechas
+                        return (
+                            (requestedStartTime >= reservationStart && requestedStartTime < reservationEnd) ||
+                            (requestedEndTime > reservationStart && requestedEndTime <= reservationEnd) ||
+                            (requestedStartTime <= reservationStart && requestedEndTime >= reservationEnd)
+                        );
+                    });
+
+                    if (hasConflict) {
+                        const vehicleName = vehicleData.name || 'Vehículo';
+                        const categoryName = (vehicleData.category && typeof vehicleData.category === 'object' && 'name' in vehicleData.category) 
+                            ? vehicleData.category.name 
+                            : 'esta categoría';
+                        throw new BaseErrorException(
+                            `El vehículo "${vehicleName}" no está disponible para las fechas seleccionadas (${requestedStart.toLocaleDateString()} - ${requestedEnd.toLocaleDateString()}). Por favor, selecciona otro vehículo de ${categoryName} o cambia las fechas.`,
+                            409, // 409 Conflict
+                        );
+                    }
+                }
+            }
+            
             return {
                 vehicle: vehicleModel,
                 dates: i.dates,

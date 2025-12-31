@@ -39,5 +39,6 @@ export interface IBookingService {
     lang?: string,
   ): Promise<BookingModel>;
   exportBookings(filters: any): Promise<Buffer>;
+  exportBookingsSimple(filters: any): Promise<Buffer>;
   exportBookingMovements(filters: any): Promise<Buffer>;
 }

@@ -188,6 +188,66 @@ export class BookingController {
     res.send(excelBuffer);
   }
 
+  @Get('export/simple')
+  @Roles(
+    TypeRoles.ADMIN,
+    TypeRoles.SELLER,
+    TypeRoles.SUPERVISOR,
+    TypeRoles.SUPERADMIN,
+  )
+  @UseGuards(AuthGuards, RoleGuard)
+  @ApiResponse({ status: 200, description: 'Export bookings as simplified Excel' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: 'string',
+    description: 'Filter by status ID',
+  })
+  @ApiQuery({
+    name: 'paymentMethod',
+    required: false,
+    type: 'string',
+    description: 'Filter by payment method ID',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    type: 'string',
+    description: 'Filter by user ID',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by start date',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: 'string',
+    description: 'Filter by end date',
+  })
+  @ApiQuery({
+    name: 'isReserve',
+    required: false,
+    type: 'boolean',
+    description: 'Filter by reservation status',
+  })
+  async exportBookingsSimple(
+    @Query() filters: any,
+    @Res() res: Response,
+  ) {
+    const excelBuffer = await this.bookingService.exportBookingsSimple(filters);
+    
+    const filename = `reservas_simple_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', excelBuffer.length);
+    
+    res.send(excelBuffer);
+  }
+
   
   @Get('export/movements')
   @Roles(
