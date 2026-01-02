@@ -166,7 +166,8 @@ export class BookingTotalsService {
       'RIDE',
       'LATE PICK UP',
       'RENTA',
-      'IMPRESIONES A COLOR'
+      'IMPRESIONES A COLOR',
+      'CRASH'
     ];
 
     // Eventos que típicamente representan gastos (OUT)
@@ -174,7 +175,6 @@ export class BookingTotalsService {
       'ROBO',
       'RESCATE VEHICULO',
       'CANCELACION',
-      'CRASH',
       'GASTO PARA TOURS'
     ];
 
