@@ -509,51 +509,12 @@ export class BookingService implements IBookingService {
           const vehicle = await this.vehicleRepository.findById(vehicleId);
           if (!vehicle) {
             console.error(`[BookingService] Vehicle ${vehicleId} not found when creating reservation`);
-            // Si el vehículo no existe, cancelar el booking
-            await this.cancelBooking(bookingId, email, lang);
-            throw new BaseErrorException(
-              `El vehículo ${vehicleId} no fue encontrado. La reserva ha sido cancelada.`,
-              HttpStatus.NOT_FOUND,
-            );
+            continue;
           }
 
-          // ✅ RE-VALIDAR DISPONIBILIDAD justo antes de crear la reserva (protección contra race conditions)
-          // Esto asegura que ningún otro usuario haya reservado el vehículo entre la validación inicial y este momento
           const vehicleData = vehicle.toJSON() as any;
-          if (vehicleData.reservations && Array.isArray(vehicleData.reservations) && vehicleData.reservations.length > 0) {
-            const hasConflict = vehicleData.reservations.some((reservation: any) => {
-              const reservationStart = new Date(reservation.start).getTime();
-              const reservationEnd = new Date(reservation.end).getTime();
-              const requestedStart = startDate.getTime();
-              const requestedEnd = endDate.getTime();
-
-              // Verificar si hay solapamiento de fechas
-              return (
-                (requestedStart >= reservationStart && requestedStart < reservationEnd) ||
-                (requestedEnd > reservationStart && requestedEnd <= reservationEnd) ||
-                (requestedStart <= reservationStart && requestedEnd >= reservationEnd)
-              );
-            });
-
-            if (hasConflict) {
-              const vehicleName = vehicleData.name || vehicleId;
-              
-              console.error(`[BookingService] ❌ CONFLICTO DETECTADO: El vehículo ${vehicleName} ya no está disponible`);
-              
-              // Cancelar el booking que acabamos de crear
-              await this.cancelBooking(bookingId, email, lang);
-              
-              const formattedStartDate = formatDate(startDate, lang);
-              const formattedEndDate = formatDate(endDate, lang);
-              
-              throw new BaseErrorException(
-                getTranslation('vehicleNotAvailableRaceCondition', lang, vehicleName, formattedStartDate, formattedEndDate),
-                HttpStatus.CONFLICT,
-              );
-            }
-          }
-
-          // ✅ Si llegamos aquí, el vehículo está disponible - crear la reserva INMEDIATAMENTE
+          
+          // Crear la reserva
           const updatedReservations = [
             ...(vehicleData.reservations || []),
             {
