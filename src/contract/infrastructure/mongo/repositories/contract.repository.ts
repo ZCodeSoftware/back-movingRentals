@@ -1730,6 +1730,7 @@ export class ContractRepository implements IContractRepository {
     }
 
     // 2. Actualizar fechas de vehículos que siguen en uso pero con fechas diferentes
+    // 3. Crear reservas para vehículos nuevos que se agregan al carrito
     for (const newVehicleItem of newCart.vehicles || []) {
       const vehicleId =
         typeof newVehicleItem.vehicle === 'string'
@@ -1738,9 +1739,24 @@ export class ContractRepository implements IContractRepository {
       const oldVehicleItem = oldVehiclesMap.get(vehicleId);
 
       if (oldVehicleItem) {
-        // Verificar si cambió la fecha de inicio O la fecha de fin
-        const startChanged = newVehicleItem.dates.start.toString() !== oldVehicleItem.dates.start.toString();
-        const endChanged = newVehicleItem.dates.end.toString() !== oldVehicleItem.dates.end.toString();
+        // Vehículo existente - actualizar fechas si cambiaron
+        // Normalizar fechas a timestamps para comparación precisa
+        const oldStartTime = new Date(oldVehicleItem.dates.start).getTime();
+        const newStartTime = new Date(newVehicleItem.dates.start).getTime();
+        const oldEndTime = new Date(oldVehicleItem.dates.end).getTime();
+        const newEndTime = new Date(newVehicleItem.dates.end).getTime();
+        
+        const startChanged = oldStartTime !== newStartTime;
+        const endChanged = oldEndTime !== newEndTime;
+        
+        console.log(`[updateVehicleReservations] Vehículo ${vehicleId}:`, {
+          oldStart: oldVehicleItem.dates.start,
+          newStart: newVehicleItem.dates.start,
+          oldEnd: oldVehicleItem.dates.end,
+          newEnd: newVehicleItem.dates.end,
+          startChanged,
+          endChanged
+        });
         
         if (startChanged || endChanged) {
           const originalStartDate = new Date(oldVehicleItem.dates.start);
@@ -1808,6 +1824,41 @@ export class ContractRepository implements IContractRepository {
               oldEnd: endChanged ? originalEndDate : 'sin cambios',
               newEnd: endChanged ? newEndDate : 'sin cambios',
             }
+          );
+        }
+      } else {
+        // Vehículo NUEVO - crear reserva
+        const newStartDate = new Date(newVehicleItem.dates.start);
+        const newEndDate = new Date(newVehicleItem.dates.end);
+
+        const vehicle = await this.vehicleModel
+          .findById(vehicleId)
+          .session(session);
+
+        if (vehicle) {
+          const newReservation = {
+            start: newStartDate,
+            end: newEndDate,
+            bookingId: bookingId, // Agregar el ID del booking para identificar la reserva
+          };
+
+          if (!vehicle.reservations) {
+            vehicle.reservations = [];
+          }
+
+          vehicle.reservations.push(newReservation);
+          await vehicle.save({ session });
+
+          console.log(
+            `Nueva reserva creada para vehículo ${vehicleId}${bookingId ? ` (booking: ${bookingId})` : ''}:`,
+            {
+              start: newStartDate,
+              end: newEndDate,
+            }
+          );
+        } else {
+          console.warn(
+            `No se pudo encontrar el vehículo ${vehicleId} para crear la reserva`,
           );
         }
       }
