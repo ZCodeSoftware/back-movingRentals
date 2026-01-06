@@ -706,15 +706,23 @@ export class BookingService implements IBookingService {
     const currentBookingData = currentBooking.toJSON();
     
     // Detectar si se está eliminando el delivery - VERIFICAR AMBAS ESTRUCTURAS
-    // 1. Verificar en los campos del booking
-    const hadDeliveryInBooking = currentBookingData.requiresDelivery && currentBookingData.deliveryCost && currentBookingData.deliveryCost > 0;
-    const hasDeliveryInBooking = (booking as any).requiresDelivery && (booking as any).deliveryCost && (booking as any).deliveryCost > 0;
-    
-    // 2. Verificar en el cart (si viene un cart nuevo)
+    // IMPORTANTE: Solo detectar eliminación si se está enviando explícitamente el cart
+    // Si no se envía el cart, NO eliminar el delivery (puede ser solo actualización de estado u otros campos)
+    let isRemovingDelivery = false;
+    let hadDeliveryInBooking = false;
+    let hasDeliveryInBooking = false;
     let hadDeliveryInCart = false;
     let hasDeliveryInCart = false;
     
+    // Solo verificar eliminación de delivery si se está enviando un cart nuevo
     if ((booking as any).cart) {
+      // 1. Verificar en los campos del booking
+      hadDeliveryInBooking = currentBookingData.requiresDelivery && currentBookingData.deliveryCost && currentBookingData.deliveryCost > 0;
+      hasDeliveryInBooking = (booking as any).requiresDelivery !== undefined 
+        ? ((booking as any).requiresDelivery && (booking as any).deliveryCost && (booking as any).deliveryCost > 0)
+        : hadDeliveryInBooking; // Si no se envía requiresDelivery, mantener el valor actual
+      
+      // 2. Verificar en el cart (si viene un cart nuevo)
       try {
         const newCartData = JSON.parse((booking as any).cart);
         
@@ -730,32 +738,32 @@ export class BookingService implements IBookingService {
       } catch (e) {
         console.error('[BookingService] Error parsing new cart:', e);
       }
-    }
-    
-    // Verificar delivery en el cart actual
-    if (currentBookingData.cart) {
-      try {
-        const currentCartData = JSON.parse(currentBookingData.cart);
-        
-        // Verificar formato antiguo
-        hadDeliveryInCart = currentCartData.delivery === true;
-        
-        // Verificar formato nuevo
-        if (!hadDeliveryInCart && currentCartData.vehicles && Array.isArray(currentCartData.vehicles)) {
-          hadDeliveryInCart = currentCartData.vehicles.some((v: any) => 
-            v.delivery && v.delivery.requiresDelivery === true
-          );
+      
+      // Verificar delivery en el cart actual
+      if (currentBookingData.cart) {
+        try {
+          const currentCartData = JSON.parse(currentBookingData.cart);
+          
+          // Verificar formato antiguo
+          hadDeliveryInCart = currentCartData.delivery === true;
+          
+          // Verificar formato nuevo
+          if (!hadDeliveryInCart && currentCartData.vehicles && Array.isArray(currentCartData.vehicles)) {
+            hadDeliveryInCart = currentCartData.vehicles.some((v: any) => 
+              v.delivery && v.delivery.requiresDelivery === true
+            );
+          }
+        } catch (e) {
+          console.error('[BookingService] Error parsing current cart:', e);
         }
-      } catch (e) {
-        console.error('[BookingService] Error parsing current cart:', e);
       }
+      
+      // Se está eliminando el delivery si:
+      // - Tenía delivery en booking Y ahora no lo tiene en booking
+      // - O tenía delivery en cart Y ahora no lo tiene en cart
+      isRemovingDelivery = (hadDeliveryInBooking && !hasDeliveryInBooking) || 
+                          (hadDeliveryInCart && !hasDeliveryInCart);
     }
-    
-    // Se está eliminando el delivery si:
-    // - Tenía delivery en booking Y ahora no lo tiene en booking
-    // - O tenía delivery en cart Y ahora no lo tiene en cart
-    const isRemovingDelivery = (hadDeliveryInBooking && !hasDeliveryInBooking) || 
-                                (hadDeliveryInCart && !hasDeliveryInCart);
     
     console.log('[BookingService] Delivery check:', {
       hadDeliveryInBooking,
@@ -763,6 +771,7 @@ export class BookingService implements IBookingService {
       hadDeliveryInCart,
       hasDeliveryInCart,
       isRemovingDelivery,
+      cartSent: !!(booking as any).cart,
       currentDeliveryCost: currentBookingData.deliveryCost,
       newDeliveryCost: (booking as any).deliveryCost
     });
