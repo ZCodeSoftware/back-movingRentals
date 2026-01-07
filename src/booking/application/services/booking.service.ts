@@ -1386,10 +1386,21 @@ export class BookingService implements IBookingService {
         });
       } else {
         // Pago normal o pago parcial - enviar email de aprobación
+        // IMPORTANTE: Para pagos aprobados, enviar con isReserve=false para que use el template de confirmación
         console.log(`[BookingService] ✅ Pago APROBADO para booking ${id}, enviando correo de confirmación`);
         console.log(`[BookingService] Método de pago: ${paymentMethodName}`);
+        
+        // Crear una copia del booking con isReserve=false para forzar el template de confirmación
+        const bookingForConfirmation = {
+          ...updatedBooking.toJSON(),
+          isReserve: false
+        };
+        const bookingModelForConfirmation = {
+          toJSON: () => bookingForConfirmation
+        } as BookingModel;
+        
         this.eventEmitter.emit('send-booking.created', {
-          updatedBooking,
+          updatedBooking: bookingModelForConfirmation,
           userEmail: email,
           lang,
         });
@@ -1494,9 +1505,21 @@ export class BookingService implements IBookingService {
       }
     } else if (statusName === TypeStatus.PENDING) {
       // Pago pendiente - enviar correo de pendiente
-      console.log(`[BookingService] Pago PENDIENTE para booking ${id}, enviando correo de pendiente`);
+      // IMPORTANTE: Para pagos pendientes, asegurarnos de que isReserve=true para que use el template de "PAGO PENDIENTE"
+      console.log(`[BookingService] Pago PENDIENTE para booking ${id}, enviando correo de PAGO PENDIENTE`);
+      console.log(`[BookingService] Método de pago: ${paymentMethodName}, Source: ${contractSource}`);
+      
+      // Crear una copia del booking con isReserve=true para forzar el template de "PAGO PENDIENTE"
+      const bookingForPending = {
+        ...updatedBooking.toJSON(),
+        isReserve: true
+      };
+      const bookingModelForPending = {
+        toJSON: () => bookingForPending
+      } as BookingModel;
+      
       this.eventEmitter.emit('send-booking.created', {
-        updatedBooking,
+        updatedBooking: bookingModelForPending,
         userEmail: email,
         lang,
       });
