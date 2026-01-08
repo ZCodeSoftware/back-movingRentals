@@ -305,6 +305,15 @@ export class MetricsRepository implements IMetricsRepository {
     if (approvedStatus) statusIds.push(approvedStatus._id);
     if (completedStatus) statusIds.push(completedStatus._id);
 
+    // Obtener ID de categoría si se filtra por vehicleType
+    let categoryId: any = null;
+    if (filters?.vehicleType) {
+      const category = await this.categoryModel.findOne({ name: filters.vehicleType });
+      if (category) {
+        categoryId = category._id;
+      }
+    }
+
     // Contar clientes activos que tienen al menos una reserva APROBADA en el período
     let activeClients: number;
     
@@ -364,57 +373,133 @@ export class MetricsRepository implements IMetricsRepository {
     activeClients = clientResult.length > 0 ? clientResult[0].total : 0;
 
     // Calcular ingresos usando payments.paymentDate
+    // Si hay filtro de vehicleType, necesitamos filtrar por bookings que contengan vehículos de esa categoría
     if (statusIds.length === 0) {
       this.logger.warn(`[getMetricsForPeriod] Status '${BOOKING_STATUS.APPROVED}' o '${BOOKING_STATUS.COMPLETED}' no encontrados`);
     }
 
-    const incomePipeline: any[] = [
-      { $match: { status: { $in: statusIds } } },
-      { $unwind: { path: '$payments', preserveNullAndEmptyArrays: false } },
-      { 
-        $match: { 
-          'payments.status': 'PAID',
-          ...(dateFilter && { 'payments.paymentDate': dateFilter })
-        } 
+    let totalIncome = 0;
+    
+    if (categoryId) {
+      // Si hay filtro de categoría, obtener vehículos de esa categoría
+      const vehiclesInCategory = await this.vehicleModel.find({ category: categoryId }).select('_id').lean();
+      const vehicleIdsInCategory = vehiclesInCategory.map(v => v._id.toString());
+      
+      // Obtener bookings que contengan al menos un vehículo de la categoría filtrada
+      const bookingsMatch: any = { status: { $in: statusIds } };
+      const bookings = await this.bookingModel.find(bookingsMatch).lean();
+      
+      for (const booking of bookings) {
+        try {
+          const cart = JSON.parse(booking.cart);
+          let hasVehicleInCategory = false;
+          
+          // Verificar si el booking tiene vehículos de la categoría filtrada
+          if (cart.vehicles && Array.isArray(cart.vehicles)) {
+            for (const vehicleItem of cart.vehicles) {
+              const vehicleId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+              if (vehicleIdsInCategory.includes(vehicleId)) {
+                hasVehicleInCategory = true;
+                break;
+              }
+            }
+          }
+          
+          // Si el booking tiene vehículos de la categoría, sumar sus pagos
+          if (hasVehicleInCategory) {
+            const payments = (booking as any).payments || [];
+            for (const payment of payments) {
+              if (payment.status === 'PAID') {
+                // Aplicar filtro de fecha si existe
+                if (dateFilter) {
+                  const paymentDate = new Date(payment.paymentDate);
+                  if (paymentDate >= dateFilter.$gte && paymentDate < dateFilter.$lt) {
+                    totalIncome += payment.amount || 0;
+                  }
+                } else {
+                  totalIncome += payment.amount || 0;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`[getMetricsForPeriod] Error parsing cart for booking ${booking._id}: ${error.message}`);
+        }
       }
-    ];
-
-    if (filters?.priceRange) {
-      incomePipeline.push({
-        $match: {
-          'payments.amount': {
-            $gte: filters.priceRange.min,
-            $lte: filters.priceRange.max
+    } else {
+      // Sin filtro de categoría, usar el pipeline original
+      const incomePipeline: any[] = [
+        { $match: { status: { $in: statusIds } } },
+        { $unwind: { path: '$payments', preserveNullAndEmptyArrays: false } },
+        {
+          $match: {
+            'payments.status': 'PAID',
+            ...(dateFilter && { 'payments.paymentDate': dateFilter })
           }
         }
-      });
+      ];
+
+      if (filters?.priceRange) {
+        incomePipeline.push({
+          $match: {
+            'payments.amount': {
+              $gte: filters.priceRange.min,
+              $lte: filters.priceRange.max
+            }
+          }
+        });
+      }
+
+      incomePipeline.push({ $group: { _id: null, total: { $sum: '$payments.amount' } } });
+
+      const totalIncomeResult = await this.bookingModel.aggregate(incomePipeline);
+      totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
     }
 
-    incomePipeline.push({ $group: { _id: null, total: { $sum: '$payments.amount' } } });
+    // Calcular gastos
+    // Si hay filtro de categoría, solo contar gastos de vehículos de esa categoría
+    let totalExpenses = 0;
+    
+    if (categoryId) {
+      // Obtener vehículos de la categoría filtrada
+      const vehiclesInCategory = await this.vehicleModel.find({ category: categoryId }).select('_id').lean();
+      const vehicleIdsInCategory = vehiclesInCategory.map(v => v._id);
+      
+      const expenseFilter: any = {
+        direction: 'OUT',
+        isDeleted: { $ne: true },
+        vehicle: { $in: vehicleIdsInCategory }
+      };
+      
+      if (dateFilter) {
+        expenseFilter.date = dateFilter;
+      }
+      
+      const totalExpensesResult = await this.movementModel.aggregate([
+        { $match: expenseFilter },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
+    } else {
+      // Sin filtro de categoría, contar todos los gastos
+      const expenseFilter: any = {
+        direction: 'OUT',
+        isDeleted: { $ne: true }
+      };
+      if (dateFilter) {
+        expenseFilter.date = dateFilter;
+      }
 
-    const totalIncomeResult = await this.bookingModel.aggregate(incomePipeline);
-    const totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
-
-    const expenseFilter: any = { 
-      direction: 'OUT',
-      isDeleted: { $ne: true }
-    };
-    if (dateFilter) {
-      expenseFilter.date = dateFilter; // CORRECCIÓN: usar 'date' en lugar de 'createdAt' para movements
+      const totalExpensesResult = await this.movementModel.aggregate([
+        { $match: expenseFilter },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
     }
-
-    const totalExpensesResult = await this.movementModel.aggregate([
-      { $match: expenseFilter },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]);
-    const totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
 
     let vehicleFilter: any = { isActive: true };
-    if (filters?.vehicleType) {
-      const category = await this.categoryModel.findOne({ name: filters.vehicleType });
-      if (category) {
-        vehicleFilter.category = category._id;
-      }
+    if (categoryId) {
+      vehicleFilter.category = categoryId;
     }
     const activeVehicles = await this.vehicleModel.countDocuments(vehicleFilter);
 
@@ -1255,7 +1340,11 @@ export class MetricsRepository implements IMetricsRepository {
   }
 
   async getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }> {
+    this.logger.log(`[getTransactionDetails] Filtros recibidos: ${JSON.stringify(filters)}`);
+    
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
+    this.logger.log(`[getTransactionDetails] dateFilter construido: ${JSON.stringify(dateFilter)}`);
+    
     let combinedTransactions: TransactionDetail[] = [];
 
     // Parámetros de paginación
@@ -1266,6 +1355,8 @@ export class MetricsRepository implements IMetricsRepository {
     const includeIncome = !filters?.transactionType || filters.transactionType === 'INCOME';
     // Verificar si se debe incluir egresos
     const includeExpenses = !filters?.transactionType || filters.transactionType === 'EXPENSE';
+    
+    this.logger.log(`[getTransactionDetails] includeIncome: ${includeIncome}, includeExpenses: ${includeExpenses}`);
 
     // --- 1. OBTENER LOS DETALLES DE INGRESOS (BOOKINGS) ---
     if (includeIncome) {
@@ -1381,6 +1472,15 @@ export class MetricsRepository implements IMetricsRepository {
   async getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
 
+    // Obtener ID de categoría si se filtra por vehicleType
+    let categoryId: any = null;
+    if (filters?.vehicleType) {
+      const category = await this.categoryModel.findOne({ name: filters.vehicleType });
+      if (category) {
+        categoryId = category._id;
+      }
+    }
+
     // Pipeline de agregación para obtener gastos por vehículo
     const pipeline: any[] = [
       {
@@ -1425,19 +1525,29 @@ export class MetricsRepository implements IMetricsRepository {
           path: '$categoryData',
           preserveNullAndEmptyArrays: true
         }
-      },
-      {
-        $project: {
-          _id: 0,
-          vehicleId: { $toString: '$_id' },
-          vehicleTag: '$vehicleData.tag',
-          vehicleName: '$vehicleData.name',
-          categoryName: { $ifNull: ['$categoryData.name', 'Sin categoría'] },
-          totalExpenses: 1,
-          expenseCount: 1
-        }
       }
     ];
+
+    // Agregar filtro de categoría si existe
+    if (categoryId) {
+      pipeline.push({
+        $match: {
+          'categoryData._id': categoryId
+        }
+      });
+    }
+
+    pipeline.push({
+      $project: {
+        _id: 0,
+        vehicleId: { $toString: '$_id' },
+        vehicleTag: '$vehicleData.tag',
+        vehicleName: '$vehicleData.name',
+        categoryName: { $ifNull: ['$categoryData.name', 'Sin categoría'] },
+        totalExpenses: 1,
+        expenseCount: 1
+      }
+    });
 
     const result = await this.movementModel.aggregate<VehicleExpenses>(pipeline);
 
