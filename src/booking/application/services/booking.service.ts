@@ -560,8 +560,10 @@ export class BookingService implements IBookingService {
 
     // LÓGICA DE ENVÍO DE EMAILS:
     // - Dashboard: SIEMPRE enviar email inmediatamente (sin importar método de pago)
-    // - Web: Solo enviar si NO requiere confirmación de pago
-    const shouldSendEmail = bookingSource === 'Dashboard' || !requiresPaymentConfirmation;
+    // - Web con Transferencia: Enviar email de PENDIENTE inmediatamente
+    // - Web con otros métodos que requieren confirmación: Esperar a validateBooking
+    const isTransferencia = paymentMethodName === 'Transferencia';
+    const shouldSendEmail = bookingSource === 'Dashboard' || !requiresPaymentConfirmation || (bookingSource === 'Web' && isTransferencia);
 
     if (shouldSendEmail) {
       console.log('[BookingService] 📧 Emitiendo evento send-booking.created');
@@ -574,11 +576,23 @@ export class BookingService implements IBookingService {
         total: bookingJson.total,
         totalPaid: bookingJson.totalPaid,
         paymentMethod: paymentMethodName,
-        source: bookingSource
+        source: bookingSource,
+        reason: bookingSource === 'Dashboard' ? 'Dashboard booking' : 
+                isTransferencia ? 'Transferencia - enviar email pendiente' : 
+                'Método no requiere confirmación'
       });
 
+      // Para Transferencia desde Web, forzar isReserve=true para que use el template de PENDIENTE
+      const bookingForEmail = (bookingSource === 'Web' && isTransferencia) 
+        ? { ...bookingSave.toJSON(), isReserve: true }
+        : bookingSave.toJSON();
+      
+      const bookingModelForEmail = {
+        toJSON: () => bookingForEmail
+      } as BookingModel;
+
       this.eventEmitter.emit('send-booking.created', {
-        updatedBooking: bookingSave,
+        updatedBooking: bookingModelForEmail,
         userEmail: email,
         lang,
         source: bookingSource, // ✅ Pasar el source directamente en el evento
