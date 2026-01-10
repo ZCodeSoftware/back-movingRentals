@@ -222,7 +222,7 @@ export class BookingService implements IBookingService {
           console.log('[BookingService] ✅ Evento send-booking.created emitido (desde create)');
         } else {
           console.log('[BookingService] ⏸️ Email NO enviado - método de pago requiere confirmación:', paymentMethodName);
-          console.log('[BookingService] El email se enviará cuando se confirme el pago mediante validateBooking');
+          console.log('[BookingService] El email se enviará cuando el usuario vuelva de Stripe sin completar el pago');
         }
       } else {
         console.warn('[BookingService] ⚠️ No se pudo obtener el email del usuario, no se enviará notificación');
@@ -1167,7 +1167,8 @@ export class BookingService implements IBookingService {
     const previousTotal = bookingData.total;
     const previousTotalPaid = bookingData.totalPaid || 0;
     
-    console.log(`[BookingService] validateBooking - Estado inicial: isReserve=${wasReserve}, total=${previousTotal}, totalPaid=${previousTotalPaid}`);
+    console.log(`[BookingService] validateBooking - Estado inicial: isReserve=${wasReserve}, total=${previousTotal}, totalPaid=${previousTotalPaid}, isValidated actual=${bookingData.isValidated}`);
+    console.log(`[BookingService] validateBooking - Parámetro isValidated recibido: ${isValidated}`);
     
     // Buscar el contrato asociado para verificar el source
     let contractSource = 'Web'; // Por defecto Web
@@ -1187,9 +1188,21 @@ export class BookingService implements IBookingService {
     console.log(`[BookingService] validateBooking - Método: ${paymentMethodName}, Source: ${contractSource}, Paid: ${paid}`);
     
     if (paymentMethodName === 'Credito/Debito') {
-      status = await this.catStatusRepository.getStatusByName(
-        paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
-      );
+      // Para Crédito/Débito desde WEB:
+      // - Si paid=true: APROBADO (pago exitoso)
+      // - Si paid=false: PENDIENTE (usuario navegó hacia atrás, no validado)
+      // Para Crédito/Débito desde DASHBOARD:
+      // - Si paid=true: APROBADO
+      // - Si paid=false: RECHAZADO (admin rechazó el pago)
+      if (contractSource === 'Web' && !paid) {
+        status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+        console.log('[BookingService] Crédito/Débito desde Web con paid=false → Status PENDING (no validado)');
+      } else {
+        status = await this.catStatusRepository.getStatusByName(
+          paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
+        );
+        console.log(`[BookingService] Crédito/Débito → Status ${paid ? 'APPROVED' : 'REJECTED'}`);
+      }
     } else if (paymentMethodName === "Efectivo") {
       // Para Efectivo: aprobar solo si paid=true, rechazar si paid=false
       status = await this.catStatusRepository.getStatusByName(
@@ -1347,8 +1360,14 @@ export class BookingService implements IBookingService {
       console.log(`[BookingService] Pago registrado: ${paidAmount} MXN - ${paymentMethodName} (${paymentType})`);
     }
 
-    isValidated && booking.validateBooking();
-
+    // Establecer isValidated según el parámetro recibido
+    if (isValidated) {
+    booking.validateBooking();
+    } else {
+    // Si isValidated=false, establecer explícitamente el valor en el modelo
+    (booking as any)._isValidated = false;
+    }
+    
     const updatedBooking = await this.bookingRepository.update(id, booking);
     console.log(`[BookingService] validateBooking - Después de update: isReserve=${updatedBooking.toJSON().isReserve}, totalPaid=${updatedBooking.toJSON().totalPaid}`);
 
@@ -1520,23 +1539,45 @@ export class BookingService implements IBookingService {
     } else if (statusName === TypeStatus.PENDING) {
       // Pago pendiente - enviar correo de pendiente
       // IMPORTANTE: Para pagos pendientes, asegurarnos de que isReserve=true para que use el template de "PAGO PENDIENTE"
-      console.log(`[BookingService] Pago PENDIENTE para booking ${id}, enviando correo de PAGO PENDIENTE`);
+      console.log(`[BookingService] ✅ Pago PENDIENTE para booking ${id}, enviando correo de PAGO PENDIENTE`);
       console.log(`[BookingService] Método de pago: ${paymentMethodName}, Source: ${contractSource}`);
+      console.log(`[BookingService] Paid: ${paid}, isValidated: ${isValidated}`);
       
-      // Crear una copia del booking con isReserve=true para forzar el template de "PAGO PENDIENTE"
+      // Determinar si es "pago no validado" (usuario navegó hacia atrás) o "pendiente común" (transferencia)
+      const isPaymentNotValidated = contractSource === 'Web' && !paid && paymentMethodName === 'Credito/Debito';
+      
+      // Crear una copia del booking con isReserve=true y metadata adicional
       const bookingForPending = {
         ...updatedBooking.toJSON(),
-        isReserve: true
+        isReserve: true,
+        metadata: {
+          ...updatedBooking.toJSON().metadata,
+          isPaymentNotValidated: isPaymentNotValidated // Flag para diferenciar en el template
+        }
       };
       const bookingModelForPending = {
         toJSON: () => bookingForPending
-      } as BookingModel;
+      } as unknown as BookingModel;
+      
+      console.log(`[BookingService] 📧 Emitiendo evento send-booking.created para PENDING`);
+      console.log(`[BookingService] Email destino: ${email}`);
+      console.log(`[BookingService] Booking data:`, {
+        bookingId: bookingForPending._id,
+        bookingNumber: bookingForPending.bookingNumber,
+        isReserve: bookingForPending.isReserve,
+        total: bookingForPending.total,
+        totalPaid: bookingForPending.totalPaid,
+        status: bookingForPending.status?.name,
+        isPaymentNotValidated: isPaymentNotValidated
+      });
       
       this.eventEmitter.emit('send-booking.created', {
         updatedBooking: bookingModelForPending,
         userEmail: email,
         lang,
       });
+      
+      console.log(`[BookingService] ✅ Evento send-booking.created emitido para PENDING`);
     } else if (statusName === TypeStatus.REJECTED) {
       // Pago rechazado - establecer totalPaid en 0 antes de enviar el correo
       console.log(`[BookingService] Pago RECHAZADO para booking ${id}, estableciendo totalPaid en 0`);
@@ -2479,4 +2520,13 @@ export class BookingService implements IBookingService {
   }
 
 }
+
+
+
+
+
+
+
+
+
 

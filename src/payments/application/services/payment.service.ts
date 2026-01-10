@@ -159,28 +159,50 @@ export class PaymentService implements IPaymentService {
             switch (event.type) {
                 case 'checkout.session.completed':
                     const session = event.data.object as Stripe.Checkout.Session;
-                    console.log('Pago completado:', session.id);
+                    console.log('[PaymentService] ✅ Pago completado:', session.id);
+                    console.log('[PaymentService] Metadata:', session.metadata);
                     // Aquí puedes actualizar tu base de datos
                     // Por ejemplo: marcar una reserva como pagada
                     break;
 
+                case 'checkout.session.expired':
+                    const expiredSession = event.data.object as Stripe.Checkout.Session;
+                    console.log('[PaymentService] ⏱️ Sesión de pago expirada:', expiredSession.id);
+                    console.log('[PaymentService] Metadata:', expiredSession.metadata);
+                    
+                    // Si la sesión tiene un bookingId en metadata, marcar el booking como no validado
+                    if (expiredSession.metadata && expiredSession.metadata.bookingId) {
+                        const bookingId = expiredSession.metadata.bookingId;
+                        console.log(`[PaymentService] 📧 Sesión expirada para booking ${bookingId}, se debe enviar email de pendiente`);
+                        
+                        // NOTA: Aquí necesitaríamos llamar a validateBooking, pero no tenemos acceso directo al BookingService
+                        // La solución es emitir un evento que el BookingService pueda escuchar
+                        // O implementar la lógica directamente aquí
+                        
+                        // Por ahora, solo logueamos. La implementación completa requeriría:
+                        // 1. Inyectar BookingService o EventEmitter
+                        // 2. Llamar a validateBooking con paid=false
+                        // 3. Esto enviará el email de pendiente automáticamente
+                    }
+                    break;
+
                 case 'payment_intent.succeeded':
                     const paymentIntent = event.data.object as Stripe.PaymentIntent;
-                    console.log('PaymentIntent exitoso:', paymentIntent.id);
+                    console.log('[PaymentService] ✅ PaymentIntent exitoso:', paymentIntent.id);
                     break;
 
                 case 'payment_intent.payment_failed':
                     const failedPayment = event.data.object as Stripe.PaymentIntent;
-                    console.log('Pago fallido:', failedPayment.id);
+                    console.log('[PaymentService] ❌ Pago fallido:', failedPayment.id);
                     break;
 
                 default:
-                    console.log(`Evento no manejado: ${event.type}`);
+                    console.log(`[PaymentService] ℹ️ Evento no manejado: ${event.type}`);
             }
 
             return { received: true };
         } catch (error) {
-            console.error('Error procesando webhook de Stripe:', error);
+            console.error('[PaymentService] ❌ Error procesando webhook de Stripe:', error);
             throw new BaseErrorException(
                 'Error al procesar webhook',
                 400

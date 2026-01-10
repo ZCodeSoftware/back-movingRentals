@@ -392,14 +392,19 @@ export class BookingController {
   @UseGuards(AuthGuards)
   async validateBooking(
     @Param('id') id: string,
-    @Query('paid') paid: boolean,
+    @Query('paid') paidRaw: string | boolean,
     @Query('lang') lang: string,
     @Req() req: IUserRequest,
-    @Query('isManual') isManual = false,
-    @Query('isValidated') isValidated = false,
+    @Query('isManual') isManualRaw: string | boolean = false,
+    @Query('isValidated') isValidatedRaw: string | boolean = false,
     @Query('paidAmount') paidAmount?: number,
     @Body() body?: any, // Aceptar payments desde el body (opcional)
   ) {
+    // Convertir strings a booleanos correctamente
+    const paid = paidRaw === 'true' || paidRaw === true;
+    const isManual = isManualRaw === 'true' || isManualRaw === true;
+    const isValidated = isValidatedRaw === 'true' || isValidatedRaw === true;
+    
     // IMPORTANTE: Obtener el email del usuario dueño del booking, no del usuario autenticado
     // El usuario autenticado puede ser un admin validando el pago de otro usuario
     const user = await this.bookingService.findUserByBookingId(id);

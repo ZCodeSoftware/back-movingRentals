@@ -220,7 +220,12 @@ export function generateUserBookingReserve(
   const saldoPendiente = totalReserva - totalPagado;
   const googleMapsUrl = `https://www.google.com/maps/search/MoovAdventures+Tulum/@20.2053617,-87.4710442,15z`;
 
-  const subject = `Reserva Pendiente #${bookingNumber} - Contáctanos para Confirmar`;
+  // Detectar si es "pago no validado" (usuario navegó hacia atrás)
+  const isPaymentNotValidated = bookingData.metadata?.isPaymentNotValidated === true;
+  
+  const subject = isPaymentNotValidated 
+    ? `Reserva No Validada #${bookingNumber} - Completa tu Pago`
+    : `Reserva Pendiente #${bookingNumber} - Contáctanos para Confirmar`;
 
   const html = `
     <!DOCTYPE html>
@@ -301,8 +306,14 @@ export function generateUserBookingReserve(
         <h1 style="color: #f39c12;">Reserva Pendiente ⚠️</h1>
 
         <div class="alert-box">
+          ${isPaymentNotValidated ? `
+          <p><strong>⚠️ PAGO NO COMPLETADO - COMPLETA TU RESERVA</strong></p>
+          <p>Detectamos que no completaste el proceso de pago. Tu reserva está pendiente de confirmación.</p>
+          <p style="margin-top: 10px;">Puedes completar el pago desde tu perfil o contactarnos para ayudarte.</p>
+          ` : `
           <p><strong>⚠️ RESERVA PENDIENTE - CONTÁCTANOS PARA CONFIRMAR</strong></p>
           <p>Tu reserva está pendiente de confirmación. Por favor contáctanos para completar el proceso.</p>
+          `}
         </div>
 
         <div class="section contact-info" style="background-color: #e8f5e9; padding: 15px; border-radius: 4px; border-left: 4px solid #4caf50;">
