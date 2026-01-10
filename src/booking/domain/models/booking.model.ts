@@ -138,6 +138,10 @@ export class BookingModel extends BaseModel {
       if (this._totalPaid >= this._total) {
         this._isReserve = false;
       }
+    } else {
+      // Si paid=false (pago no validado), establecer como reserva pendiente
+      this._totalPaid = 0;
+      this._isReserve = true;
     }
   }
 
