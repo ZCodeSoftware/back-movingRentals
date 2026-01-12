@@ -140,13 +140,22 @@ export class BookingService implements IBookingService {
       );
     }
 
-    const status = await this.catStatusRepository.getStatusByName(
-      TypeStatus.PENDING,
-    );
+    // Para Crédito/Débito y Efectivo desde la web, iniciar como RECHAZADO
+    // Para otros métodos (Transferencia), iniciar como PENDIENTE
+    const paymentMethodName = catPaymentMethod.toJSON().name;
+    const requiresStripePayment = paymentMethodName === 'Credito/Debito' || 
+                                  paymentMethodName === 'Credito' || 
+                                  paymentMethodName === 'Debito' ||
+                                  paymentMethodName === 'Efectivo';
+    
+    const statusType = requiresStripePayment ? TypeStatus.REJECTED : TypeStatus.PENDING;
+    const status = await this.catStatusRepository.getStatusByName(statusType);
 
     if (!status) {
       throw new BaseErrorException('CatStatus not found', HttpStatus.NOT_FOUND);
     }
+
+    console.log(`[BookingService.create] Método de pago: ${paymentMethodName}, Status inicial: ${statusType}`);
 
     bookingModel.addStatus(status);
 
