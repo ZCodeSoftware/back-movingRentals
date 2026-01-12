@@ -1185,23 +1185,24 @@ export class BookingService implements IBookingService {
     const paymentMethodName = booking.toJSON().paymentMethod.name;
     let status;
     
-    console.log(`[BookingService] validateBooking - Método: ${paymentMethodName}, Source: ${contractSource}, Paid: ${paid}`);
+    console.log(`[BookingService] validateBooking - Método: ${paymentMethodName}, Source: ${contractSource}, Paid: ${paid}, isValidated: ${isValidated}`);
     
     if (paymentMethodName === 'Credito/Debito') {
-      // Para Crédito/Débito desde WEB:
-      // - Si paid=true: APROBADO (pago exitoso)
-      // - Si paid=false: PENDIENTE (usuario navegó hacia atrás, no validado)
-      // Para Crédito/Débito desde DASHBOARD:
-      // - Si paid=true: APROBADO
-      // - Si paid=false: RECHAZADO (admin rechazó el pago)
-      if (contractSource === 'Web' && !paid) {
-        status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
-        console.log('[BookingService] Crédito/Débito desde Web con paid=false → Status PENDING (no validado)');
+      // Para Crédito/Débito:
+      // - Si paid=true: APROBADO (pago exitoso en Stripe)
+      // - Si paid=false + isValidated=true: RECHAZADO (usuario canceló el pago en Stripe)
+      // - Si paid=false + isValidated=false: PENDIENTE (usuario navegó hacia atrás sin completar)
+      //   PERO mantener isValidated=false para que se muestre como "NO VALIDADO"
+      if (paid) {
+        status = await this.catStatusRepository.getStatusByName(TypeStatus.APPROVED);
+        console.log('[BookingService] Crédito/Débito con paid=true → Status APPROVED');
+      } else if (isValidated) {
+        status = await this.catStatusRepository.getStatusByName(TypeStatus.REJECTED);
+        console.log('[BookingService] Crédito/Débito con paid=false + isValidated=true → Status REJECTED (cancelado en Stripe)');
       } else {
-        status = await this.catStatusRepository.getStatusByName(
-          paid ? TypeStatus.APPROVED : TypeStatus.REJECTED,
-        );
-        console.log(`[BookingService] Crédito/Débito → Status ${paid ? 'APPROVED' : 'REJECTED'}`);
+        // Usuario navegó hacia atrás - mantener como PENDIENTE pero NO VALIDADO
+        status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+        console.log('[BookingService] Crédito/Débito con paid=false + isValidated=false → Status PENDING + NO VALIDADO (navegó hacia atrás)');
       }
     } else if (paymentMethodName === "Efectivo") {
       // Para Efectivo: aprobar solo si paid=true, rechazar si paid=false
@@ -1239,6 +1240,15 @@ export class BookingService implements IBookingService {
     console.log(`[BookingService] validateBooking - Antes de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
     booking.payBooking(paid, paidAmount);
     console.log(`[BookingService] validateBooking - Después de payBooking: isReserve=${booking.toJSON().isReserve}, totalPaid=${booking.toJSON().totalPaid}`);
+    
+    // CORRECCIÓN CRÍTICA: Para Crédito/Débito, NUNCA debe ser isReserve=true
+    // Solo Efectivo puede tener "Reserva 20%"
+    if (paymentMethodName === 'Credito/Debito' && !paid) {
+      // Si el pago fue rechazado (paid=false), establecer isReserve=false y totalPaid=0
+      (booking as any)._isReserve = false;
+      (booking as any)._totalPaid = 0;
+      console.log('[BookingService] Crédito/Débito rechazado: isReserve=false, totalPaid=0');
+    }
 
     // Registrar los pagos en el historial
     // Obtener el usuario que está validando (para validatedBy)
