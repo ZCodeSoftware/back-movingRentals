@@ -22,4 +22,5 @@ export interface IUserUpdate {
   isActive?: boolean;
   newsletter?: boolean;
   address?: ICreateAddress;
+  role?: string;
 }

@@ -222,10 +222,21 @@ export class UserRepository implements IUserRepository {
         userObj.password = await hashPassword(userObj.password);
       }
 
+      // Si se proporciona un nuevo rol, buscarlo y usarlo; de lo contrario, mantener el existente
+      let roleIdToUse = filteredExistingUser.role?._id;
+
+      if (userObj.role && typeof userObj.role === 'string') {
+        // Validar que el rol existe
+        const newRole = await this.catRoleRepository.findById(userObj.role as string);
+        if (newRole) {
+          roleIdToUse = newRole.toJSON()._id;
+        }
+      }
+
       const updatedFields = plainToClass(UserModel, {
         ...filteredExistingUser,
         ...userObj,
-        role: filteredExistingUser.role,
+        role: roleIdToUse,
         documentation: filteredExistingUser.documentation,
         address: filteredExistingUser.address,
       });
@@ -236,7 +247,15 @@ export class UserRepository implements IUserRepository {
         {
           new: true,
         },
-      );
+      )
+      .populate('role')
+      .populate('documentation')
+      .populate({
+        path: 'address',
+        populate: {
+          path: 'country',
+        },
+      });
 
       if (!updated) {
         throw new BaseErrorException(

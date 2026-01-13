@@ -159,4 +159,9 @@ export class UpdateUserDTO {
   @ApiPropertyOptional()
   @Type(() => CreateAddressDTO)
   address?: CreateAddressDTO;
+
+  @IsOptional()
+  @ApiPropertyOptional()
+  @IsString()
+  role?: string;
 }

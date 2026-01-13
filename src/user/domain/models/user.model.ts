@@ -9,7 +9,7 @@ export class UserModel extends BaseModel {
   private _lastName: string;
   private _email: string;
   private _password: string;
-  private _role: CatRoleModel;
+  private _role: CatRoleModel | string;
   private _cellphone: string;
   private _documentation: DocumentModel[];
   private _isActive: boolean;
@@ -25,7 +25,9 @@ export class UserModel extends BaseModel {
       lastName: this._lastName,
       email: this._email,
       password: this._password,
-      role: this._role ? this._role.toJSON() : null,
+      role: this._role 
+        ? (typeof this._role === 'string' ? this._role : this._role.toJSON())
+        : null,
       cellphone: this._cellphone,
       documentation: this._documentation
         ? this._documentation.map((doc) => doc.toJSON())
@@ -55,6 +57,10 @@ export class UserModel extends BaseModel {
     newUser._cellphone = user.cellphone;
     newUser._isActive = user.isActive;
     newUser._newsletter = user.newsletter;
+    // Si se proporciona un rol como string (ID), guardarlo directamente
+    if (user.role && typeof user.role === 'string') {
+      newUser._role = user.role;
+    }
 
     return newUser;
   }
