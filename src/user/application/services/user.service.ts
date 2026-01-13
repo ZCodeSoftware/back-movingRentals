@@ -300,8 +300,11 @@ export class UserService implements IUserService {
 
   async update(id: string, user: IUserUpdate): Promise<UserModel> {
     try {
-      const { address, ...rest } = user;
-      const userModel = UserModel.create(rest);
+      const { address, role, ...rest } = user;
+
+      // Crear el modelo de usuario con los datos básicos, incluyendo el rol si existe
+      const userDataWithRole = role ? { ...rest, role } : rest;
+      const userModel = UserModel.create(userDataWithRole);
 
       if (address?.countryId) {
         const existingUser = await this.userRepository.findById(id);
@@ -436,8 +439,15 @@ export class UserService implements IUserService {
       }
 
       // Obtener los roles
-      const targetUserRole = targetUser.toJSON().role?.name;
-      const requestingUserRole = requestingUser.toJSON().role?.name;
+      const targetUserRoleData = targetUser.toJSON().role;
+      const requestingUserRoleData = requestingUser.toJSON().role;
+      
+      const targetUserRole = typeof targetUserRoleData === 'string' 
+        ? null 
+        : targetUserRoleData?.name;
+      const requestingUserRole = typeof requestingUserRoleData === 'string' 
+        ? null 
+        : requestingUserRoleData?.name;
 
       // Validar que un ADMIN no pueda restablecer la contraseña de un SUPERADMIN
       if (requestingUserRole === 'ADMIN' && targetUserRole === 'SUPERADMIN') {
