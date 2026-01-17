@@ -6,6 +6,8 @@ import { BaseErrorException } from "../../../core/domain/exceptions/base.error.e
 import { IUserRepository } from "../../../user/domain/repositories/user.interface.repository";
 import SymbolsUser from "../../../user/symbols-user";
 import { IPaymentService } from "../../domain/services/payment.service.interface";
+import { IBookingRepository } from "../../../booking/domain/repositories/booking.interface.repository";
+import SymbolsBooking from "../../../booking/symbols-booking";
 
 @Injectable()
 export class PaymentService implements IPaymentService {
@@ -13,7 +15,9 @@ export class PaymentService implements IPaymentService {
 
     constructor(
         @Inject(SymbolsUser.IUserRepository)
-        private readonly userRepository: IUserRepository
+        private readonly userRepository: IUserRepository,
+        @Inject(SymbolsBooking.IBookingRepository)
+        private readonly bookingRepository: IBookingRepository
     ) {
         this.stripe = new Stripe(config().paymentMethod.stripe.secretKey);
     }
@@ -159,10 +163,78 @@ export class PaymentService implements IPaymentService {
             switch (event.type) {
                 case 'checkout.session.completed':
                     const session = event.data.object as Stripe.Checkout.Session;
-                    console.log('[PaymentService] ✅ Pago completado:', session.id);
+                    console.log('[PaymentService] ✅ Pago completado desde Stripe webhook:', session.id);
                     console.log('[PaymentService] Metadata:', session.metadata);
-                    // Aquí puedes actualizar tu base de datos
-                    // Por ejemplo: marcar una reserva como pagada
+                    
+                    // Validar el booking automáticamente
+                    if (session.metadata && session.metadata.bookingId) {
+                        const bookingId = session.metadata.bookingId;
+                        
+                        try {
+                            console.log(`[PaymentService] Validando booking ${bookingId} automáticamente...`);
+                            
+                            // Obtener el booking para verificar su estado actual
+                            const booking = await this.bookingRepository.findById(bookingId);
+                            
+                            if (!booking) {
+                                console.error(`[PaymentService] ❌ Booking ${bookingId} no encontrado`);
+                                break;
+                            }
+                            
+                            const bookingData = booking.toJSON();
+                            
+                            // Solo validar si el booking NO está ya validado
+                            if (!bookingData.isValidated) {
+                                console.log(`[PaymentService] Booking ${bookingId} no está validado, procediendo con validación automática`);
+                                
+                                // Obtener el usuario del booking para el email
+                                const user = await this.bookingRepository.findUserByBookingId(bookingId);
+                                const userEmail = user?.toJSON()?.email || session.customer_email || '';
+                                
+                                // Calcular el monto pagado (Stripe lo envía en centavos)
+                                const paidAmount = session.amount_total ? session.amount_total / 100 : bookingData.total;
+                                
+                                // Actualizar el booking directamente en la base de datos
+                                // Marcar como pagado y validado
+                                const BookingModel = this.bookingRepository['bookingDB'].db.model('Booking');
+                                const CatStatus = this.bookingRepository['bookingDB'].db.model('CatStatus');
+                                
+                                // Obtener el status APPROVED
+                                const approvedStatus = await CatStatus.findOne({ name: 'APPROVED' });
+                                
+                                if (approvedStatus) {
+                                    await BookingModel.updateOne(
+                                        { _id: bookingId },
+                                        {
+                                            $set: {
+                                                status: approvedStatus._id,
+                                                isValidated: true,
+                                                totalPaid: paidAmount,
+                                                isReserve: false, // Si paga el total, ya no es reserva
+                                            }
+                                        }
+                                    );
+                                    
+                                    console.log(`[PaymentService] ✅ Booking ${bookingId} validado exitosamente desde webhook`);
+                                    console.log(`[PaymentService] - Status: APPROVED`);
+                                    console.log(`[PaymentService] - Total Pagado: ${paidAmount}`);
+                                    console.log(`[PaymentService] - Email: ${userEmail}`);
+                                    
+                                    // NOTA: El email se enviará cuando el usuario vuelva a la página de éxito
+                                    // o podríamos emitir un evento aquí para enviar el email
+                                } else {
+                                    console.error('[PaymentService] ❌ No se encontró el status APPROVED');
+                                }
+                            } else {
+                                console.log(`[PaymentService] ℹ️ Booking ${bookingId} ya está validado, omitiendo validación automática`);
+                            }
+                        } catch (error) {
+                            console.error(`[PaymentService] ❌ Error validando booking ${bookingId}:`, error);
+                            // No lanzar error para no fallar el webhook
+                        }
+                    } else {
+                        console.warn('[PaymentService] ⚠️ No se encontró bookingId en metadata del webhook');
+                    }
                     break;
 
                 case 'checkout.session.expired':
