@@ -73,7 +73,8 @@ import { commissionSchema } from '../commission/infrastructure/nest/constants/cu
     vehicleOwnerRepository
   ],
   exports: [
-    bookingService
+    bookingService,
+    bookingRepository
   ],
 })
 export class BookingModule { }
