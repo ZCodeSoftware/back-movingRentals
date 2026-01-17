@@ -1642,6 +1642,20 @@ export class BookingService implements IBookingService {
       });
       
       } else if (statusName === TypeStatus.REJECTED) {
+      // ✅ VALIDACIÓN: Verificar que el booking no esté ya APROBADO antes de enviar email de rechazo
+      // Esto previene emails contradictorios cuando se llama validateBooking múltiples veces
+      const currentBookingStatus = bookingData.status?.name;
+      
+      if (currentBookingStatus === TypeStatus.APPROVED) {
+        console.log(`[BookingService] ⚠️ RESERVA #${updatedBookingData.bookingNumber} - Email de PAGO RECHAZADO BLOQUEADO`);
+        console.log(`[BookingService] Motivo: El booking ya está APROBADO, no se puede enviar email de rechazo`);
+        console.log(`[BookingService] Status actual: ${currentBookingStatus}, Status nuevo: ${statusName}`);
+        console.log(`[BookingService] Esto indica una posible llamada duplicada a validateBooking`);
+        
+        // No enviar email de rechazo, pero continuar con el resto del proceso
+        return updatedBooking;
+      }
+      
       // Pago rechazado - establecer totalPaid en 0 antes de enviar el correo
       console.log(`[BookingService] 📧 RESERVA #${updatedBookingData.bookingNumber} - Enviando email de PAGO RECHAZADO`);
       console.log(`[BookingService] Estableciendo totalPaid en 0`);
