@@ -813,20 +813,82 @@ export class MetricsRepository implements IMetricsRepository {
       return [];
     }
 
-    // Usar payments.paymentDate para filtrar por fecha
+    // CAMBIO: Filtrar por createdAt de la reserva en lugar de paymentDate
+    // Esto asegura consistencia con el reporte de transacciones
+    // IMPORTANTE: Manejar reservas con payments vacío pero totalPaid > 0
+    
+    const matchStage: any = { 
+      status: { $in: statusIds },
+      ...(dateFilter && { createdAt: dateFilter }),
+      totalPaid: { $gt: 0 }
+    };
+    
     const aggregationPipeline: any[] = [
-      { $match: { status: { $in: statusIds } } },
-      { $unwind: { path: '$payments', preserveNullAndEmptyArrays: false } },
-      { 
-        $match: { 
-          'payments.status': 'PAID',
-          ...(dateFilter && { 'payments.paymentDate': dateFilter })
-        } 
+      { $match: matchStage },
+      {
+        $project: {
+          _id: 1,
+          totalPaid: 1,
+          payments: 1,
+          paymentMethod: 1,
+          hasPayments: { $gt: [{ $size: { $ifNull: ['$payments', []] } }, 0] }
+        }
       },
       {
+        $facet: {
+          // Caso 1: Reservas con payments poblado
+          withPayments: [
+            { $match: { hasPayments: true } },
+            { $unwind: '$payments' },
+            { 
+              $match: { 
+                'payments.status': 'PAID'
+              } 
+            },
+            {
+              $group: {
+                _id: '$payments.paymentType',
+                revenue: { $sum: '$payments.amount' }
+              }
+            }
+          ],
+          // Caso 2: Reservas sin payments pero con totalPaid > 0
+          withoutPayments: [
+            { $match: { hasPayments: false } },
+            {
+              $lookup: {
+                from: 'cat_payment_method',
+                localField: 'paymentMethod',
+                foreignField: '_id',
+                as: 'paymentMethodData'
+              }
+            },
+            {
+              $unwind: {
+                path: '$paymentMethodData',
+                preserveNullAndEmptyArrays: true
+              }
+            },
+            {
+              $group: {
+                _id: { $ifNull: ['$paymentMethodData.name', 'N/A'] },
+                revenue: { $sum: '$totalPaid' }
+              }
+            }
+          ]
+        }
+      },
+      {
+        $project: {
+          combined: { $concatArrays: ['$withPayments', '$withoutPayments'] }
+        }
+      },
+      { $unwind: '$combined' },
+      { $replaceRoot: { newRoot: '$combined' } },
+      {
         $group: {
-          _id: '$payments.paymentType',
-          revenue: { $sum: '$payments.amount' }
+          _id: '$_id',
+          revenue: { $sum: '$revenue' }
         }
       },
       {
@@ -1340,11 +1402,7 @@ export class MetricsRepository implements IMetricsRepository {
   }
 
   async getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }> {
-    this.logger.log(`[getTransactionDetails] Filtros recibidos: ${JSON.stringify(filters)}`);
-    
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
-    this.logger.log(`[getTransactionDetails] dateFilter construido: ${JSON.stringify(dateFilter)}`);
-    
     let combinedTransactions: TransactionDetail[] = [];
 
     // Parámetros de paginación
@@ -1355,8 +1413,6 @@ export class MetricsRepository implements IMetricsRepository {
     const includeIncome = !filters?.transactionType || filters.transactionType === 'INCOME';
     // Verificar si se debe incluir egresos
     const includeExpenses = !filters?.transactionType || filters.transactionType === 'EXPENSE';
-    
-    this.logger.log(`[getTransactionDetails] includeIncome: ${includeIncome}, includeExpenses: ${includeExpenses}`);
 
     // --- 1. OBTENER LOS DETALLES DE INGRESOS (BOOKINGS) ---
     if (includeIncome) {
@@ -1371,33 +1427,92 @@ export class MetricsRepository implements IMetricsRepository {
         this.logger.warn(`[getTransactionDetails] Status '${BOOKING_STATUS.APPROVED}' o '${BOOKING_STATUS.COMPLETED}' no encontrados`);
       }
 
+      // CAMBIO: Filtrar por createdAt de la reserva en lugar de paymentDate
+      // Esto asegura que los ingresos se muestren según la fecha de creación de la reserva
+      // que es consistente con el listado de reservas
+      
+      // IMPORTANTE: Manejar dos casos:
+      // 1. Reservas con array payments poblado
+      // 2. Reservas con totalPaid > 0 pero payments vacío (reservas antiguas o migradas)
+      
       const incomePipeline: any[] = [
-        { $match: { status: { $in: statusIds } } },
-        { $unwind: { path: '$payments', preserveNullAndEmptyArrays: false } },
         { 
           $match: { 
-            'payments.status': 'PAID',
-            ...(dateFilter && { 'payments.paymentDate': dateFilter })
+            status: { $in: statusIds },
+            ...(dateFilter && { createdAt: dateFilter }),
+            totalPaid: { $gt: 0 } // Solo reservas con pago
           } 
         },
         {
           $project: {
-            _id: 0,
-            type: { $literal: 'INCOME' },
-            date: '$payments.paymentDate',
-            amount: '$payments.amount',
-            description: { 
-              $concat: [
-                { $ifNull: ['$payments.notes', 'Pago'] },
-                " - Reserva #",
-                { $toString: "$bookingNumber" }
-              ]
-            },
-            sourceId: { $toString: '$_id' },
-            paymentType: '$payments.paymentType'
+            _id: 1,
+            bookingNumber: 1,
+            totalPaid: 1,
+            createdAt: 1,
+            payments: 1,
+            hasPayments: { $gt: [{ $size: { $ifNull: ['$payments', []] } }, 0] }
           }
-        }
+        },
+        {
+          $facet: {
+            // Caso 1: Reservas con payments poblado
+            withPayments: [
+              { $match: { hasPayments: true } },
+              { $unwind: '$payments' },
+              { 
+                $match: { 
+                  'payments.status': 'PAID'
+                } 
+              },
+              {
+                $project: {
+                  _id: 0,
+                  type: { $literal: 'INCOME' },
+                  date: '$payments.paymentDate',
+                  amount: '$payments.amount',
+                  description: { 
+                    $concat: [
+                      { $ifNull: ['$payments.notes', 'Pago'] },
+                      " - Reserva #",
+                      { $toString: "$bookingNumber" }
+                    ]
+                  },
+                  sourceId: { $toString: '$_id' },
+                  paymentType: '$payments.paymentType'
+                }
+              }
+            ],
+            // Caso 2: Reservas sin payments pero con totalPaid > 0
+            withoutPayments: [
+              { $match: { hasPayments: false } },
+              {
+                $project: {
+                  _id: 0,
+                  type: { $literal: 'INCOME' },
+                  date: '$createdAt',
+                  amount: '$totalPaid',
+                  description: { 
+                    $concat: [
+                      "Pago - Reserva #",
+                      { $toString: "$bookingNumber" }
+                    ]
+                  },
+                  sourceId: { $toString: '$_id' },
+                  paymentType: { $literal: 'N/A' }
+                }
+              }
+            ]
+          }
+        },
+        {
+          $project: {
+            combined: { $concatArrays: ['$withPayments', '$withoutPayments'] }
+          }
+        },
+        { $unwind: '$combined' },
+        { $replaceRoot: { newRoot: '$combined' } }
       ];
+      
       const incomeDetails = await this.bookingModel.aggregate(incomePipeline);
       combinedTransactions.push(...incomeDetails);
     }
