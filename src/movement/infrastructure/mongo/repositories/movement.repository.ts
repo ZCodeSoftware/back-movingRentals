@@ -197,7 +197,8 @@ export class MovementRepository implements IMovementRepository {
                 .populate({
                     path: 'beneficiary',
                     select: '-password'
-                }),
+                })
+                .populate('vehicle'),
             this.movementDB.countDocuments({ $and: [finalQuery, notDeleted, notContractRelated] })
         ]);
 

@@ -40,6 +40,9 @@ export class MetricsRepository implements IMetricsRepository {
     @InjectModel('Cart') private readonly cartModel: Model<Cart>,
     @InjectModel('CatCategory') private readonly categoryModel: Model<CatCategory>,
     @InjectModel('CatStatus') private readonly statusModel: Model<CatStatus>,
+    @InjectModel('Contract') private readonly contractModel: Model<any>,
+    @InjectModel('ContractHistory') private readonly contractHistoryModel: Model<any>,
+    @InjectModel('CatContractEvent') private readonly catContractEventModel: Model<any>,
   ) { }
 
   /**
@@ -148,7 +151,7 @@ export class MetricsRepository implements IMetricsRepository {
     const expenseMatch: any = {
       direction: 'OUT',
       vehicle: new mongoose.Types.ObjectId(vehicleId),
-      isDeleted: { $ne: true } // Excluir movimientos eliminados (borrado lógico)
+      isDeleted: { $ne: true }
     };
     if (dateFilter) {
       expenseMatch.date = dateFilter;
@@ -182,19 +185,56 @@ export class MetricsRepository implements IMetricsRepository {
       return [...expenseDetails];
     }
 
-    // Obtener TODAS las reservas APROBADAS/COMPLETADAS
+    // Obtener TODAS las reservas APROBADAS/COMPLETADAS con populate de paymentMethod
     const incomeMatch: any = {
       status: { $in: statusIds }
     };
 
-    const bookings: HydratedDocument<Booking>[] = await this.bookingModel.find(incomeMatch).populate('paymentMethod');
+    const bookings = await this.bookingModel.find(incomeMatch).populate('paymentMethod').lean();
+    
+    // OPTIMIZACIÓN: Obtener todos los contratos de una vez
+    const bookingIds = bookings.map(b => b._id);
+    const contractsMap = new Map();
+    
+    if (bookingIds.length > 0) {
+      const contracts = await this.contractModel.find({
+        booking: { $in: bookingIds }
+      }).lean();
+      
+      for (const contract of contracts) {
+        contractsMap.set((contract as any).booking.toString(), contract);
+      }
+    }
+
+    // OPTIMIZACIÓN: Obtener todos los cambios de vehículo de una vez
+    const contractIds = Array.from(contractsMap.values()).map((c: any) => c._id);
+    const vehicleChangeEvent = await this.catContractEventModel.findOne({ name: 'CAMBIO DE VEHICULO' }).lean();
+    const vehicleChangesMap = new Map();
+    
+    if (contractIds.length > 0 && vehicleChangeEvent) {
+      const vehicleChangeEventId = (vehicleChangeEvent as any)._id;
+      const allVehicleChanges = await this.contractHistoryModel.find({
+        contract: { $in: contractIds },
+        eventType: vehicleChangeEventId,
+        isDeleted: { $ne: true }
+      }).sort({ createdAt: 1 }).lean();
+      
+      for (const change of allVehicleChanges) {
+        const contractId = (change as any).contract.toString();
+        if (!vehicleChangesMap.has(contractId)) {
+          vehicleChangesMap.set(contractId, []);
+        }
+        vehicleChangesMap.get(contractId).push(change);
+      }
+    }
+
     const incomeDetails: TransactionDetail[] = [];
     let processedBookings = 0;
     let skippedBookings = 0;
 
     for (const booking of bookings) {
       try {
-        const cart = JSON.parse(booking.cart);
+        const cart = JSON.parse((booking as any).cart);
         const payments = (booking as any).payments || [];
         
         // Verificar si el vehículo está realmente en el carrito
@@ -215,32 +255,6 @@ export class MetricsRepository implements IMetricsRepository {
                 };
               }
               break;
-            }
-          }
-        }
-
-        // Si el vehículo no está en el carrito, verificar si hubo cambio de vehículo
-        if (!vehicleFoundInCart) {
-          // Buscar el contrato asociado a este booking
-          const ContractModel = mongoose.model('Contract');
-          const contract = await ContractModel.findOne({ booking: booking._id }).lean();
-          
-          if (contract) {
-            // Buscar cambios de vehículo en el historial del contrato
-            const contractIdStr = (contract as any)._id.toString();
-            const vehicleChangeInfo = await this.getVehicleChangeProportions(
-              contractIdStr,
-              vehicleId,
-              cart
-            );
-            
-            if (vehicleChangeInfo && vehicleChangeInfo.proportion > 0) {
-              // Este vehículo participó en la renta pero hubo cambio
-              vehicleFoundInCart = true;
-              vehicleItemTotal = vehicleChangeInfo.vehicleTotal;
-              vehicleDates = vehicleChangeInfo.dates;
-              
-              this.logger.log(`[getVehicleFinancialDetails] Vehículo ${vehicleId} participó con proporción ${vehicleChangeInfo.proportion.toFixed(2)} en booking #${booking.bookingNumber}`);
             }
           }
         }
@@ -271,21 +285,24 @@ export class MetricsRepository implements IMetricsRepository {
         }
 
         // Obtener la proporción de uso del vehículo si hubo cambios
-        const ContractModel = mongoose.model('Contract');
-        const contract = await ContractModel.findOne({ booking: booking._id }).lean();
-        let vehicleProportion = 1.0; // Por defecto, el vehículo estuvo toda la renta
+        let vehicleProportion = 1.0;
+        const contract = contractsMap.get((booking as any)._id.toString());
         
         if (contract) {
-          const contractIdStr2 = (contract as any)._id.toString();
-          const proportionInfo = await this.getVehicleChangeProportions(
-            contractIdStr2,
-            vehicleId,
-            cart
-          );
+          const contractId = (contract as any)._id.toString();
+          const vehicleChanges = vehicleChangesMap.get(contractId) || [];
           
-          if (proportionInfo) {
-            vehicleProportion = proportionInfo.proportion;
-            this.logger.debug(`[getVehicleFinancialDetails] Proporción de uso del vehículo ${vehicleId}: ${vehicleProportion.toFixed(2)}`);
+          if (vehicleChanges.length > 0) {
+            const proportionInfo = this.calculateVehicleProportionFromChanges(
+              vehicleChanges,
+              vehicleId,
+              cart
+            );
+            
+            if (proportionInfo) {
+              vehicleProportion = proportionInfo.proportion;
+              this.logger.debug(`[getVehicleFinancialDetails] Proporción de uso del vehículo ${vehicleId}: ${vehicleProportion.toFixed(2)}`);
+            }
           }
         }
 
@@ -293,7 +310,7 @@ export class MetricsRepository implements IMetricsRepository {
         for (const payment of payments) {
           if (payment.status === 'PAID') {
             const paymentType = payment.paymentType?.toUpperCase() || 'OTHER';
-            const paymentMethod = (booking.paymentMethod as any)?.name?.toUpperCase() || '';
+            const paymentMethod = ((booking as any).paymentMethod as any)?.name?.toUpperCase() || '';
             
             // Determinar la fecha según el tipo de pago
             let effectiveDate: Date;
@@ -317,8 +334,8 @@ export class MetricsRepository implements IMetricsRepository {
                   type: 'INCOME',
                   date: createdAt,
                   amount: Math.round(amount20 * 100) / 100,
-                  description: `Efectivo 20% - Reserva #${booking.bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-                  sourceId: booking._id.toString(),
+                  description: `Efectivo 20% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+                  sourceId: (booking as any)._id.toString(),
                 });
               }
               
@@ -328,8 +345,8 @@ export class MetricsRepository implements IMetricsRepository {
                   type: 'INCOME',
                   date: paymentDate,
                   amount: Math.round(amount80 * 100) / 100,
-                  description: `Efectivo 80% - Reserva #${booking.bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-                  sourceId: booking._id.toString(),
+                  description: `Efectivo 80% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+                  sourceId: (booking as any)._id.toString(),
                 });
               }
               
@@ -352,40 +369,30 @@ export class MetricsRepository implements IMetricsRepository {
             // Aplicar también la proporción de tiempo de uso
             const proratedAmount = payment.amount * vehicleCartProportion * vehicleProportion;
 
-            this.logger.debug(`[getVehicleFinancialDetails] Booking #${booking.bookingNumber}, Pago ${paymentType}: ` +
-              `vehicleTotal=${vehicleItemTotal}, cartTotal=${cartTotal}, paymentAmount=${payment.amount}, ` +
-              `vehicleProportion=${vehicleProportion.toFixed(2)}, proratedAmount=${proratedAmount.toFixed(2)}, effectiveDate=${effectiveDate.toISOString()}`);
-
             incomeDetails.push({
               type: 'INCOME',
               date: effectiveDate,
               amount: Math.round(proratedAmount * 100) / 100,
-              description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-              sourceId: booking._id.toString(),
+              description: `${payment.notes || 'Pago'} - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+              sourceId: (booking as any)._id.toString(),
             });
           }
         }
       } catch (error) {
-        this.logger.warn(`Error al procesar el carrito del booking ${booking._id}:`, error);
+        this.logger.warn(`Error al procesar el carrito del booking ${(booking as any)._id}:`, error);
       }
     }
 
     // --- 3. OBTENER EXTENSIONES DEL VEHÍCULO ---
-    // Las extensiones se registran en ContractHistory con action: 'EXTENSION_UPDATED'
-    const ContractModel = mongoose.model('Contract');
-    const ContractHistoryModel = mongoose.model('ContractHistory');
-    
     try {
-      // Buscar contratos del vehículo
-      const contracts = await ContractModel.find({ 
+      const contracts = await this.contractModel.find({ 
         vehicle: new mongoose.Types.ObjectId(vehicleId) 
       }).select('_id');
       
       const contractIds = contracts.map(c => c._id);
       
       if (contractIds.length > 0) {
-        // Buscar extensiones en el historial de contratos
-        const extensions = await ContractHistoryModel.find({
+        const extensions = await this.contractHistoryModel.find({
           contract: { $in: contractIds },
           action: 'EXTENSION_UPDATED',
           isDeleted: { $ne: true },
@@ -396,12 +403,10 @@ export class MetricsRepository implements IMetricsRepository {
           const extensionDate = new Date((extension as any).createdAt);
           const extensionAmount = (extension as any).eventMetadata?.amount || 0;
           
-          // Filtrar por fecha si existe
           if (dateFilter && !this.isDateInRange(extensionDate, dateFilter)) {
             continue;
           }
           
-          // Las extensiones siempre cuentan en la fecha de carga (createdAt)
           incomeDetails.push({
             type: 'INCOME',
             date: extensionDate,
@@ -409,9 +414,6 @@ export class MetricsRepository implements IMetricsRepository {
             description: `Extensión de Renta - Contrato`,
             sourceId: (extension as any)._id.toString(),
           });
-          
-          this.logger.debug(`[getVehicleFinancialDetails] Extensión encontrada: ` +
-            `amount=${extensionAmount}, date=${extensionDate.toISOString()}`);
         }
       }
     } catch (error) {
@@ -431,6 +433,136 @@ export class MetricsRepository implements IMetricsRepository {
       `Neto=${(totalIncome - totalExpenses).toFixed(2)}`);
 
     return combinedTransactions;
+  }
+
+  /**
+   * Calcula la proporción de uso de un vehículo basándose en los cambios ya obtenidos
+   * Versión optimizada que no hace consultas adicionales
+   */
+  private calculateVehicleProportionFromChanges(
+    vehicleChanges: any[],
+    vehicleId: string,
+    currentCart: any
+  ): { proportion: number; vehicleTotal: number; dates: { start: Date; end: Date } } | null {
+    try {
+      if (vehicleChanges.length === 0) {
+        return null;
+      }
+      
+      // Obtener las fechas totales de la renta desde el carrito actual
+      let rentalStartDate: Date | null = null;
+      let rentalEndDate: Date | null = null;
+      
+      if (currentCart.vehicles && Array.isArray(currentCart.vehicles) && currentCart.vehicles.length > 0) {
+        const firstVehicle = currentCart.vehicles[0];
+        if (firstVehicle.dates?.start && firstVehicle.dates?.end) {
+          rentalStartDate = new Date(firstVehicle.dates.start);
+          rentalEndDate = new Date(firstVehicle.dates.end);
+        }
+      }
+      
+      if (!rentalStartDate || !rentalEndDate) {
+        return null;
+      }
+      
+      const totalRentalDays = (rentalEndDate.getTime() - rentalStartDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (totalRentalDays <= 0) {
+        return null;
+      }
+      
+      let vehicleStartDate: Date | null = null;
+      let vehicleEndDate: Date | null = null;
+      let vehicleTotal = 0;
+      
+      for (let i = 0; i < vehicleChanges.length; i++) {
+        const change = vehicleChanges[i];
+        const changeDate = new Date(change.createdAt);
+        const changes = change.changes || [];
+        
+        for (const changeDetail of changes) {
+          if (changeDetail.field === 'booking.cart.vehicles') {
+            const oldVehicles = changeDetail.oldValue || [];
+            const newVehicles = changeDetail.newValue || [];
+            
+            const wasInOld = oldVehicles.some((v: any) => {
+              const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+              return vId === vehicleId;
+            });
+            
+            const isInNew = newVehicles.some((v: any) => {
+              const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+              return vId === vehicleId;
+            });
+            
+            if (wasInOld && !isInNew) {
+              vehicleStartDate = rentalStartDate;
+              vehicleEndDate = changeDate;
+              
+              const vehicleInOld = oldVehicles.find((v: any) => {
+                const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+                return vId === vehicleId;
+              });
+              
+              if (vehicleInOld) {
+                vehicleTotal = vehicleInOld.total || 0;
+              }
+            } else if (!wasInOld && isInNew) {
+              vehicleStartDate = changeDate;
+              vehicleEndDate = rentalEndDate;
+              
+              const vehicleInNew = newVehicles.find((v: any) => {
+                const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+                return vId === vehicleId;
+              });
+              
+              if (vehicleInNew) {
+                vehicleTotal = vehicleInNew.total || 0;
+              }
+            }
+          }
+        }
+      }
+      
+      if (!vehicleStartDate && !vehicleEndDate) {
+        if (currentCart.vehicles && Array.isArray(currentCart.vehicles)) {
+          const vehicleInCurrent = currentCart.vehicles.find((v: any) => {
+            const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+            return vId === vehicleId;
+          });
+          
+          if (vehicleInCurrent) {
+            if (vehicleChanges.length > 0) {
+              const lastChange = vehicleChanges[vehicleChanges.length - 1];
+              vehicleStartDate = new Date(lastChange.createdAt);
+              vehicleEndDate = rentalEndDate;
+              vehicleTotal = vehicleInCurrent.total || 0;
+            } else {
+              return null;
+            }
+          }
+        }
+      }
+      
+      if (!vehicleStartDate || !vehicleEndDate) {
+        return null;
+      }
+      
+      const vehicleDays = (vehicleEndDate.getTime() - vehicleStartDate.getTime()) / (1000 * 60 * 60 * 24);
+      const proportion = vehicleDays / totalRentalDays;
+      
+      return {
+        proportion: Math.max(0, Math.min(1, proportion)),
+        vehicleTotal,
+        dates: {
+          start: vehicleStartDate,
+          end: vehicleEndDate
+        }
+      };
+    } catch (error) {
+      this.logger.error(`[calculateVehicleProportionFromChanges] Error:`, error);
+      return null;
+    }
   }
 
   private async getMetricsForPeriod(filters?: MetricsFilters, dateFilter?: any): Promise<{
@@ -523,81 +655,84 @@ export class MetricsRepository implements IMetricsRepository {
 
     let totalIncome = 0;
     
-    if (categoryId) {
-      // Si hay filtro de categoría, obtener vehículos de esa categoría
-      const vehiclesInCategory = await this.vehicleModel.find({ category: categoryId }).select('_id').lean();
-      const vehicleIdsInCategory = vehiclesInCategory.map(v => v._id.toString());
-      
-      // Obtener bookings que contengan al menos un vehículo de la categoría filtrada
-      const bookingsMatch: any = { status: { $in: statusIds } };
-      const bookings = await this.bookingModel.find(bookingsMatch).lean();
-      
-      for (const booking of bookings) {
-        try {
-          const cart = JSON.parse(booking.cart);
-          let hasVehicleInCategory = false;
-          
-          // Verificar si el booking tiene vehículos de la categoría filtrada
-          if (cart.vehicles && Array.isArray(cart.vehicles)) {
-            for (const vehicleItem of cart.vehicles) {
-              const vehicleId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
-              if (vehicleIdsInCategory.includes(vehicleId)) {
-                hasVehicleInCategory = true;
-                break;
-              }
-            }
-          }
-          
-          // Si el booking tiene vehículos de la categoría, sumar sus pagos
-          if (hasVehicleInCategory) {
-            const payments = (booking as any).payments || [];
-            for (const payment of payments) {
-              if (payment.status === 'PAID') {
-                // Aplicar filtro de fecha si existe
-                if (dateFilter) {
-                  const paymentDate = new Date(payment.paymentDate);
-                  if (paymentDate >= dateFilter.$gte && paymentDate < dateFilter.$lt) {
-                    totalIncome += payment.amount || 0;
-                  }
-                } else {
-                  totalIncome += payment.amount || 0;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          this.logger.warn(`[getMetricsForPeriod] Error parsing cart for booking ${booking._id}: ${error.message}`);
-        }
-      }
-    } else {
-      // Sin filtro de categoría, usar el pipeline original
-      const incomePipeline: any[] = [
-        { $match: { status: { $in: statusIds } } },
-        { $unwind: { path: '$payments', preserveNullAndEmptyArrays: false } },
-        {
-          $match: {
-            'payments.status': 'PAID',
-            ...(dateFilter && { 'payments.paymentDate': dateFilter })
+    // SIEMPRE usar el pipeline de agregación que filtra por payments.paymentDate
+    // Esto asegura que los ingresos se calculen según la fecha del pago, no la fecha de creación de la reserva
+    // IMPORTANTE: Manejar AMBOS casos:
+    // 1. Reservas con payments array (nuevas)
+    // 2. Reservas con totalPaid pero sin payments (antiguas/migradas)
+    const incomePipeline: any[] = [
+      { 
+        $match: { 
+          status: { $in: statusIds },
+          totalPaid: { $gt: 0 } // Solo reservas con pago
+        } 
+      },
+      // Agregar campo para identificar si tiene payments válido
+      {
+        $addFields: {
+          hasPaymentsArray: {
+            $and: [
+              { $isArray: '$payments' },
+              { $gt: [{ $size: '$payments' }, 0] }
+            ]
           }
         }
-      ];
-
-      if (filters?.priceRange) {
-        incomePipeline.push({
-          $match: {
-            'payments.amount': {
-              $gte: filters.priceRange.min,
-              $lte: filters.priceRange.max
+      },
+      // Usar $facet para manejar ambos casos
+      {
+        $facet: {
+          // Caso 1: Reservas con payments array
+          withPayments: [
+            { $match: { hasPaymentsArray: true } },
+            { $unwind: '$payments' },
+            {
+              $match: {
+                'payments.status': 'PAID',
+                ...(dateFilter && { 'payments.paymentDate': dateFilter })
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: '$payments.amount' }
+              }
             }
+          ],
+          // Caso 2: Reservas sin payments pero con totalPaid > 0
+          // Para estas, usar createdAt como fecha del pago
+          withoutPayments: [
+            { $match: { hasPaymentsArray: false } },
+            {
+              $match: {
+                ...(dateFilter && { createdAt: dateFilter })
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: '$totalPaid' }
+              }
+            }
+          ]
+        }
+      },
+      // Combinar ambos resultados
+      {
+        $project: {
+          total: {
+            $sum: [
+              { $ifNull: [{ $arrayElemAt: ['$withPayments.total', 0] }, 0] },
+              { $ifNull: [{ $arrayElemAt: ['$withoutPayments.total', 0] }, 0] }
+            ]
           }
-        });
+        }
       }
+    ];
 
-      incomePipeline.push({ $group: { _id: null, total: { $sum: '$payments.amount' } } });
-
-      const totalIncomeResult = await this.bookingModel.aggregate(incomePipeline);
-      totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
-    }
+    const totalIncomeResult = await this.bookingModel.aggregate(incomePipeline);
+    totalIncome = totalIncomeResult.length > 0 ? totalIncomeResult[0].total : 0;
+    
+    this.logger.debug(`[getMetricsForPeriod] Total income calculated: ${totalIncome} (dateFilter: ${JSON.stringify(dateFilter)})`);
 
     // Calcular gastos
     // Si hay filtro de categoría, solo contar gastos de vehículos de esa categoría
@@ -1508,11 +1643,8 @@ export class MetricsRepository implements IMetricsRepository {
     currentCart: any
   ): Promise<{ proportion: number; vehicleTotal: number; dates: { start: Date; end: Date } } | null> {
     try {
-      const ContractHistoryModel = mongoose.model('ContractHistory');
-      const CatContractEventModel = mongoose.model('CatContractEvent');
-      
       // Buscar el evento de "CAMBIO DE VEHICULO" en el catálogo
-      const vehicleChangeEvent = await CatContractEventModel.findOne({ name: 'CAMBIO DE VEHICULO' }).lean();
+      const vehicleChangeEvent = await this.catContractEventModel.findOne({ name: 'CAMBIO DE VEHICULO' }).lean();
       
       if (!vehicleChangeEvent) {
         return null;
@@ -1520,7 +1652,7 @@ export class MetricsRepository implements IMetricsRepository {
       
       // Buscar cambios de vehículo en el historial del contrato
       const vehicleChangeEventId = (vehicleChangeEvent as any)._id;
-      const vehicleChanges = await ContractHistoryModel.find({
+      const vehicleChanges = await this.contractHistoryModel.find({
         contract: new mongoose.Types.ObjectId(contractId),
         eventType: vehicleChangeEventId,
         isDeleted: { $ne: true }
@@ -1778,7 +1910,14 @@ export class MetricsRepository implements IMetricsRepository {
             totalPaid: 1,
             createdAt: 1,
             payments: 1,
-            hasPayments: { $gt: [{ $size: { $ifNull: ['$payments', []] } }, 0] }
+            cart: 1, // Necesitamos el cart para extraer los servicios
+            // Verificar que payments sea un array Y tenga elementos
+            hasPayments: {
+              $and: [
+                { $isArray: '$payments' },
+                { $gt: [{ $size: '$payments' }, 0] }
+              ]
+            }
           }
         },
         {
@@ -1806,7 +1945,8 @@ export class MetricsRepository implements IMetricsRepository {
                     ]
                   },
                   sourceId: { $toString: '$_id' },
-                  paymentType: '$payments.paymentType'
+                  paymentType: '$payments.paymentType',
+                  cart: '$cart' // Pasar el cart para procesarlo después
                 }
               }
             ],
@@ -1826,7 +1966,8 @@ export class MetricsRepository implements IMetricsRepository {
                     ]
                   },
                   sourceId: { $toString: '$_id' },
-                  paymentType: { $literal: 'N/A' }
+                  paymentType: { $literal: 'N/A' },
+                  cart: '$cart' // Pasar el cart para procesarlo después
                 }
               }
             ]
@@ -1869,6 +2010,20 @@ export class MetricsRepository implements IMetricsRepository {
       const expensePipeline = [
         { $match: expenseMatch },
         {
+          $lookup: {
+            from: 'vehicle',
+            localField: 'vehicle',
+            foreignField: '_id',
+            as: 'vehicleData'
+          }
+        },
+        {
+          $unwind: {
+            path: '$vehicleData',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
           $project: {
             _id: 0,
             type: { $literal: 'EXPENSE' },
@@ -1876,12 +2031,60 @@ export class MetricsRepository implements IMetricsRepository {
             amount: '$amount',
             description: '$detail',
             sourceId: '$_id',
-            movementType: '$type'
+            movementType: '$type',
+            services: {
+              $cond: {
+                if: '$vehicleData',
+                then: { $ifNull: ['$vehicleData.tag', '$vehicleData.name'] },
+                else: 'N/A'
+              }
+            }
           }
         }
       ];
       const expenseDetails = await this.movementModel.aggregate(expensePipeline);
       combinedTransactions.push(...expenseDetails);
+    }
+
+    // --- POST-PROCESAMIENTO: Extraer servicios del cart para INGRESOS ---
+    for (const transaction of combinedTransactions) {
+      if (transaction.type === 'INCOME' && (transaction as any).cart) {
+        // Para INGRESOS: Extraer servicios del cart
+        try {
+          const cart = JSON.parse((transaction as any).cart);
+          const services: string[] = [];
+          
+          // Vehículos - Priorizar name (que contiene el tag corto como S-13)
+          if (cart.vehicles && Array.isArray(cart.vehicles)) {
+            services.push(...cart.vehicles.map((v: any) => v.vehicle?.name || v.vehicle?.tag || 'Vehículo'));
+          }
+          
+          // Tours
+          if (cart.tours && Array.isArray(cart.tours)) {
+            services.push(...cart.tours.map((t: any) => `${t.tour?.name || 'Tour'} (x${t.quantity || 1})`));
+          }
+          
+          // Transfers
+          if (cart.transfer && Array.isArray(cart.transfer)) {
+            services.push(...cart.transfer.map((t: any) => `${t.transfer?.name || 'Transfer'} (x${t.quantity || 1})`));
+          }
+          
+          // Tickets
+          if (cart.tickets && Array.isArray(cart.tickets)) {
+            services.push(...cart.tickets.map((t: any) => `${t.ticket?.name || 'Ticket'} (x${t.quantity || 1})`));
+          }
+          
+          transaction.services = services.length > 0 ? services.join(', ') : 'N/A';
+          delete (transaction as any).cart; // Eliminar el cart del resultado final
+        } catch (error) {
+          transaction.services = 'N/A';
+          delete (transaction as any).cart;
+        }
+      } else if (!transaction.services) {
+        // Si no tiene services (por algún error), asignar N/A
+        transaction.services = 'N/A';
+        delete (transaction as any).cart;
+      }
     }
 
     // --- 3. ORDENAR LOS RESULTADOS ---

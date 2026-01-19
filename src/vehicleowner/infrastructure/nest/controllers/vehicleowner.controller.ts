@@ -67,6 +67,20 @@ export class VehicleOwnerController {
         return this.vehicleownerService.findAllOwnersSimple();
     }
 
+    @Get('owners/with-vehicles')
+    @HttpCode(200)
+    @Roles(TypeRoles.ADMIN, TypeRoles.SUPERADMIN, TypeRoles.SUPERVISOR)
+    @UseGuards(AuthGuards, RoleGuard)
+    @ApiResponse({ status: 200, description: 'Return all non-concierge VehicleOwners with their vehicles (excluding deleted vehicles)' })
+    @ApiResponse({ status: 404, description: 'VehicleOwners not found' })
+    async findOwnersWithVehicles(@Query('includeAll') includeAll?: string) {
+        // Si includeAll=true, retornar TODOS los propietarios sin filtrar por isConcierge o deletedAt
+        if (includeAll === 'true') {
+            return this.vehicleownerService.findAll({ limit: 1000, page: 1 });
+        }
+        return this.vehicleownerService.findAllOwnersWithVehicles();
+    }
+
     @Get(':id')
     @HttpCode(200)
     @ApiResponse({ status: 200, description: 'Return VehicleOwner by id' })

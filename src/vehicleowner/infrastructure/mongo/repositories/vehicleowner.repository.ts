@@ -159,6 +159,52 @@ export class VehicleOwnerRepository implements IVehicleOwnerRepository {
         }));
     }
 
+    async findAllOwnersWithVehicles(): Promise<VehicleOwnerModel[]> {
+        const pipeline: mongoose.PipelineStage[] = [
+            { 
+                $match: { 
+                    $and: [
+                        { deletedAt: null },
+                        { 
+                            $or: [
+                                { isConcierge: false },
+                                { isConcierge: { $exists: false } }
+                            ]
+                        }
+                    ]
+                } 
+            },
+            {
+                $lookup: {
+                    from: 'vehicle',
+                    localField: '_id',
+                    foreignField: 'owner',
+                    as: 'vehicles'
+                }
+            },
+            {
+                $addFields: {
+                    vehicles: {
+                        $filter: {
+                            input: '$vehicles',
+                            as: 'vehicle',
+                            cond: {
+                                $or: [
+                                    { $eq: ['$vehicle.isDeleted', false] },
+                                    { $not: { $ifNull: ['$vehicle.isDeleted', false] } }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            { $sort: { name: 1 } }
+        ];
+
+        const owners = await this.vehicleownerDB.aggregate(pipeline).exec();
+        return owners.map(owner => VehicleOwnerModel.hydrate(owner));
+    }
+
     async update(id: string, vehicleowner: VehicleOwnerModel): Promise<VehicleOwnerModel> {
         const updateObject = vehicleowner.toJSON();
         
