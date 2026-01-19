@@ -1429,54 +1429,118 @@ export class ContractRepository implements IContractRepository {
 
           createdHistoryEntryId = savedHistory._id;
 
-          // NUEVA FUNCIONALIDAD: Sumar el monto al totalPaid del booking cuando se agrega un evento con monto
+          // NUEVA FUNCIONALIDAD: Sumar el monto al total y totalPaid del booking cuando se agrega un evento con monto
           // (como DELIVERY, CRASH, etc.) después de la creación inicial
-          // Verificar el status actual del contrato (puede venir en el update o ya estar en el contrato)
-          const statusToCheck = contractUpdateData.status || originalContract.status;
           
-          if (statusToCheck) {
-            // Convertir a string si es un ObjectId
-            const statusId = typeof statusToCheck === 'string' 
-              ? statusToCheck 
-              : statusToCheck.toString();
+          // Obtener el booking para actualizar totales
+          const booking = await this.bookingModel
+            .findById(originalContract.booking)
+            .session(session);
+
+          if (booking && contractUpdateData.extension?.extensionAmount) {
+            const eventAmount = contractUpdateData.extension.extensionAmount;
+            const currentTotal = booking.total || 0;
+            const currentTotalPaid = booking.totalPaid || 0;
             
-            // Obtener el status para verificar si es APROBADO
-            const CatStatus = this.connection.collection('cat_status');
-            const statusDoc = await CatStatus.findOne({
-              _id: new mongoose.Types.ObjectId(statusId),
-            });
-
-            if (statusDoc && statusDoc.name === 'APROBADO') {
-              console.log(
-                '[ContractRepository][update] Status es APROBADO - Actualizando totalPaid del booking con evento',
-              );
-
-              // Obtener el booking para actualizar totalPaid
-              const booking = await this.bookingModel
-                .findById(originalContract.booking)
-                .session(session);
-
-              if (booking && contractUpdateData.extension?.extensionAmount) {
-                const currentTotalPaid =
-                  booking.totalPaid || booking.total || 0;
-                const newTotalPaid =
-                  currentTotalPaid +
-                  contractUpdateData.extension.extensionAmount;
-
-                booking.totalPaid = newTotalPaid;
-                await booking.save({ session });
-
+            // VERIFICAR SI ES UN EVENTO DE DELIVERY
+            const isDeliveryEvent = eventTypeIdFromPayload && 
+              await this.catContractEventModel.findById(eventTypeIdFromPayload)
+                .then(e => e && (e as any).name === 'DELIVERY');
+            
+            // VERIFICAR SI EL DELIVERY YA ESTÁ INCLUIDO EN EL TOTAL
+            let shouldAddToTotal = true;
+            
+            if (isDeliveryEvent) {
+              // Si es delivery, verificar si ya existe requiresDelivery en el booking
+              // Si ya existe, significa que el delivery ya fue incluido en el total original
+              if (booking.requiresDelivery && booking.deliveryCost && booking.deliveryCost > 0) {
                 console.log(
-                  '[ContractRepository][update] totalPaid actualizado con evento:',
+                  '[ContractRepository][update] ⚠️ DELIVERY ya existe en el booking - NO sumar al total',
                   {
-                    anterior: currentTotalPaid,
-                    montoEvento: contractUpdateData.extension.extensionAmount,
-                    nuevo: newTotalPaid,
+                    deliveryCostExistente: booking.deliveryCost,
+                    totalActual: currentTotal,
+                    tipoEvento: reasonForChange,
+                  },
+                );
+                shouldAddToTotal = false;
+              } else {
+                console.log(
+                  '[ContractRepository][update] ✅ DELIVERY nuevo - Sumar al total',
+                  {
+                    montoEvento: eventAmount,
+                    totalActual: currentTotal,
                     tipoEvento: reasonForChange,
                   },
                 );
               }
             }
+            
+            // REGLA 1: Sumar al Total General SOLO si no está ya incluido
+            if (shouldAddToTotal) {
+              const newTotal = currentTotal + eventAmount;
+              booking.total = newTotal;
+              
+              console.log(
+                '[ContractRepository][update] Total General actualizado con evento:',
+                {
+                  anterior: currentTotal,
+                  montoEvento: eventAmount,
+                  nuevo: newTotal,
+                  tipoEvento: reasonForChange,
+                },
+              );
+            } else {
+              console.log(
+                '[ContractRepository][update] Total General NO actualizado (monto ya incluido):',
+                {
+                  totalActual: currentTotal,
+                  montoEvento: eventAmount,
+                  tipoEvento: reasonForChange,
+                },
+              );
+            }
+            
+            // REGLA 2: Sumar al Total Pagado SOLO si el status es APROBADO Y si se sumó al total
+            const statusToCheck = contractUpdateData.status || originalContract.status;
+            
+            if (statusToCheck && shouldAddToTotal) {
+              // Convertir a string si es un ObjectId
+              const statusId = typeof statusToCheck === 'string' 
+                ? statusToCheck 
+                : statusToCheck.toString();
+              
+              // Obtener el status para verificar si es APROBADO
+              const CatStatus = this.connection.collection('cat_status');
+              const statusDoc = await CatStatus.findOne({
+                _id: new mongoose.Types.ObjectId(statusId),
+              });
+
+              if (statusDoc && statusDoc.name === 'APROBADO') {
+                const newTotalPaid = currentTotalPaid + eventAmount;
+                booking.totalPaid = newTotalPaid;
+                
+                console.log(
+                  '[ContractRepository][update] Total Pagado actualizado con evento (status APROBADO):',
+                  {
+                    anterior: currentTotalPaid,
+                    montoEvento: eventAmount,
+                    nuevo: newTotalPaid,
+                    tipoEvento: reasonForChange,
+                  },
+                );
+              } else {
+                console.log(
+                  '[ContractRepository][update] Total Pagado NO actualizado (status no es APROBADO):',
+                  {
+                    statusActual: statusDoc?.name,
+                    totalPagado: currentTotalPaid,
+                    tipoEvento: reasonForChange,
+                  },
+                );
+              }
+            }
+            
+            await booking.save({ session });
           }
         }
       }

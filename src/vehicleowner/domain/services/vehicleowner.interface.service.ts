@@ -8,6 +8,7 @@ export interface IVehicleOwnerService {
     findAllConcierges(): Promise<VehicleOwnerModel[]>;
     findAllOwners(): Promise<VehicleOwnerModel[]>;
     findAllOwnersSimple(): Promise<Array<{ _id: string; name: string }>>;
+    findAllOwnersWithVehicles(): Promise<VehicleOwnerModel[]>;
     update(id: string, vehicleowner: IUpdateVehicleOwner): Promise<VehicleOwnerModel>;
     softDelete(id: string): Promise<VehicleOwnerModel>;
 }

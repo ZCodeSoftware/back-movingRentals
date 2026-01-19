@@ -919,11 +919,11 @@ export class BookingService implements IBookingService {
               console.log(`[BookingService] - Total Actual: ${currentTotal}`);
               console.log(`[BookingService] - Total Pagado Actual: ${currentTotalPaid}`);
               
-              // 1. Calcular nuevo Total General (SIEMPRE restar delivery)
-              const newTotal = Math.max(0, currentTotal - deliveryCost);
-              console.log(`[BookingService] - Nuevo Total General: ${currentTotal} - ${deliveryCost} = ${newTotal}`);
+              // IMPORTANTE: NO modificar booking.total para preservar el Total Inicial
+              // El sistema de bookingTotals calculará el netTotal restando el delivery del histórico
+              console.log(`[BookingService] - Total General NO se modifica (se mantiene en ${currentTotal}) para preservar Total Inicial`);
               
-              // 2. Calcular nuevo Total Pagado
+              // Calcular nuevo Total Pagado
               // Restar delivery si:
               // a) Era pago completo (totalPaid === total)
               // b) O si el totalPaid incluye el delivery (totalPaid >= deliveryCost)
@@ -942,17 +942,9 @@ export class BookingService implements IBookingService {
                 console.log(`[BookingService] - Total Pagado NO incluye delivery o es 0, se mantiene en: ${newTotalPaid}`);
               }
               
-              // 3. Determinar si el delivery fue incluido originalmente
-              // El delivery fue incluido originalmente si:
-              // - requiresDelivery está en true en el booking
-              // - O si está en el cart original
-              const deliveryWasOriginal = currentBookingData.requiresDelivery || hadDeliveryInCart;
-              
-              console.log(`[BookingService] - Delivery fue incluido originalmente: ${deliveryWasOriginal}`);
-              
-              // Actualizar el booking con los nuevos totales
+              // Actualizar el booking SOLO con totalPaid y campos de delivery
+              // NO modificar booking.total para preservar el Total Inicial
               const updateFields: any = {
-                total: newTotal,
                 totalPaid: newTotalPaid,
                 requiresDelivery: false,
                 deliveryType: null,
@@ -967,11 +959,12 @@ export class BookingService implements IBookingService {
               );
               
               console.log(`[BookingService] ✅ Totales actualizados en la base de datos`);
-              console.log(`[BookingService] - Total General: ${currentTotal} → ${newTotal}`);
+              console.log(`[BookingService] - Total General: ${currentTotal} (sin cambios - preserva Total Inicial)`);
               console.log(`[BookingService] - Total Pagado: ${currentTotalPaid} → ${newTotalPaid}`);
+              console.log(`[BookingService] - El netTotal se calculará automáticamente restando el delivery eliminado del histórico`);
               
               // Actualizar el objeto updatedBooking para reflejar los cambios
-              (updatedBooking as any)._total = newTotal;
+              // NO actualizar _total para preservar el Total Inicial
               (updatedBooking as any)._totalPaid = newTotalPaid;
               
               console.log('[BookingService] Entrada de DELIVERY eliminada exitosamente del histórico');

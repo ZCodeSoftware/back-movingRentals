@@ -75,6 +75,7 @@ export type TransactionDetail = {
   description: string;
   sourceId: string;
   movementType?: string;
+  services?: string; // Para INGRESOS: servicios incluidos, Para EGRESOS: vehículo asociado
 };
 
 export interface VehicleExpenses {

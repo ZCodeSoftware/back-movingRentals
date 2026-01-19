@@ -11,6 +11,9 @@ import {
   vehicleSchema,
 } from './infrastructure/nest/constants/custom-schema';
 import { MetricsController } from './infrastructure/nest/controllers/metrics.controller';
+import { Contract, ContractSchema } from '../core/infrastructure/mongo/schemas/public/contract.schema';
+import { ContractHistory, ContractHistorySchema } from '../core/infrastructure/mongo/schemas/public/contract-history.schema';
+import { CatContractEvent, CatContractEventSchema } from '../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 
 @Module({
   imports: [
@@ -21,7 +24,10 @@ import { MetricsController } from './infrastructure/nest/controllers/metrics.con
       cartSchema,
       categorySchema,
       statusSchema,
-      movementSchema
+      movementSchema,
+      { name: 'Contract', schema: ContractSchema },
+      { name: 'ContractHistory', schema: ContractHistorySchema },
+      { name: 'CatContractEvent', schema: CatContractEventSchema },
     ]),
   ],
   controllers: [MetricsController],
