@@ -1,6 +1,6 @@
 export interface MetricsFilters {
   dateFilter?: {
-    type: 'day' | 'week' | 'month' | 'year' | 'range';
+    type: 'day' | 'week' | 'month' | 'lastMonth' | 'year' | 'range';
     startDate?: Date;
     endDate?: Date;
   };

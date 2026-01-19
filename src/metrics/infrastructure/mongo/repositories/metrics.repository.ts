@@ -168,7 +168,7 @@ export class MetricsRepository implements IMetricsRepository {
     ];
     const expenseDetails = await this.movementModel.aggregate(expensePipeline);
 
-    // --- 2. OBTENER LOS INGRESOS (BOOKINGS) DONDE PARTICIPÓ EL VEHÍCULO ---
+    // --- 2. OBTENER LOS INGRESOS (BOOKINGS Y EXTENSIONES) DONDE PARTICIPÓ EL VEHÍCULO ---
     const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
     const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
     
@@ -181,12 +181,12 @@ export class MetricsRepository implements IMetricsRepository {
       return [...expenseDetails];
     }
 
-    // Obtener TODAS las reservas APROBADAS/COMPLETADAS y filtrar en memoria
+    // Obtener TODAS las reservas APROBADAS/COMPLETADAS
     const incomeMatch: any = {
       status: { $in: statusIds }
     };
 
-    const bookings: HydratedDocument<Booking>[] = await this.bookingModel.find(incomeMatch);
+    const bookings: HydratedDocument<Booking>[] = await this.bookingModel.find(incomeMatch).populate('paymentMethod');
     const incomeDetails: TransactionDetail[] = [];
     let processedBookings = 0;
     let skippedBookings = 0;
@@ -198,12 +198,14 @@ export class MetricsRepository implements IMetricsRepository {
         
         // Verificar si el vehículo está realmente en el carrito
         let vehicleFoundInCart = false;
+        let vehicleItemTotal = 0;
         
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
             const vehicleInCartId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
             if (vehicleInCartId === vehicleId) {
               vehicleFoundInCart = true;
+              vehicleItemTotal = vehicleItem.total || 0;
               break;
             }
           }
@@ -234,40 +236,80 @@ export class MetricsRepository implements IMetricsRepository {
           cartTotal += cart.tickets.reduce((sum: number, t: any) => sum + ((t.ticket?.totalPrice || 0) * (t.quantity || 1)), 0);
         }
 
-        for (const vehicleItem of cart.vehicles) {
-          const vehicleInCartId = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
-          if (vehicleInCartId === vehicleId) {
-            const vehicleItemTotal = vehicleItem.total || 0;
+        // Procesar cada pago individualmente con las reglas de negocio específicas
+        for (const payment of payments) {
+          if (payment.status === 'PAID') {
+            const paymentType = payment.paymentType?.toUpperCase() || 'OTHER';
+            const paymentMethod = (booking.paymentMethod as any)?.name?.toUpperCase() || '';
             
-            // Procesar cada pago individualmente
-            for (const payment of payments) {
-              if (payment.status === 'PAID') {
-                // Filtrar por fecha si existe
-                if (dateFilter) {
-                  const paymentDate = new Date(payment.paymentDate);
-                  if (paymentDate < dateFilter.$gte || paymentDate >= dateFilter.$lt) {
-                    continue;
-                  }
-                }
-
-                // Prorratear el pago según la proporción del vehículo
-                const proratedAmount = cartTotal > 0 
-                  ? (vehicleItemTotal / cartTotal) * payment.amount 
-                  : payment.amount;
-
-                this.logger.debug(`[getVehicleFinancialDetails] Booking #${booking.bookingNumber}, Pago ${payment.paymentType}: ` +
-                  `vehicleTotal=${vehicleItemTotal}, cartTotal=${cartTotal}, paymentAmount=${payment.amount}, ` +
-                  `proratedAmount=${proratedAmount.toFixed(2)}`);
-
+            // Determinar la fecha según el tipo de pago
+            let effectiveDate: Date;
+            
+            if (paymentType === 'CASH' || paymentMethod.includes('EFECTIVO')) {
+              // EFECTIVO: 20% en fecha de carga (createdAt), 80% en fecha de aprobación (paymentDate)
+              const createdAt = new Date((booking as any).createdAt);
+              const paymentDate = new Date(payment.paymentDate);
+              
+              // Prorratear el pago según la proporción del vehículo
+              const proratedAmount = cartTotal > 0 
+                ? (vehicleItemTotal / cartTotal) * payment.amount 
+                : payment.amount;
+              
+              const amount20 = proratedAmount * 0.20;
+              const amount80 = proratedAmount * 0.80;
+              
+              // 20% en fecha de carga
+              if (!dateFilter || this.isDateInRange(createdAt, dateFilter)) {
                 incomeDetails.push({
                   type: 'INCOME',
-                  date: payment.paymentDate,
-                  amount: Math.round(proratedAmount * 100) / 100,
-                  description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}`,
+                  date: createdAt,
+                  amount: Math.round(amount20 * 100) / 100,
+                  description: `Efectivo 20% - Reserva #${booking.bookingNumber}`,
                   sourceId: booking._id.toString(),
                 });
               }
+              
+              // 80% en fecha de aprobación
+              if (!dateFilter || this.isDateInRange(paymentDate, dateFilter)) {
+                incomeDetails.push({
+                  type: 'INCOME',
+                  date: paymentDate,
+                  amount: Math.round(amount80 * 100) / 100,
+                  description: `Efectivo 80% - Reserva #${booking.bookingNumber}`,
+                  sourceId: booking._id.toString(),
+                });
+              }
+              
+              continue;
+            } else if (paymentType === 'TRANSFER' || paymentMethod.includes('TRANSFERENCIA')) {
+              // TRANSFERENCIA: Fecha de aprobación (paymentDate)
+              effectiveDate = new Date(payment.paymentDate);
+            } else {
+              // CRÉDITO/DÉBITO y OTROS: Fecha de carga (createdAt)
+              effectiveDate = new Date((booking as any).createdAt);
             }
+            
+            // Filtrar por fecha si existe
+            if (dateFilter && !this.isDateInRange(effectiveDate, dateFilter)) {
+              continue;
+            }
+
+            // Prorratear el pago según la proporción del vehículo
+            const proratedAmount = cartTotal > 0 
+              ? (vehicleItemTotal / cartTotal) * payment.amount 
+              : payment.amount;
+
+            this.logger.debug(`[getVehicleFinancialDetails] Booking #${booking.bookingNumber}, Pago ${paymentType}: ` +
+              `vehicleTotal=${vehicleItemTotal}, cartTotal=${cartTotal}, paymentAmount=${payment.amount}, ` +
+              `proratedAmount=${proratedAmount.toFixed(2)}, effectiveDate=${effectiveDate.toISOString()}`);
+
+            incomeDetails.push({
+              type: 'INCOME',
+              date: effectiveDate,
+              amount: Math.round(proratedAmount * 100) / 100,
+              description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}`,
+              sourceId: booking._id.toString(),
+            });
           }
         }
       } catch (error) {
@@ -275,9 +317,57 @@ export class MetricsRepository implements IMetricsRepository {
       }
     }
 
+    // --- 3. OBTENER EXTENSIONES DEL VEHÍCULO ---
+    // Las extensiones se registran en ContractHistory con action: 'EXTENSION_UPDATED'
+    const ContractModel = mongoose.model('Contract');
+    const ContractHistoryModel = mongoose.model('ContractHistory');
+    
+    try {
+      // Buscar contratos del vehículo
+      const contracts = await ContractModel.find({ 
+        vehicle: new mongoose.Types.ObjectId(vehicleId) 
+      }).select('_id');
+      
+      const contractIds = contracts.map(c => c._id);
+      
+      if (contractIds.length > 0) {
+        // Buscar extensiones en el historial de contratos
+        const extensions = await ContractHistoryModel.find({
+          contract: { $in: contractIds },
+          action: 'EXTENSION_UPDATED',
+          isDeleted: { $ne: true },
+          'eventMetadata.amount': { $exists: true, $gt: 0 }
+        }).lean();
+        
+        for (const extension of extensions) {
+          const extensionDate = new Date((extension as any).createdAt);
+          const extensionAmount = (extension as any).eventMetadata?.amount || 0;
+          
+          // Filtrar por fecha si existe
+          if (dateFilter && !this.isDateInRange(extensionDate, dateFilter)) {
+            continue;
+          }
+          
+          // Las extensiones siempre cuentan en la fecha de carga (createdAt)
+          incomeDetails.push({
+            type: 'INCOME',
+            date: extensionDate,
+            amount: extensionAmount,
+            description: `Extensión de Renta - Contrato`,
+            sourceId: (extension as any)._id.toString(),
+          });
+          
+          this.logger.debug(`[getVehicleFinancialDetails] Extensión encontrada: ` +
+            `amount=${extensionAmount}, date=${extensionDate.toISOString()}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Error al procesar extensiones del vehículo ${vehicleId}:`, error);
+    }
+
     this.logger.log(`[getVehicleFinancialDetails] Procesadas ${processedBookings} reservas con el vehículo, omitidas ${skippedBookings} sin el vehículo`);
 
-    // --- 3. COMBINAR Y ORDENAR LOS RESULTADOS ---
+    // --- 4. COMBINAR Y ORDENAR LOS RESULTADOS ---
     const combinedTransactions = [...incomeDetails, ...expenseDetails];
     combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -328,18 +418,18 @@ export class MetricsRepository implements IMetricsRepository {
     },
     {
     $addFields: {
-    totalBookingsCount: { $size: '$userBookings' },
+    totalBookingsCount: { $size: { $ifNull: ['$userBookings', []] } },
     approvedBookings: {
     $filter: {
-    input: '$userBookings',
+    input: { $ifNull: ['$userBookings', []] },
     as: 'booking',
     cond: {
     $and: [
-    { $in: ['$$booking.status', statusIds] },
+    { $in: ['$booking.status', statusIds] },
     ...(dateFilter ? [{ 
-    $gte: ['$$booking.createdAt', dateFilter.$gte] 
+    $gte: ['$booking.createdAt', dateFilter.$gte] 
     }, {
-    $lt: ['$$booking.createdAt', dateFilter.$lt]
+    $lt: ['$booking.createdAt', dateFilter.$lt]
     }] : [])
     ]
     }
@@ -349,7 +439,7 @@ export class MetricsRepository implements IMetricsRepository {
     },
     {
     $addFields: {
-    approvedBookingCount: { $size: '$approvedBookings' }
+    approvedBookingCount: { $size: { $ifNull: ['$approvedBookings', []] } }
     }
     },
     {
@@ -576,6 +666,11 @@ export class MetricsRepository implements IMetricsRepository {
         // Mes anterior
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         end = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'lastMonth':
+        // Dos meses atrás (para comparar con el mes pasado)
+        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        end = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         break;
       case 'year':
         // Año anterior
@@ -1381,6 +1476,10 @@ export class MetricsRepository implements IMetricsRepository {
       case 'month':
         start = new Date(now.getFullYear(), now.getMonth(), 1);
         end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        break;
+      case 'lastMonth':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
       case 'year':
         start = new Date(now.getFullYear(), 0, 1);

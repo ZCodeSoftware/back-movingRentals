@@ -484,6 +484,7 @@ export function generateUserBookingConfirmation(
                   : 'Solo entrega (One way - Delivery)'
             }</p>
             ${bookingData.deliveryAddress ? `<p><strong>Dirección:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
             ${bookingData.deliveryCost ? `<p><strong>Costo del delivery:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
             <div style="background-color: #fff9c4; padding: 10px; border-radius: 4px; margin-top: 10px;">
               <p style="margin: 0; font-size: 14px; color: #f57f17;"><strong>📍 Nota:</strong> ${

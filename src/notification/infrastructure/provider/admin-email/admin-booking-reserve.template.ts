@@ -388,6 +388,7 @@ export function generateAdminBookingReserveNotification(booking: BookingModel, u
                   : 'Solo entrega (One way - Delivery)'
             }</p>
             ${bookingData.deliveryAddress ? `<p><strong>Dirección:</strong> ${bookingData.deliveryAddress}</p>` : ''}
+            ${bookingData?.metadata?.hotel ? `<p><strong>Hotel:</strong> ${bookingData.metadata.hotel}</p>` : ''}
             ${bookingData.deliveryCost ? `<p><strong>Costo del delivery:</strong> ${bookingData.deliveryCost.toFixed(2)} MXN</p>` : ''}
           </div>
         </div>` : ''}
