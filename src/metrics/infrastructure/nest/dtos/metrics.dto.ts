@@ -3,8 +3,8 @@ import { Transform } from 'class-transformer';
 
 export class MetricsFiltersDTO {
   @IsOptional()
-  @IsIn(['day', 'week', 'month', 'year', 'range'])
-  dateFilterType?: 'day' | 'week' | 'month' | 'year' | 'range';
+  @IsIn(['day', 'week', 'month', 'lastMonth', 'year', 'range'])
+  dateFilterType?: 'day' | 'week' | 'month' | 'lastMonth' | 'year' | 'range';
 
   @IsOptional()
   @IsDateString()
