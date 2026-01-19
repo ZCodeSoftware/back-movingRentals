@@ -49,4 +49,80 @@ export class MovementService implements IMovementService {
     async getDeletedMovements(filters: any): Promise<MovementModel[]> {
         return this.movementRepository.getDeletedMovements(filters);
     }
+
+    async exportMovementsToExcel(filters: any): Promise<Buffer> {
+        const XLSX = require('xlsx');
+
+        console.log('[ExportMovements] Iniciando exportación de movimientos de caja...');
+        const startTime = Date.now();
+
+        // Obtener todos los movimientos sin paginación
+        const allFilters = { ...filters, page: 1, limit: 999999 };
+        const result = await this.movementRepository.findAll(allFilters, null);
+        const movements = result.data;
+
+        console.log(`[ExportMovements] ${movements.length} movimientos obtenidos en ${Date.now() - startTime}ms`);
+
+        const rows = [];
+
+        for (const movement of movements) {
+            try {
+                const movementData: any = movement.toJSON ? movement.toJSON() : movement;
+
+                const row = {
+                    'Fecha': movementData.date ? new Date(movementData.date).toLocaleString('es-MX', {
+                        timeZone: 'America/Cancun',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    }) : 'N/A',
+                    'Tipo': movementData.type || 'N/A',
+                    'Dirección': movementData.direction === 'IN' ? 'INGRESO' : 'EGRESO',
+                    'Detalle': movementData.detail || 'N/A',
+                    'Monto': movementData.amount || 0,
+                    'Método de Pago': movementData.paymentMethod || 'N/A',
+                    'Vehículo': movementData.vehicle?.name || movementData.vehicle?.tag || 'N/A',
+                    'Beneficiario': typeof movementData.beneficiary === 'object' 
+                        ? movementData.beneficiary?.name || 'N/A' 
+                        : movementData.beneficiary || 'N/A',
+                    'Creado Por': movementData.createdBy?.name || movementData.createdBy?.email || 'N/A'
+                };
+
+                rows.push(row);
+            } catch (error) {
+                console.error('Error procesando movimiento:', error);
+            }
+        }
+
+        console.log(`[ExportMovements] ${rows.length} filas procesadas en ${Date.now() - startTime}ms`);
+
+        // Crear el libro de Excel
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Movimientos de Caja');
+
+        // Ajustar anchos de columna
+        const columnWidths = [
+            { wch: 20 }, // Fecha
+            { wch: 25 }, // Tipo
+            { wch: 12 }, // Dirección
+            { wch: 40 }, // Detalle
+            { wch: 15 }, // Monto
+            { wch: 20 }, // Método de Pago
+            { wch: 20 }, // Vehículo
+            { wch: 30 }, // Beneficiario
+            { wch: 25 }  // Creado Por
+        ];
+        worksheet['!cols'] = columnWidths;
+
+        // Generar el buffer
+        const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        console.log(`[ExportMovements] Exportación completada en ${Date.now() - startTime}ms`);
+
+        return excelBuffer;
+    }
 }

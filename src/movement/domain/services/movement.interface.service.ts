@@ -21,4 +21,7 @@ export interface IMovementService {
     deleteMovement(movementId: string, userId: string, reason?: string): Promise<MovementModel>;
     restoreMovement(movementId: string): Promise<MovementModel>;
     getDeletedMovements(filters: any): Promise<MovementModel[]>;
+    
+    // Método para exportar movimientos a Excel
+    exportMovementsToExcel(filters: any): Promise<Buffer>;
 }

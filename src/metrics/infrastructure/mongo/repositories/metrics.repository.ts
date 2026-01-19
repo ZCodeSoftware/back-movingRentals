@@ -147,7 +147,8 @@ export class MetricsRepository implements IMetricsRepository {
     // --- 1. OBTENER LOS EGRESOS (MOVEMENTS) ASOCIADOS AL VEHÍCULO ---
     const expenseMatch: any = {
       direction: 'OUT',
-      vehicle: new mongoose.Types.ObjectId(vehicleId)
+      vehicle: new mongoose.Types.ObjectId(vehicleId),
+      isDeleted: { $ne: true } // Excluir movimientos eliminados (borrado lógico)
     };
     if (dateFilter) {
       expenseMatch.date = dateFilter;
@@ -199,6 +200,7 @@ export class MetricsRepository implements IMetricsRepository {
         // Verificar si el vehículo está realmente en el carrito
         let vehicleFoundInCart = false;
         let vehicleItemTotal = 0;
+        let vehicleDates: { start: Date; end: Date } | null = null;
         
         if (cart.vehicles && Array.isArray(cart.vehicles)) {
           for (const vehicleItem of cart.vehicles) {
@@ -206,12 +208,44 @@ export class MetricsRepository implements IMetricsRepository {
             if (vehicleInCartId === vehicleId) {
               vehicleFoundInCart = true;
               vehicleItemTotal = vehicleItem.total || 0;
+              if (vehicleItem.dates?.start && vehicleItem.dates?.end) {
+                vehicleDates = {
+                  start: new Date(vehicleItem.dates.start),
+                  end: new Date(vehicleItem.dates.end)
+                };
+              }
               break;
             }
           }
         }
 
-        // Si el vehículo no está en el carrito, saltar esta reserva
+        // Si el vehículo no está en el carrito, verificar si hubo cambio de vehículo
+        if (!vehicleFoundInCart) {
+          // Buscar el contrato asociado a este booking
+          const ContractModel = mongoose.model('Contract');
+          const contract = await ContractModel.findOne({ booking: booking._id }).lean();
+          
+          if (contract) {
+            // Buscar cambios de vehículo en el historial del contrato
+            const contractIdStr = (contract as any)._id.toString();
+            const vehicleChangeInfo = await this.getVehicleChangeProportions(
+              contractIdStr,
+              vehicleId,
+              cart
+            );
+            
+            if (vehicleChangeInfo && vehicleChangeInfo.proportion > 0) {
+              // Este vehículo participó en la renta pero hubo cambio
+              vehicleFoundInCart = true;
+              vehicleItemTotal = vehicleChangeInfo.vehicleTotal;
+              vehicleDates = vehicleChangeInfo.dates;
+              
+              this.logger.log(`[getVehicleFinancialDetails] Vehículo ${vehicleId} participó con proporción ${vehicleChangeInfo.proportion.toFixed(2)} en booking #${booking.bookingNumber}`);
+            }
+          }
+        }
+
+        // Si el vehículo no participó en esta reserva, saltar
         if (!vehicleFoundInCart) {
           skippedBookings++;
           continue;
@@ -236,6 +270,25 @@ export class MetricsRepository implements IMetricsRepository {
           cartTotal += cart.tickets.reduce((sum: number, t: any) => sum + ((t.ticket?.totalPrice || 0) * (t.quantity || 1)), 0);
         }
 
+        // Obtener la proporción de uso del vehículo si hubo cambios
+        const ContractModel = mongoose.model('Contract');
+        const contract = await ContractModel.findOne({ booking: booking._id }).lean();
+        let vehicleProportion = 1.0; // Por defecto, el vehículo estuvo toda la renta
+        
+        if (contract) {
+          const contractIdStr2 = (contract as any)._id.toString();
+          const proportionInfo = await this.getVehicleChangeProportions(
+            contractIdStr2,
+            vehicleId,
+            cart
+          );
+          
+          if (proportionInfo) {
+            vehicleProportion = proportionInfo.proportion;
+            this.logger.debug(`[getVehicleFinancialDetails] Proporción de uso del vehículo ${vehicleId}: ${vehicleProportion.toFixed(2)}`);
+          }
+        }
+
         // Procesar cada pago individualmente con las reglas de negocio específicas
         for (const payment of payments) {
           if (payment.status === 'PAID') {
@@ -250,10 +303,10 @@ export class MetricsRepository implements IMetricsRepository {
               const createdAt = new Date((booking as any).createdAt);
               const paymentDate = new Date(payment.paymentDate);
               
-              // Prorratear el pago según la proporción del vehículo
-              const proratedAmount = cartTotal > 0 
-                ? (vehicleItemTotal / cartTotal) * payment.amount 
-                : payment.amount;
+              // Prorratear el pago según la proporción del vehículo en el carrito
+              const vehicleCartProportion = cartTotal > 0 ? (vehicleItemTotal / cartTotal) : 1;
+              // Aplicar también la proporción de tiempo de uso
+              const proratedAmount = payment.amount * vehicleCartProportion * vehicleProportion;
               
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
@@ -264,7 +317,7 @@ export class MetricsRepository implements IMetricsRepository {
                   type: 'INCOME',
                   date: createdAt,
                   amount: Math.round(amount20 * 100) / 100,
-                  description: `Efectivo 20% - Reserva #${booking.bookingNumber}`,
+                  description: `Efectivo 20% - Reserva #${booking.bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
                   sourceId: booking._id.toString(),
                 });
               }
@@ -275,7 +328,7 @@ export class MetricsRepository implements IMetricsRepository {
                   type: 'INCOME',
                   date: paymentDate,
                   amount: Math.round(amount80 * 100) / 100,
-                  description: `Efectivo 80% - Reserva #${booking.bookingNumber}`,
+                  description: `Efectivo 80% - Reserva #${booking.bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
                   sourceId: booking._id.toString(),
                 });
               }
@@ -294,20 +347,20 @@ export class MetricsRepository implements IMetricsRepository {
               continue;
             }
 
-            // Prorratear el pago según la proporción del vehículo
-            const proratedAmount = cartTotal > 0 
-              ? (vehicleItemTotal / cartTotal) * payment.amount 
-              : payment.amount;
+            // Prorratear el pago según la proporción del vehículo en el carrito
+            const vehicleCartProportion = cartTotal > 0 ? (vehicleItemTotal / cartTotal) : 1;
+            // Aplicar también la proporción de tiempo de uso
+            const proratedAmount = payment.amount * vehicleCartProportion * vehicleProportion;
 
             this.logger.debug(`[getVehicleFinancialDetails] Booking #${booking.bookingNumber}, Pago ${paymentType}: ` +
               `vehicleTotal=${vehicleItemTotal}, cartTotal=${cartTotal}, paymentAmount=${payment.amount}, ` +
-              `proratedAmount=${proratedAmount.toFixed(2)}, effectiveDate=${effectiveDate.toISOString()}`);
+              `vehicleProportion=${vehicleProportion.toFixed(2)}, proratedAmount=${proratedAmount.toFixed(2)}, effectiveDate=${effectiveDate.toISOString()}`);
 
             incomeDetails.push({
               type: 'INCOME',
               date: effectiveDate,
               amount: Math.round(proratedAmount * 100) / 100,
-              description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}`,
+              description: `${payment.notes || 'Pago'} - Reserva #${booking.bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
               sourceId: booking._id.toString(),
             });
           }
@@ -1440,6 +1493,182 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     return vehicleStats;
+  }
+
+  /**
+   * Calcula la proporción de uso de un vehículo en una renta cuando hay cambios de vehículos
+   * @param contractId ID del contrato
+   * @param vehicleId ID del vehículo a analizar
+   * @param currentCart Carrito actual del booking
+   * @returns Información sobre la proporción de uso del vehículo
+   */
+  private async getVehicleChangeProportions(
+    contractId: string,
+    vehicleId: string,
+    currentCart: any
+  ): Promise<{ proportion: number; vehicleTotal: number; dates: { start: Date; end: Date } } | null> {
+    try {
+      const ContractHistoryModel = mongoose.model('ContractHistory');
+      const CatContractEventModel = mongoose.model('CatContractEvent');
+      
+      // Buscar el evento de "CAMBIO DE VEHICULO" en el catálogo
+      const vehicleChangeEvent = await CatContractEventModel.findOne({ name: 'CAMBIO DE VEHICULO' }).lean();
+      
+      if (!vehicleChangeEvent) {
+        return null;
+      }
+      
+      // Buscar cambios de vehículo en el historial del contrato
+      const vehicleChangeEventId = (vehicleChangeEvent as any)._id;
+      const vehicleChanges = await ContractHistoryModel.find({
+        contract: new mongoose.Types.ObjectId(contractId),
+        eventType: vehicleChangeEventId,
+        isDeleted: { $ne: true }
+      }).sort({ createdAt: 1 }).lean();
+      
+      if (vehicleChanges.length === 0) {
+        // No hay cambios de vehículo, el vehículo estuvo toda la renta
+        return null;
+      }
+      
+      // Obtener las fechas totales de la renta desde el carrito actual
+      let rentalStartDate: Date | null = null;
+      let rentalEndDate: Date | null = null;
+      
+      if (currentCart.vehicles && Array.isArray(currentCart.vehicles) && currentCart.vehicles.length > 0) {
+        const firstVehicle = currentCart.vehicles[0];
+        if (firstVehicle.dates?.start && firstVehicle.dates?.end) {
+          rentalStartDate = new Date(firstVehicle.dates.start);
+          rentalEndDate = new Date(firstVehicle.dates.end);
+        }
+      }
+      
+      if (!rentalStartDate || !rentalEndDate) {
+        this.logger.warn(`[getVehicleChangeProportions] No se pudieron obtener las fechas de la renta para el contrato ${contractId}`);
+        return null;
+      }
+      
+      // Calcular la duración total de la renta en días
+      const totalRentalDays = (rentalEndDate.getTime() - rentalStartDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (totalRentalDays <= 0) {
+        return null;
+      }
+      
+      // Analizar los cambios para determinar qué vehículo estuvo en qué período
+      let vehicleStartDate: Date | null = null;
+      let vehicleEndDate: Date | null = null;
+      let vehicleTotal = 0;
+      
+      // Recorrer los cambios de vehículo para encontrar los períodos de cada vehículo
+      for (let i = 0; i < vehicleChanges.length; i++) {
+        const change = vehicleChanges[i];
+        const changeDate = new Date((change as any).createdAt);
+        
+        // Verificar si este cambio involucra al vehículo que estamos analizando
+        const changes = (change as any).changes || [];
+        
+        for (const changeDetail of changes) {
+          if (changeDetail.field === 'booking.cart.vehicles') {
+            const oldVehicles = changeDetail.oldValue || [];
+            const newVehicles = changeDetail.newValue || [];
+            
+            // Verificar si el vehículo estaba en oldValue (fue removido)
+            const wasInOld = oldVehicles.some((v: any) => {
+              const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+              return vId === vehicleId;
+            });
+            
+            // Verificar si el vehículo está en newValue (fue agregado)
+            const isInNew = newVehicles.some((v: any) => {
+              const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+              return vId === vehicleId;
+            });
+            
+            if (wasInOld && !isInNew) {
+              // El vehículo fue removido en este cambio
+              vehicleStartDate = rentalStartDate;
+              vehicleEndDate = changeDate;
+              
+              // Obtener el total del vehículo desde oldValue
+              const vehicleInOld = oldVehicles.find((v: any) => {
+                const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+                return vId === vehicleId;
+              });
+              
+              if (vehicleInOld) {
+                vehicleTotal = vehicleInOld.total || 0;
+              }
+            } else if (!wasInOld && isInNew) {
+              // El vehículo fue agregado en este cambio
+              vehicleStartDate = changeDate;
+              vehicleEndDate = rentalEndDate;
+              
+              // Obtener el total del vehículo desde newValue
+              const vehicleInNew = newVehicles.find((v: any) => {
+                const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+                return vId === vehicleId;
+              });
+              
+              if (vehicleInNew) {
+                vehicleTotal = vehicleInNew.total || 0;
+              }
+            }
+          }
+        }
+      }
+      
+      // Si no encontramos el vehículo en los cambios, verificar si está en el carrito actual
+      if (!vehicleStartDate && !vehicleEndDate) {
+        // Verificar si el vehículo está en el carrito actual
+        if (currentCart.vehicles && Array.isArray(currentCart.vehicles)) {
+          const vehicleInCurrent = currentCart.vehicles.find((v: any) => {
+            const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+            return vId === vehicleId;
+          });
+          
+          if (vehicleInCurrent) {
+            // El vehículo está en el carrito actual, determinar desde cuándo
+            // Si hay cambios, el vehículo fue agregado en el último cambio
+            if (vehicleChanges.length > 0) {
+              const lastChange = vehicleChanges[vehicleChanges.length - 1];
+              vehicleStartDate = new Date((lastChange as any).createdAt);
+              vehicleEndDate = rentalEndDate;
+              vehicleTotal = vehicleInCurrent.total || 0;
+            } else {
+              // No hay cambios, el vehículo estuvo toda la renta
+              return null;
+            }
+          }
+        }
+      }
+      
+      if (!vehicleStartDate || !vehicleEndDate) {
+        // No se pudo determinar el período del vehículo
+        return null;
+      }
+      
+      // Calcular la duración que el vehículo estuvo en uso (en días)
+      const vehicleDays = (vehicleEndDate.getTime() - vehicleStartDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      // Calcular la proporción
+      const proportion = vehicleDays / totalRentalDays;
+      
+      this.logger.debug(`[getVehicleChangeProportions] Vehículo ${vehicleId}: ` +
+        `${vehicleDays.toFixed(2)} días de ${totalRentalDays.toFixed(2)} días totales = ${(proportion * 100).toFixed(2)}%`);
+      
+      return {
+        proportion: Math.max(0, Math.min(1, proportion)), // Asegurar que esté entre 0 y 1
+        vehicleTotal,
+        dates: {
+          start: vehicleStartDate,
+          end: vehicleEndDate
+        }
+      };
+    } catch (error) {
+      this.logger.error(`[getVehicleChangeProportions] Error al calcular proporciones para vehículo ${vehicleId}:`, error);
+      return null;
+    }
   }
 
   private isDateInRange(date: Date, dateFilter: any): boolean {
