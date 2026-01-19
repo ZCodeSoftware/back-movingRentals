@@ -10,8 +10,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../../auth/infrastructure/nest/decorators/role.decorator';
 import { AuthGuards } from '../../../../auth/infrastructure/nest/guards/auth.guard';
@@ -293,5 +295,71 @@ export class MovementController {
       message: 'Movimientos eliminados obtenidos exitosamente',
       data: deletedMovements,
     };
+  }
+
+  @Get('export/excel')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Exporta movimientos de caja a Excel',
+    description: 'Genera un archivo Excel con todos los movimientos de caja filtrados por los parámetros especificados'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Archivo Excel generado exitosamente',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: 'string',
+    description: 'Fecha de inicio para filtrar movimientos (formato: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: 'string',
+    description: 'Fecha de fin para filtrar movimientos (formato: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'vehicleId',
+    required: false,
+    type: 'string',
+    description: 'ID del vehículo para filtrar movimientos',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: TypeCatTypeMovement,
+    description: 'Tipo de movimiento para filtrar',
+  })
+  @Roles(TypeRoles.SUPERADMIN, TypeRoles.ADMIN)
+  @UseGuards(AuthGuards, RoleGuard)
+  async exportMovementsToExcel(
+    @Query() filters: any,
+    @Res() res: Response,
+  ) {
+    if (filters.lang) {
+      delete filters.lang;
+    }
+    
+    const excelBuffer = await this.movementService.exportMovementsToExcel(filters);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=movimientos_caja_${new Date().toISOString().split('T')[0]}.xlsx`,
+    );
+
+    res.send(excelBuffer);
   }
 }

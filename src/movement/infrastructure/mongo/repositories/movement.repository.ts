@@ -108,7 +108,7 @@ export class MovementRepository implements IMovementRepository {
         return MovementModel.hydrate(movement);
     }
 
-    async findAll(filters: any, userId: string): Promise<{
+    async findAll(filters: any, userId: string | null): Promise<{
         data: MovementModel[];
         pagination: {
             currentPage: number;
@@ -121,11 +121,14 @@ export class MovementRepository implements IMovementRepository {
     }> {
         const { page = 1, limit = 10, startDate, endDate, vehicleId, detail } = filters;
 
-        const user = await this.userDB.findById(userId).populate('role');
+        let userModel: UserModel | null = null;
 
-        if (!user) throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
-
-        const userModel = UserModel.hydrate(user);
+        // Si se proporciona userId, validar y obtener el usuario
+        if (userId) {
+            const user = await this.userDB.findById(userId).populate('role');
+            if (!user) throw new BaseErrorException('User not found', HttpStatus.NOT_FOUND);
+            userModel = UserModel.hydrate(user);
+        }
 
         const pageNumber = parseInt(page as string, 10) || 1;
         const limitNumber = parseInt(limit as string, 10) || 10;
@@ -133,8 +136,12 @@ export class MovementRepository implements IMovementRepository {
 
         const query: any = {};
 
-        if (userModel.toJSON().role.name === TypeRoles.SELLER || userModel.toJSON().role.name === TypeRoles.SUPERVISOR) {
-            query.createdBy = userModel.toJSON()._id;
+        // Solo aplicar filtro por usuario si existe y tiene rol SELLER o SUPERVISOR
+        if (userModel) {
+            const userData = userModel.toJSON();
+            if (userData.role.name === TypeRoles.SELLER || userData.role.name === TypeRoles.SUPERVISOR) {
+                query.createdBy = userData._id;
+            }
         }
 
         if (vehicleId) {

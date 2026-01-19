@@ -4,7 +4,7 @@ export interface IMovementRepository {
     create(movement: any): Promise<MovementModel>;
     update(id: string, movement: any): Promise<MovementModel>;
     findById(id: string): Promise<MovementModel>;
-    findAll(filters: any, userId: string): Promise<{
+    findAll(filters: any, userId: string | null): Promise<{
         data: MovementModel[];
         pagination: {
             currentPage: number;
