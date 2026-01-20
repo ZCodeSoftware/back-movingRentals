@@ -17,6 +17,7 @@ import {
   MetricComparison,
   MetricsFilters,
   PaymentMethodRevenue,
+  PaymentMediumRevenue,
   PopularVehicle,
   TransactionDetail,
   VehicleExpenses,
@@ -1283,9 +1284,8 @@ export class MetricsRepository implements IMetricsRepository {
       return [];
     }
 
-    // CAMBIO: Filtrar por createdAt de la reserva en lugar de paymentDate
-    // Esto asegura consistencia con el reporte de transacciones
-    // IMPORTANTE: Manejar reservas con payments vacío pero totalPaid > 0
+    // CAMBIO: Agrupar por paymentType (CASH, TRANSFER, STRIPE, etc.) en lugar de paymentMethod
+    // Esto muestra el método de pago general, mientras que paymentMedium muestra el medio específico
     
     const matchStage: any = { 
       status: { $in: statusIds },
@@ -1301,12 +1301,17 @@ export class MetricsRepository implements IMetricsRepository {
           totalPaid: 1,
           payments: 1,
           paymentMethod: 1,
-          hasPayments: { $gt: [{ $size: { $ifNull: ['$payments', []] } }, 0] }
+          hasPayments: {
+            $and: [
+              { $isArray: '$payments' },
+              { $gt: [{ $size: '$payments' }, 0] }
+            ]
+          }
         }
       },
       {
         $facet: {
-          // Caso 1: Reservas con payments poblado
+          // Caso 1: Reservas con payments poblado - agrupar por paymentType
           withPayments: [
             { $match: { hasPayments: true } },
             { $unwind: '$payments' },
@@ -1317,12 +1322,24 @@ export class MetricsRepository implements IMetricsRepository {
             },
             {
               $group: {
-                _id: '$payments.paymentType',
+                _id: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ['$payments.paymentType', 'CASH'] }, then: 'Efectivo' },
+                      { case: { $eq: ['$payments.paymentType', 'TRANSFER'] }, then: 'Transferencia' },
+                      { case: { $eq: ['$payments.paymentType', 'STRIPE'] }, then: 'Crédito/Débito' },
+                      { case: { $eq: ['$payments.paymentType', 'MERCADOPAGO'] }, then: 'Mercado Pago' },
+                      { case: { $eq: ['$payments.paymentType', 'PAYPAL'] }, then: 'PayPal' }
+                    ],
+                    default: 'Otro'
+                  }
+                },
                 revenue: { $sum: '$payments.amount' }
               }
             }
           ],
-          // Caso 2: Reservas sin payments pero con totalPaid > 0
+          // Caso 2: Reservas sin payments pero con totalPaid > 0 (retrocompatibilidad)
+          // Mapear los nombres del catálogo a los mismos nombres que usamos arriba
           withoutPayments: [
             { $match: { hasPayments: false } },
             {
@@ -1340,8 +1357,65 @@ export class MetricsRepository implements IMetricsRepository {
               }
             },
             {
+              $addFields: {
+                normalizedPaymentMethod: {
+                  $switch: {
+                    branches: [
+                      // Mapear nombres del catálogo a nombres consistentes
+                      { 
+                        case: { 
+                          $regexMatch: { 
+                            input: { $ifNull: ['$paymentMethodData.name', ''] }, 
+                            regex: /efectivo/i 
+                          } 
+                        }, 
+                        then: 'Efectivo' 
+                      },
+                      { 
+                        case: { 
+                          $regexMatch: { 
+                            input: { $ifNull: ['$paymentMethodData.name', ''] }, 
+                            regex: /transferencia/i 
+                          } 
+                        }, 
+                        then: 'Transferencia' 
+                      },
+                      { 
+                        case: { 
+                          $regexMatch: { 
+                            input: { $ifNull: ['$paymentMethodData.name', ''] }, 
+                            regex: /(credito|debito|tarjeta|stripe)/i 
+                          } 
+                        }, 
+                        then: 'Crédito/Débito' 
+                      },
+                      { 
+                        case: { 
+                          $regexMatch: { 
+                            input: { $ifNull: ['$paymentMethodData.name', ''] }, 
+                            regex: /mercado.*pago/i 
+                          } 
+                        }, 
+                        then: 'Mercado Pago' 
+                      },
+                      { 
+                        case: { 
+                          $regexMatch: { 
+                            input: { $ifNull: ['$paymentMethodData.name', ''] }, 
+                            regex: /paypal/i 
+                          } 
+                        }, 
+                        then: 'PayPal' 
+                      }
+                    ],
+                    default: 'Otro'
+                  }
+                }
+              }
+            },
+            {
               $group: {
-                _id: { $ifNull: ['$paymentMethodData.name', 'N/A'] },
+                _id: '$normalizedPaymentMethod',
                 revenue: { $sum: '$totalPaid' }
               }
             }
@@ -1378,6 +1452,72 @@ export class MetricsRepository implements IMetricsRepository {
 
     const result = await this.bookingModel.aggregate<PaymentMethodRevenue>(aggregationPipeline);
 
+    return result;
+  }
+
+  async getPaymentMediumRevenue(filters?: MetricsFilters): Promise<PaymentMediumRevenue[]> {
+    const dateFilter = this.buildDateFilter(filters?.dateFilter);
+    
+    // Obtener IDs de status APROBADAS y COMPLETADAS
+    const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
+    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
+    
+    const statusIds = [];
+    if (approvedStatus) statusIds.push(approvedStatus._id);
+    if (completedStatus) statusIds.push(completedStatus._id);
+
+    if (statusIds.length === 0) {
+      this.logger.warn(`[getPaymentMediumRevenue] Status '${BOOKING_STATUS.APPROVED}' o '${BOOKING_STATUS.COMPLETED}' no encontrados`);
+      return [];
+    }
+
+    // Filtrar por createdAt de la reserva para consistencia
+    const matchStage: any = { 
+      status: { $in: statusIds },
+      ...(dateFilter && { createdAt: dateFilter }),
+      totalPaid: { $gt: 0 }
+    };
+    
+    // CORRECCIÓN: El medio de pago está en booking.metadata.paymentMedium
+    // IMPORTANTE: NO usar fallback - solo mostrar reservas que tienen metadata.paymentMedium
+    // Las reservas sin metadata.paymentMedium aparecerán en "Ingresos por Método de Pago"
+    const bookings = await this.bookingModel.find(matchStage).select('payments totalPaid metadata').lean();
+    
+    const mediumRevenue = new Map<string, number>();
+    
+    for (const booking of bookings) {
+      const payments = (booking as any).payments || [];
+      
+      // SOLO procesar si tiene metadata.paymentMedium (medios específicos como ZELLE, CLIP, etc.)
+      const paymentMedium = (booking as any).metadata?.paymentMedium;
+      
+      if (!paymentMedium) {
+        // Sin medio de pago específico - esta reserva aparecerá en "Método de Pago"
+        continue;
+      }
+      
+      if (payments.length > 0) {
+        // Sumar todos los pagos PAID de esta reserva
+        for (const payment of payments) {
+          if (payment.status === 'PAID') {
+            const existing = mediumRevenue.get(paymentMedium);
+            mediumRevenue.set(paymentMedium, (existing || 0) + payment.amount);
+          }
+        }
+      } else if ((booking as any).totalPaid > 0) {
+        // Reservas antiguas sin payments - usar totalPaid
+        const existing = mediumRevenue.get(paymentMedium);
+        mediumRevenue.set(paymentMedium, (existing || 0) + (booking as any).totalPaid);
+      }
+    }
+    
+    // Convertir a array y ordenar por revenue descendente
+    const result = Array.from(mediumRevenue.entries()).map(([medium, revenue]) => ({
+      paymentMediumId: medium,
+      paymentMediumName: medium,
+      revenue
+    })).sort((a, b) => b.revenue - a.revenue);
+    
     return result;
   }
 
@@ -2197,72 +2337,178 @@ export class MetricsRepository implements IMetricsRepository {
           } 
         },
         {
-          $project: {
-            _id: 1,
-            bookingNumber: 1,
-            totalPaid: 1,
-            createdAt: 1,
-            payments: 1,
-            cart: 1, // Necesitamos el cart para extraer los servicios
-            // Verificar que payments sea un array Y tenga elementos
-            hasPayments: {
-              $and: [
-                { $isArray: '$payments' },
-                { $gt: [{ $size: '$payments' }, 0] }
-              ]
-            }
-          }
+        $project: {
+        _id: 1,
+        bookingNumber: 1,
+        totalPaid: 1,
+        createdAt: 1,
+        payments: 1,
+        cart: 1, // Necesitamos el cart para extraer los servicios
+        metadata: 1, // Necesitamos metadata para obtener el medio de pago
+        paymentMethod: 1, // Necesitamos el paymentMethod del booking como fallback
+        // Verificar que payments sea un array Y tenga elementos
+        hasPayments: {
+        $and: [
+        { $isArray: '$payments' },
+        { $gt: [{ $size: '$payments' }, 0] }
+        ]
+        }
+        }
         },
         {
           $facet: {
             // Caso 1: Reservas con payments poblado
             withPayments: [
-              { $match: { hasPayments: true } },
-              { $unwind: '$payments' },
-              { 
-                $match: { 
-                  'payments.status': 'PAID'
-                } 
-              },
-              {
-                $project: {
-                  _id: 0,
-                  type: { $literal: 'INCOME' },
-                  date: '$payments.paymentDate',
-                  amount: '$payments.amount',
-                  description: { 
-                    $concat: [
-                      { $ifNull: ['$payments.notes', 'Pago'] },
-                      " - Reserva #",
-                      { $toString: "$bookingNumber" }
-                    ]
-                  },
-                  sourceId: { $toString: '$_id' },
-                  paymentType: '$payments.paymentType',
-                  cart: '$cart' // Pasar el cart para procesarlo después
-                }
-              }
+            { $match: { hasPayments: true } },
+            { $unwind: '$payments' },
+            { 
+            $match: { 
+            'payments.status': 'PAID'
+            } 
+            },
+            {
+            $addFields: {
+            'payments.paymentMethodObjectId': {
+            $cond: {
+            if: { $eq: [{ $type: '$payments.paymentMethod' }, 'objectId'] },
+            then: '$payments.paymentMethod',
+            else: {
+            $cond: {
+            if: { 
+            $regexMatch: { 
+            input: { $toString: '$payments.paymentMethod' }, 
+            regex: '^[0-9a-fA-F]{24}$' 
+            } 
+            },
+            then: { $toObjectId: '$payments.paymentMethod' },
+            else: null
+            }
+            }
+            }
+            },
+            'payments.paymentMethodString': {
+            $cond: {
+            if: { 
+            $not: { 
+            $regexMatch: { 
+            input: { $toString: '$payments.paymentMethod' }, 
+            regex: '^[0-9a-fA-F]{24}$' 
+            } 
+            } 
+            },
+            then: { $toString: '$payments.paymentMethod' },
+            else: null
+            }
+            }
+            }
+            },
+            {
+            $lookup: {
+            from: 'cat_payment_method',
+            localField: 'payments.paymentMethodObjectId',
+            foreignField: '_id',
+            as: 'paymentMethodData'
+            }
+            },
+            {
+            $unwind: {
+            path: '$paymentMethodData',
+            preserveNullAndEmptyArrays: true
+            }
+            },
+            {
+            $lookup: {
+            from: 'cat_payment_method',
+            localField: 'paymentMethod',
+            foreignField: '_id',
+            as: 'bookingPaymentMethodData'
+            }
+            },
+            {
+            $unwind: {
+            path: '$bookingPaymentMethodData',
+            preserveNullAndEmptyArrays: true
+            }
+            },
+            {
+            $project: {
+            _id: 0,
+            type: { $literal: 'INCOME' },
+            date: '$payments.paymentDate',
+            amount: '$payments.amount',
+            description: {
+            $concat: [
+            { $ifNull: ['$payments.notes', 'Pago'] },
+            " - Reserva #",
+            { $toString: "$bookingNumber" }
+            ]
+            },
+            sourceId: { $toString: '$_id' },
+            paymentType: '$payments.paymentType',
+            paymentMethod: '$payments.paymentType',
+            paymentMedium: {
+            $ifNull: [
+            '$metadata.paymentMedium',
+            {
+            $switch: {
+            branches: [
+            { case: { $eq: ['$payments.paymentType', 'STRIPE'] }, then: 'Crédito/Débito' },
+            { case: { $eq: ['$payments.paymentType', 'MERCADOPAGO'] }, then: 'Mercado Pago' },
+            { case: { $eq: ['$payments.paymentType', 'PAYPAL'] }, then: 'PayPal' },
+            { case: { $eq: ['$payments.paymentType', 'CASH'] }, then: 'Efectivo' },
+            { case: { $eq: ['$payments.paymentType', 'TRANSFER'] }, then: 'Transferencia' }
+            ],
+            default: { $ifNull: ['$bookingPaymentMethodData.name', 'N/A'] }
+            }
+            }
+            ]
+            },
+            cart: '$cart' // Pasar el cart para procesarlo después
+            }
+            }
             ],
             // Caso 2: Reservas sin payments pero con totalPaid > 0
             withoutPayments: [
-              { $match: { hasPayments: false } },
-              {
-                $project: {
-                  _id: 0,
-                  type: { $literal: 'INCOME' },
-                  date: '$createdAt',
-                  amount: '$totalPaid',
-                  description: { 
-                    $concat: [
-                      "Pago - Reserva #",
-                      { $toString: "$bookingNumber" }
-                    ]
-                  },
-                  sourceId: { $toString: '$_id' },
-                  paymentType: { $literal: 'N/A' },
-                  cart: '$cart' // Pasar el cart para procesarlo después
-                }
-              }
+            { $match: { hasPayments: false } },
+            {
+            $lookup: {
+            from: 'cat_payment_method',
+            localField: 'paymentMethod',
+            foreignField: '_id',
+            as: 'paymentMethodData'
+            }
+            },
+            {
+            $unwind: {
+            path: '$paymentMethodData',
+            preserveNullAndEmptyArrays: true
+            }
+            },
+            {
+            $project: {
+            _id: 0,
+            type: { $literal: 'INCOME' },
+            date: '$createdAt',
+            amount: '$totalPaid',
+            description: {
+            $concat: [
+            "Pago - Reserva #",
+            { $toString: "$bookingNumber" }
+            ]
+            },
+            sourceId: { $toString: '$_id' },
+            paymentType: { $literal: 'N/A' },
+            paymentMethod: { $literal: 'N/A' },
+            paymentMedium: {
+            $ifNull: [
+            '$metadata.paymentMedium',
+            '$paymentMethodData.name',
+            'N/A'
+            ]
+            },
+            cart: '$cart' // Pasar el cart para procesarlo después
+            }
+            }
             ]
           }
         },
@@ -2301,39 +2547,42 @@ export class MetricsRepository implements IMetricsRepository {
       }
 
       const expensePipeline = [
-        { $match: expenseMatch },
-        {
-          $lookup: {
-            from: 'vehicle',
-            localField: 'vehicle',
-            foreignField: '_id',
-            as: 'vehicleData'
-          }
-        },
-        {
-          $unwind: {
-            path: '$vehicleData',
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            type: { $literal: 'EXPENSE' },
-            date: '$date',
-            amount: '$amount',
-            description: '$detail',
-            sourceId: '$_id',
-            movementType: '$type',
-            services: {
-              $cond: {
-                if: '$vehicleData',
-                then: { $ifNull: ['$vehicleData.tag', '$vehicleData.name'] },
-                else: 'N/A'
-              }
-            }
-          }
-        }
+      { $match: expenseMatch },
+      {
+      $lookup: {
+      from: 'vehicle',
+      localField: 'vehicle',
+      foreignField: '_id',
+      as: 'vehicleData'
+      }
+      },
+      {
+      $unwind: {
+      path: '$vehicleData',
+      preserveNullAndEmptyArrays: true
+      }
+      },
+      {
+      $project: {
+      _id: 0,
+      type: { $literal: 'EXPENSE' },
+      date: '$date',
+      amount: '$amount',
+      description: '$detail',
+      sourceId: '$_id',
+      movementType: '$type',
+      services: {
+      $cond: {
+      if: '$vehicleData',
+      then: { $ifNull: ['$vehicleData.name', '$vehicleData.tag'] },
+      else: 'N/A'
+      }
+      },
+      // CORRECCIÓN: Usar paymentMethod del movement en lugar de metadata.paymentMedium
+      // El paymentMethod es un enum que contiene valores como 'EFECTIVO', 'TRANSFERENCIA', etc.
+      paymentMedium: { $ifNull: ['$paymentMethod', 'N/A'] }
+      }
+      }
       ];
       const expenseDetails = await this.movementModel.aggregate(expensePipeline);
       combinedTransactions.push(...expenseDetails);

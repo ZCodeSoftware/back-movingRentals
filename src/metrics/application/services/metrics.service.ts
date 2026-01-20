@@ -8,6 +8,7 @@ import {
   GeneralMetrics,
   MetricsFilters,
   PaymentMethodRevenue,
+  PaymentMediumRevenue,
   PopularVehicle,
   TransactionDetail,
   VehicleExpenses,
@@ -31,6 +32,10 @@ export class MetricsService implements IMetricsService {
 
   async getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]> {
     return await this.metricsRepository.getPaymentMethodRevenue(filters);
+  }
+
+  async getPaymentMediumRevenue(filters?: MetricsFilters): Promise<PaymentMediumRevenue[]> {
+    return await this.metricsRepository.getPaymentMediumRevenue(filters);
   }
 
   async getCategoryUtilization(filters?: MetricsFilters): Promise<CategoryUtilization[]> {

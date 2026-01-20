@@ -45,6 +45,12 @@ export type PaymentMethodRevenue = {
   revenue: number;
 }
 
+export type PaymentMediumRevenue = {
+  paymentMediumId: string;
+  paymentMediumName: string;
+  revenue: number;
+}
+
 export interface CategoryUtilization {
   categoryId: string;
   categoryName: string;
@@ -76,6 +82,8 @@ export type TransactionDetail = {
   sourceId: string;
   movementType?: string;
   services?: string; // Para INGRESOS: servicios incluidos, Para EGRESOS: vehículo asociado
+  paymentMethod?: string; // Método de pago/ingreso
+  paymentMedium?: string; // Medio de pago (US$, E$, CAN, GBP, CLIP, CUENTA, etc.)
 };
 
 export interface VehicleExpenses {
