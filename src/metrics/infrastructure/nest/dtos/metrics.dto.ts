@@ -25,8 +25,15 @@ export class MetricsFiltersDTO {
   maxPrice?: number;
 
   @IsOptional()
-  @IsString()
-  vehicleType?: string;
+  @IsString({ each: true })
+  @Transform(({ value }) => {
+    // Si es un array, devolverlo tal cual
+    if (Array.isArray(value)) return value;
+    // Si es un string, convertirlo a array
+    if (typeof value === 'string') return [value];
+    return value;
+  })
+  vehicleType?: string | string[];
 
   @IsOptional()
   @IsString()

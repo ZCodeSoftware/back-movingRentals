@@ -3,7 +3,7 @@
  * Centraliza los nombres de status para evitar inconsistencias
  */
 export const BOOKING_STATUS = {
-  COMPLETED: 'completed',
+  COMPLETED: 'APROBADO', // En esta BD no existe "completed", solo "APROBADO"
   APPROVED: 'APROBADO',
   PENDING: 'pending',
   CANCELLED: 'cancelled',

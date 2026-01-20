@@ -8,7 +8,7 @@ export interface MetricsFilters {
     min: number;
     max: number;
   };
-  vehicleType?: string;
+  vehicleType?: string[];
   clientType?: 'new' | 'recurring';
   transactionType?: 'INCOME' | 'EXPENSE';
   sortBy?: 'revenue' | 'bookingCount' | 'categoryName' | 'utilizationPercentage' | 'duration' | 'count' | 'paymentMethodName' | 'expenses' | 'vehicleName' | 'amount';
