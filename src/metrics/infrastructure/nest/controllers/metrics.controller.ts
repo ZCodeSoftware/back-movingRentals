@@ -457,7 +457,10 @@ export class MetricsController {
     }
 
     if (filtersDto.vehicleType) {
-      filters.vehicleType = filtersDto.vehicleType;
+      // Convertir a array si no lo es
+      filters.vehicleType = Array.isArray(filtersDto.vehicleType) 
+        ? filtersDto.vehicleType 
+        : [filtersDto.vehicleType];
     }
 
     if (filtersDto.clientType) {
