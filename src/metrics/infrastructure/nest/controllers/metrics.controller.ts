@@ -286,6 +286,34 @@ export class MetricsController {
     return await this.metricsService.getPaymentMethodRevenue(filters);
   }
 
+  @Get('payment-medium-revenue')
+  @ApiOperation({
+    summary: 'Get revenue by payment medium',
+    description: 'Retrieves the total paid revenue grouped by each payment medium (Zelle, CLIP, Cuenta, US$, CAN, etc.). Results can be filtered and sorted.'
+  })
+  @ApiQuery({ name: 'dateFilterType', required: false, enum: ['day', 'week', 'month', 'lastMonth', 'year', 'range'] })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date for range filter (ISO 8601)' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date for range filter (ISO 8601)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Revenue by payment medium retrieved successfully.',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          paymentMediumId: { type: 'string', example: 'Zelle' },
+          paymentMediumName: { type: 'string', example: 'Zelle' },
+          revenue: { type: 'number', example: 3500.50 }
+        }
+      }
+    }
+  })
+  async getPaymentMediumRevenue(@Query() filtersDto: MetricsFiltersDTO) {
+    const filters = this.transformFilters(filtersDto);
+    return await this.metricsService.getPaymentMediumRevenue(filters);
+  }
+
   @Get('category-utilization')
   @ApiOperation({
     summary: 'Get category utilization metrics',

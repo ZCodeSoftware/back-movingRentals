@@ -5,6 +5,7 @@ import {
   GeneralMetrics,
   MetricsFilters,
   PaymentMethodRevenue,
+  PaymentMediumRevenue,
   PopularVehicle,
   TransactionDetail,
   VehicleExpenses,
@@ -17,6 +18,7 @@ export interface IMetricsRepository {
   getBookingDurations(filters?: MetricsFilters): Promise<BookingDuration[]>;
   getPopularVehicles(filters?: MetricsFilters): Promise<PopularVehicle[]>;
   getPaymentMethodRevenue(filters?: MetricsFilters): Promise<PaymentMethodRevenue[]>;
+  getPaymentMediumRevenue(filters?: MetricsFilters): Promise<PaymentMediumRevenue[]>;
   getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }>;
   getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]>;
   getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]>;
