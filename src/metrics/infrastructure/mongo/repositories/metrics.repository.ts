@@ -157,7 +157,8 @@ export class MetricsRepository implements IMetricsRepository {
   async getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]> {
     const dateFilter = this.buildDateFilter(filters?.dateFilter);
 
-    this.logger.log(`[getVehicleFinancialDetails] Calculando detalles financieros para vehículo: ${vehicleId}`);
+    this.logger.log(`[getVehicleFinancialDetails] ===== INICIO REPORTE VEHÍCULO ${vehicleId} =====`);
+    this.logger.log(`[getVehicleFinancialDetails] Filtro de fecha: ${JSON.stringify(dateFilter)}`);
 
     // --- 1. OBTENER LOS EGRESOS (MOVEMENTS) ASOCIADOS AL VEHÍCULO ---
     const expenseMatch: any = {
@@ -203,6 +204,8 @@ export class MetricsRepository implements IMetricsRepository {
     };
 
     const bookings = await this.bookingModel.find(incomeMatch).populate('paymentMethod').lean();
+    
+    this.logger.log(`[getVehicleFinancialDetails] Total de reservas APROBADAS/COMPLETADAS encontradas: ${bookings.length}`);
     
     // OPTIMIZACIÓN: Obtener todos los contratos de una vez
     const bookingIds = bookings.map(b => b._id);
@@ -266,6 +269,7 @@ export class MetricsRepository implements IMetricsRepository {
     const incomeDetails: TransactionDetail[] = [];
     let processedBookings = 0;
     let skippedBookings = 0;
+    let bookingsWithVehicle = 0;
 
     for (const booking of bookings) {
       try {
@@ -337,6 +341,9 @@ export class MetricsRepository implements IMetricsRepository {
           skippedBookings++;
           continue;
         }
+        
+        bookingsWithVehicle++;
+        this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Vehículo encontrado (${isOldVehicle ? 'removido' : 'actual'}), Total base: ${vehicleItemTotal}`);
         
         // IMPORTANTE: Sumar los ajustes (cambios de vehículo, extensiones, combustible, etc.)
         // Los ajustes están en booking.bookingTotals.adjustments
@@ -411,7 +418,9 @@ export class MetricsRepository implements IMetricsRepository {
             
             if (proportionInfo) {
               vehicleProportion = proportionInfo.proportion;
-              this.logger.debug(`[getVehicleFinancialDetails] Proporción de uso del vehículo ${vehicleId}: ${vehicleProportion.toFixed(2)}`);
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Proporción calculada: ${vehicleProportion.toFixed(2)} (${proportionInfo.dates.start.toISOString()} a ${proportionInfo.dates.end.toISOString()})`);
+            } else {
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: No se pudo calcular proporción, usando 1.0`);
             }
           }
         }
@@ -426,6 +435,8 @@ export class MetricsRepository implements IMetricsRepository {
             // CORRECCIÓN: Usar el monto del vehículo (totalVehicleAmount) multiplicado por la proporción de tiempo
             // NO usar totalPaid porque incluye tours, transfers, etc. que no son del propietario del vehículo
             const proratedAmount = totalVehicleAmount * vehicleProportion;
+            
+            this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
             
             incomeDetails.push({
               type: 'INCOME',
@@ -491,12 +502,15 @@ export class MetricsRepository implements IMetricsRepository {
             
             // Filtrar por fecha si existe
             if (dateFilter && !this.isDateInRange(effectiveDate, dateFilter)) {
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Pago fuera del rango de fecha (${effectiveDate.toISOString()})`);
               continue;
             }
 
             // CORRECCIÓN: Usar el monto del vehículo multiplicado por la proporción de tiempo
             // NO prorratear por el total del carrito porque el propietario solo recibe por su vehículo
             const proratedAmount = vehicleItemTotal * vehicleProportion;
+
+            this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
             incomeDetails.push({
               type: 'INCOME',
@@ -549,7 +563,11 @@ export class MetricsRepository implements IMetricsRepository {
       this.logger.warn(`Error al procesar extensiones del vehículo ${vehicleId}:`, error);
     }
 
-    this.logger.log(`[getVehicleFinancialDetails] Procesadas ${processedBookings} reservas con el vehículo, omitidas ${skippedBookings} sin el vehículo`);
+    this.logger.log(`[getVehicleFinancialDetails] ===== RESUMEN =====`);
+    this.logger.log(`[getVehicleFinancialDetails] Total reservas analizadas: ${bookings.length}`);
+    this.logger.log(`[getVehicleFinancialDetails] Reservas con este vehículo: ${bookingsWithVehicle}`);
+    this.logger.log(`[getVehicleFinancialDetails] Reservas omitidas (sin vehículo): ${skippedBookings}`);
+    this.logger.log(`[getVehicleFinancialDetails] Transacciones de ingreso generadas: ${incomeDetails.length}`);
 
     // --- 4. COMBINAR Y ORDENAR LOS RESULTADOS ---
     const combinedTransactions = [...incomeDetails, ...expenseDetails];
@@ -557,9 +575,11 @@ export class MetricsRepository implements IMetricsRepository {
 
     const totalIncome = incomeDetails.reduce((sum, t) => sum + t.amount, 0);
     const totalExpenses = expenseDetails.reduce((sum, t) => sum + t.amount, 0);
-    this.logger.log(`[getVehicleFinancialDetails] Vehículo ${vehicleId}: ` +
-      `Ingresos=${totalIncome.toFixed(2)}, Gastos=${totalExpenses.toFixed(2)}, ` +
-      `Neto=${(totalIncome - totalExpenses).toFixed(2)}`);
+    this.logger.log(`[getVehicleFinancialDetails] ===== TOTALES =====`);
+    this.logger.log(`[getVehicleFinancialDetails] Ingresos: ${totalIncome.toFixed(2)}`);
+    this.logger.log(`[getVehicleFinancialDetails] Gastos: ${totalExpenses.toFixed(2)}`);
+    this.logger.log(`[getVehicleFinancialDetails] Neto: ${(totalIncome - totalExpenses).toFixed(2)}`);
+    this.logger.log(`[getVehicleFinancialDetails] ===== FIN REPORTE =====`);
 
     return combinedTransactions;
   }
@@ -626,6 +646,8 @@ export class MetricsRepository implements IMetricsRepository {
             });
             
             if (wasInOld && !isInNew) {
+              // El vehículo fue REMOVIDO (estaba en oldValue, ya no está en newValue)
+              // Estuvo desde el inicio de la renta hasta la fecha del cambio
               vehicleStartDate = rentalStartDate;
               vehicleEndDate = changeDate;
               
@@ -638,6 +660,8 @@ export class MetricsRepository implements IMetricsRepository {
                 vehicleTotal = vehicleInOld.total || 0;
               }
             } else if (!wasInOld && isInNew) {
+              // El vehículo fue AGREGADO (no estaba en oldValue, ahora está en newValue)
+              // Estuvo desde la fecha del cambio hasta el fin de la renta
               vehicleStartDate = changeDate;
               vehicleEndDate = rentalEndDate;
               
@@ -680,6 +704,13 @@ export class MetricsRepository implements IMetricsRepository {
       }
       
       const vehicleDays = (vehicleEndDate.getTime() - vehicleStartDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      // IMPORTANTE: Si las fechas están invertidas (días negativos), retornar null
+      if (vehicleDays < 0) {
+        this.logger.warn(`[calculateVehicleProportionFromChanges] Fechas invertidas para vehículo ${vehicleId}: start=${vehicleStartDate.toISOString()}, end=${vehicleEndDate.toISOString()}`);
+        return null;
+      }
+      
       const proportion = vehicleDays / totalRentalDays;
       
       return {

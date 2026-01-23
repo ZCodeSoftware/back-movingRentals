@@ -624,32 +624,46 @@ export class BookingService implements IBookingService {
 
         // Si viene el campo concierge, crear comisión sobre el total de la reserva
         if (body.concierge) {
-          try {
-            const concierge = await this.vehicleOwnerRepository.findById(body.concierge);
-            if (concierge) {
-              const conciergeData = concierge.toJSON();
-              // Si viene commission en el body, usarlo; si no, usar el del concierge (default 15)
-              const percentage = body.commission !== undefined && body.commission !== null 
-                ? body.commission 
-                : (conciergeData.commissionPercentage ?? 15);
-              const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
-
-              await this.commissionRepository.create(
-                CommissionModel.create({
-                  booking: bookingId as any,
-                  bookingNumber: bookingNumber as any,
-                  user: userId as any,
-                  vehicleOwner: body.concierge as any,
-                  vehicles: [], // No hay vehículos específicos, es sobre el total
-                  detail: 'Comisión Concierge',
-                  status: 'PENDING',
-                  amount: amount as any,
-                } as any)
-              );
-            }
-          } catch (err) {
-            console.warn('Error creating concierge commission:', err);
-          }
+        try {
+        // IMPORTANTE: Verificar si ya existe una comisión para este booking
+        const existing = await this.commissionRepository.findByBooking(bookingId);
+        const hasConciergeCommission = existing && existing.some((c: any) => {
+        const commData = c.toJSON ? c.toJSON() : c;
+        return commData.vehicleOwner?.toString() === body.concierge?.toString();
+        });
+        
+        if (!hasConciergeCommission) {
+        const concierge = await this.vehicleOwnerRepository.findById(body.concierge);
+        if (concierge) {
+        const conciergeData = concierge.toJSON();
+        // Si viene commission en el body, usarlo; si no, usar el del concierge (default 15)
+        const percentage = body.commission !== undefined && body.commission !== null
+        ? body.commission
+        : (conciergeData.commissionPercentage ?? 15);
+        const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
+        
+        await this.commissionRepository.create(
+        CommissionModel.create({
+        booking: bookingId as any,
+        bookingNumber: bookingNumber as any,
+        user: userId as any,
+        vehicleOwner: body.concierge as any,
+        vehicles: [], // No hay vehículos específicos, es sobre el total
+        detail: 'Comisión Concierge',
+        status: 'PENDING',
+        amount: amount as any,
+        } as any)
+        );
+        console.log('[BookingService] Comisión de concierge creada exitosamente');
+        } else {
+        console.warn('[BookingService] Concierge no encontrado:', body.concierge);
+        }
+        } else {
+        console.log('[BookingService] Comisión de concierge ya existe, omitiendo creación');
+        }
+        } catch (err) {
+        console.warn('Error creating concierge commission:', err);
+        }
         } else if (cartData?.vehicles && Array.isArray(cartData.vehicles)) {
           // Lógica original: crear comisiones por vehículo
           const existing = await this.commissionRepository.findByBooking(bookingId);

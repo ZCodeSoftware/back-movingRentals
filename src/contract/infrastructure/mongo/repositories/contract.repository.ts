@@ -906,33 +906,140 @@ export class ContractRepository implements IContractRepository {
       }
     }
     if (filters.service) {
-      // The booking.cart is stored as a JSON string; build specific regexes for service names inside vehicle/tour/ticket/transfer entries
+      console.log(`[ContractRepository] Filtrando por servicio: ${filters.service}`);
+      
+      // Obtener todos los contratos hasta este punto
+      const contractsBeforeServiceFilter = await this.contractModel.aggregate([
+        ...pipeline,
+        { $project: { _id: 1, 'bookingData.cart': 1, 'bookingData._id': 1, snapshots: 1 } }
+      ]).exec();
+      
+      const matchingContractIds: mongoose.Types.ObjectId[] = [];
       const escaped = escapeRegex(filters.service);
-      const vehiclesRegex = new RegExp(
-        `\"vehicles\"\\s*:\\s*\\[.*?\"vehicle\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`,
-        'i',
-      );
-      const toursRegex = new RegExp(
-        `\"tours\"\\s*:\\s*\\[.*?\"tour\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`,
-        'i',
-      );
-      const ticketsRegex = new RegExp(
-        `\"tickets\"\\s*:\\s*\\[.*?\"ticket\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`,
-        'i',
-      );
-      const transferRegex = new RegExp(
-        `\"transfer\"\\s*:\\s*\\[.*?\"transfer\"\\s*:\\s*\\{.*?\"name\"\\s*:\\s*\"[^\\\"]*${escaped}[^\\\"]*\"`,
-        'i',
-      );
-
-      const orConditions = [
-        { 'bookingData.cart': { $regex: vehiclesRegex } },
-        { 'bookingData.cart': { $regex: toursRegex } },
-        { 'bookingData.cart': { $regex: ticketsRegex } },
-        { 'bookingData.cart': { $regex: transferRegex } },
-      ];
-
-      pipeline.push({ $match: { $or: orConditions } });
+      
+      console.log(`[ContractRepository] Analizando ${contractsBeforeServiceFilter.length} contratos para filtro de servicio...`);
+      
+      for (const contract of contractsBeforeServiceFilter) {
+        try {
+          let serviceFound = false;
+          
+          // 1. Buscar en el carrito actual
+          if (contract.bookingData?.cart) {
+            const cart = JSON.parse(contract.bookingData.cart);
+            
+            // Buscar en vehículos
+            if (cart.vehicles && Array.isArray(cart.vehicles)) {
+              for (const vehicleItem of cart.vehicles) {
+                const vehicleName = vehicleItem.vehicle?.name || '';
+                if (new RegExp(escaped, 'i').test(vehicleName)) {
+                  serviceFound = true;
+                  console.log(`[ContractRepository] ✅ Servicio encontrado en carrito actual (vehículo): ${vehicleName}`);
+                  break;
+                }
+              }
+            }
+            
+            // Buscar en tours
+            if (!serviceFound && cart.tours && Array.isArray(cart.tours)) {
+              for (const tourItem of cart.tours) {
+                const tourName = tourItem.tour?.name || '';
+                if (new RegExp(escaped, 'i').test(tourName)) {
+                  serviceFound = true;
+                  console.log(`[ContractRepository] ✅ Servicio encontrado en carrito actual (tour): ${tourName}`);
+                  break;
+                }
+              }
+            }
+            
+            // Buscar en tickets
+            if (!serviceFound && cart.tickets && Array.isArray(cart.tickets)) {
+              for (const ticketItem of cart.tickets) {
+                const ticketName = ticketItem.ticket?.name || '';
+                if (new RegExp(escaped, 'i').test(ticketName)) {
+                  serviceFound = true;
+                  console.log(`[ContractRepository] ✅ Servicio encontrado en carrito actual (ticket): ${ticketName}`);
+                  break;
+                }
+              }
+            }
+            
+            // Buscar en transfers
+            if (!serviceFound && cart.transfer && Array.isArray(cart.transfer)) {
+              for (const transferItem of cart.transfer) {
+                const transferName = transferItem.transfer?.name || '';
+                if (new RegExp(escaped, 'i').test(transferName)) {
+                  serviceFound = true;
+                  console.log(`[ContractRepository] ✅ Servicio encontrado en carrito actual (transfer): ${transferName}`);
+                  break;
+                }
+              }
+            }
+          }
+          
+          // 2. Si no se encontró en el carrito actual, buscar en snapshots (vehículos removidos)
+          if (!serviceFound && contract.snapshots && Array.isArray(contract.snapshots)) {
+            for (const snapshot of contract.snapshots) {
+              if (snapshot.changes && Array.isArray(snapshot.changes)) {
+                for (const change of snapshot.changes) {
+                  // Buscar cambios en vehículos
+                  if (change.field === 'booking.cart.vehicles') {
+                    // Buscar en oldValue (vehículos removidos)
+                    if (change.oldValue && Array.isArray(change.oldValue)) {
+                      for (const oldVehicle of change.oldValue) {
+                        const vehicleName = oldVehicle.vehicle?.name || '';
+                        if (new RegExp(escaped, 'i').test(vehicleName)) {
+                          serviceFound = true;
+                          console.log(`[ContractRepository] ✅ Servicio encontrado en snapshot oldValue (vehículo removido): ${vehicleName}`);
+                          break;
+                        }
+                      }
+                    }
+                    
+                    // Buscar en newValue (vehículos agregados)
+                    if (!serviceFound && change.newValue && Array.isArray(change.newValue)) {
+                      for (const newVehicle of change.newValue) {
+                        const vehicleName = newVehicle.vehicle?.name || '';
+                        if (new RegExp(escaped, 'i').test(vehicleName)) {
+                          serviceFound = true;
+                          console.log(`[ContractRepository] ✅ Servicio encontrado en snapshot newValue (vehículo agregado): ${vehicleName}`);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  
+                  if (serviceFound) break;
+                }
+              }
+              if (serviceFound) break;
+            }
+          }
+          
+          if (serviceFound) {
+            matchingContractIds.push(contract._id);
+          }
+        } catch (error) {
+          console.error(`[ContractRepository] Error parsing cart/snapshots for contract ${contract._id}:`, error);
+        }
+      }
+      
+      console.log(`[ContractRepository] ${matchingContractIds.length} contratos encontrados con servicio ${filters.service}`);
+      
+      // Agregar filtro de IDs que coinciden
+      if (matchingContractIds.length > 0) {
+        pipeline.push({
+          $match: {
+            _id: { $in: matchingContractIds }
+          }
+        });
+      } else {
+        // Si no hay coincidencias, agregar un match que no devuelva nada
+        pipeline.push({
+          $match: {
+            _id: { $in: [] }
+          }
+        });
+      }
     }
 
     // Filtro por fecha de creación del contrato
