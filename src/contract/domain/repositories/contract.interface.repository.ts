@@ -26,6 +26,8 @@ export interface IContractFilters {
   reservationDateStart?: string;
   reservationDateEnd?: string;
   paymentMethod?: string;
+  vehicleId?: string;
+  vehicleTag?: string;
   page?: number;
   limit?: number;
 }
