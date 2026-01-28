@@ -1042,6 +1042,108 @@ export class ContractRepository implements IContractRepository {
       }
     }
 
+    // Filtro por vehicleId - busca contratos que contengan el vehículo específico
+    if (filters.vehicleId) {
+      console.log(`[ContractRepository] Filtrando por vehicleId: ${filters.vehicleId}`);
+      
+      // Obtener todos los contratos hasta este punto
+      const contractsBeforeVehicleFilter = await this.contractModel.aggregate([
+        ...pipeline,
+        { $project: { _id: 1, 'bookingData.cart': 1, 'bookingData._id': 1, snapshots: 1 } }
+      ]).exec();
+      
+      const matchingContractIds: mongoose.Types.ObjectId[] = [];
+      const targetVehicleId = filters.vehicleId;
+      
+      console.log(`[ContractRepository] Analizando ${contractsBeforeVehicleFilter.length} contratos para filtro de vehicleId...`);
+      
+      for (const contract of contractsBeforeVehicleFilter) {
+        try {
+          let vehicleFound = false;
+          
+          // 1. Buscar en el carrito actual
+          if (contract.bookingData?.cart) {
+            const cart = JSON.parse(contract.bookingData.cart);
+            
+            // Buscar en vehículos
+            if (cart.vehicles && Array.isArray(cart.vehicles)) {
+              for (const vehicleItem of cart.vehicles) {
+                const vehicleIdInCart = vehicleItem.vehicle?._id?.toString() || vehicleItem.vehicle?.toString();
+                if (vehicleIdInCart === targetVehicleId) {
+                  vehicleFound = true;
+                  console.log(`[ContractRepository] ✅ Vehículo encontrado en carrito actual: ${vehicleIdInCart}`);
+                  break;
+                }
+              }
+            }
+          }
+          
+          // 2. Si no se encontró en el carrito actual, buscar en snapshots (vehículos removidos)
+          if (!vehicleFound && contract.snapshots && Array.isArray(contract.snapshots)) {
+            for (const snapshot of contract.snapshots) {
+              if (snapshot.changes && Array.isArray(snapshot.changes)) {
+                for (const change of snapshot.changes) {
+                  // Buscar cambios en vehículos
+                  if (change.field === 'booking.cart.vehicles') {
+                    // Buscar en oldValue (vehículos removidos)
+                    if (change.oldValue && Array.isArray(change.oldValue)) {
+                      for (const oldVehicle of change.oldValue) {
+                        const oldVehicleId = oldVehicle.vehicle?._id?.toString() || oldVehicle.vehicle?.toString();
+                        if (oldVehicleId === targetVehicleId) {
+                          vehicleFound = true;
+                          console.log(`[ContractRepository] ✅ Vehículo encontrado en snapshot oldValue (removido): ${oldVehicleId}`);
+                          break;
+                        }
+                      }
+                    }
+                    
+                    // Buscar en newValue (vehículos agregados)
+                    if (!vehicleFound && change.newValue && Array.isArray(change.newValue)) {
+                      for (const newVehicle of change.newValue) {
+                        const newVehicleId = newVehicle.vehicle?._id?.toString() || newVehicle.vehicle?.toString();
+                        if (newVehicleId === targetVehicleId) {
+                          vehicleFound = true;
+                          console.log(`[ContractRepository] ✅ Vehículo encontrado en snapshot newValue (agregado): ${newVehicleId}`);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                  
+                  if (vehicleFound) break;
+                }
+              }
+              if (vehicleFound) break;
+            }
+          }
+          
+          if (vehicleFound) {
+            matchingContractIds.push(contract._id);
+          }
+        } catch (error) {
+          console.error(`[ContractRepository] Error parsing cart/snapshots for contract ${contract._id}:`, error);
+        }
+      }
+      
+      console.log(`[ContractRepository] ${matchingContractIds.length} contratos encontrados con vehicleId ${filters.vehicleId}`);
+      
+      // Agregar filtro de IDs que coinciden
+      if (matchingContractIds.length > 0) {
+        pipeline.push({
+          $match: {
+            _id: { $in: matchingContractIds }
+          }
+        });
+      } else {
+        // Si no hay coincidencias, agregar un match que no devuelva nada
+        pipeline.push({
+          $match: {
+            _id: { $in: [] }
+          }
+        });
+      }
+    }
+
     // Filtro por fecha de creación del contrato
     if (filters.createdAtStart || filters.createdAtEnd) {
       const createdAtMatch: any = {};
