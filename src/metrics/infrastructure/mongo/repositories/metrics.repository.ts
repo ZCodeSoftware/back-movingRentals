@@ -198,14 +198,34 @@ export class MetricsRepository implements IMetricsRepository {
       return [...expenseDetails];
     }
 
-    // Obtener TODAS las reservas APROBADAS/COMPLETADAS con populate de paymentMethod
+    // CORRECCIÓN: Obtener IDs de estados excluidos (CANCELADO, RECHAZADO)
+    const excludedStatuses = await this.statusModel.find({
+      name: { $in: EXCLUDED_BOOKING_STATUSES }
+    }).select('_id').lean();
+    const excludedStatusIds = excludedStatuses.map(s => s._id);
+
+    // Obtener TODAS las reservas APROBADAS/COMPLETADAS (excluyendo canceladas/rechazadas) con populate de paymentMethod
     const incomeMatch: any = {
       status: { $in: statusIds }
     };
 
+    // IMPORTANTE: Excluir explícitamente reservas canceladas/rechazadas
+    if (excludedStatusIds.length > 0) {
+      incomeMatch.status = {
+        $in: statusIds,
+        $nin: excludedStatusIds
+      };
+    }
+
+    // CORRECCIÓN: Agregar filtro de fecha en la consulta de bookings
+    if (dateFilter) {
+      incomeMatch.createdAt = dateFilter;
+    }
+
     const bookings = await this.bookingModel.find(incomeMatch).populate('paymentMethod').lean();
     
     this.logger.log(`[getVehicleFinancialDetails] Total de reservas APROBADAS/COMPLETADAS encontradas: ${bookings.length}`);
+    this.logger.log(`[getVehicleFinancialDetails] Estados excluidos: ${excludedStatusIds.length > 0 ? excludedStatusIds.map(id => id.toString()).join(', ') : 'ninguno'}`);
     
     // OPTIMIZACIÓN: Obtener todos los contratos de una vez
     const bookingIds = bookings.map(b => b._id);
@@ -406,46 +426,50 @@ export class MetricsRepository implements IMetricsRepository {
         const contract = contractsMap.get((booking as any)._id.toString());
         
         if (contract) {
-          const contractId = (contract as any)._id.toString();
-          const vehicleChanges = vehicleChangesMap.get(contractId) || [];
-          
-          if (vehicleChanges.length > 0) {
-            const proportionInfo = this.calculateVehicleProportionFromChanges(
-              vehicleChanges,
-              vehicleId,
-              cart
-            );
-            
-            if (proportionInfo) {
-              vehicleProportion = proportionInfo.proportion;
-              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Proporción calculada: ${vehicleProportion.toFixed(2)} (${proportionInfo.dates.start.toISOString()} a ${proportionInfo.dates.end.toISOString()})`);
-            } else {
-              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: No se pudo calcular proporción, usando 1.0`);
-            }
-          }
+        const contractId = (contract as any)._id.toString();
+        const vehicleChanges = vehicleChangesMap.get(contractId) || [];
+        
+        if (vehicleChanges.length > 0) {
+        const proportionInfo = this.calculateVehicleProportionFromChanges(
+        vehicleChanges,
+        vehicleId,
+        cart
+        );
+        
+        if (proportionInfo) {
+        vehicleProportion = proportionInfo.proportion;
+        this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Proporción calculada: ${vehicleProportion.toFixed(2)} (${proportionInfo.dates.start.toISOString()} a ${proportionInfo.dates.end.toISOString()})`);
+        } else {
+        this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: No se pudo calcular proporción, usando 1.0`);
         }
-
+        }
+        }
+        
+        // IMPORTANTE: Si la proporción es menor al 1%, NO generar ingreso (vehículo reemplazado inmediatamente)
+        if (vehicleProportion < 0.01) {
+        this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Vehículo ${vehicleId} removido inmediatamente (proporción < 1%), NO se genera ingreso`);
+        skippedBookings++;
+        continue; // Saltar esta reserva
+        }
+        
         // IMPORTANTE: Manejar reservas SIN array de payments (reservas antiguas/migradas)
         if (payments.length === 0 && (booking as any).totalPaid > 0) {
           // Reserva antigua sin payments pero con totalPaid
           const createdAt = new Date((booking as any).createdAt);
           
-          // Filtrar por fecha si existe
-          if (!dateFilter || this.isDateInRange(createdAt, dateFilter)) {
-            // CORRECCIÓN: Usar el monto del vehículo (totalVehicleAmount) multiplicado por la proporción de tiempo
-            // NO usar totalPaid porque incluye tours, transfers, etc. que no son del propietario del vehículo
-            const proratedAmount = totalVehicleAmount * vehicleProportion;
-            
-            this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
-            
-            incomeDetails.push({
-              type: 'INCOME',
-              date: createdAt,
-              amount: Math.round(proratedAmount * 100) / 100,
-              description: `Pago - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-              sourceId: (booking as any)._id.toString(),
-            });
-          }
+          // CORRECCIÓN: Usar el monto del vehículo (totalVehicleAmount) multiplicado por la proporción de tiempo
+          // NO usar totalPaid porque incluye tours, transfers, etc. que no son del propietario del vehículo
+          const proratedAmount = totalVehicleAmount * vehicleProportion;
+          
+          this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
+          
+          incomeDetails.push({
+            type: 'INCOME',
+            date: createdAt,
+            amount: Math.round(proratedAmount * 100) / 100,
+            description: `Pago - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+            sourceId: (booking as any)._id.toString(),
+          });
         } else if (payments.length > 0) {
           // CORRECCIÓN: Para reservas CON payments, generar UN SOLO ingreso por reserva
           // El monto es el total del vehículo multiplicado por la proporción de tiempo
@@ -475,67 +499,53 @@ export class MetricsRepository implements IMetricsRepository {
               const amount80 = proratedAmount * 0.80;
               
               // 20% en fecha de carga
-              if (!dateFilter || this.isDateInRange(createdAt, dateFilter)) {
-                incomeDetails.push({
-                  type: 'INCOME',
-                  date: createdAt,
-                  amount: Math.round(amount20 * 100) / 100,
-                  description: `Efectivo 20% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-                  sourceId: (booking as any)._id.toString(),
-                });
-              }
+              incomeDetails.push({
+                type: 'INCOME',
+                date: createdAt,
+                amount: Math.round(amount20 * 100) / 100,
+                description: `Efectivo 20% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+                sourceId: (booking as any)._id.toString(),
+              });
               
               // 80% en fecha de aprobación
-              if (!dateFilter || this.isDateInRange(paymentDate, dateFilter)) {
-                incomeDetails.push({
-                  type: 'INCOME',
-                  date: paymentDate,
-                  amount: Math.round(amount80 * 100) / 100,
-                  description: `Efectivo 80% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-                  sourceId: (booking as any)._id.toString(),
-                });
-              }
+              incomeDetails.push({
+                type: 'INCOME',
+                date: paymentDate,
+                amount: Math.round(amount80 * 100) / 100,
+                description: `Efectivo 80% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+                sourceId: (booking as any)._id.toString(),
+              });
             } else if (paymentType === 'TRANSFER' || paymentMethod.includes('TRANSFERENCIA')) {
               // TRANSFERENCIA: Fecha de aprobación (paymentDate del primer pago PAID)
               const firstPaidPayment = payments.find((p: any) => p.status === 'PAID');
               effectiveDate = firstPaidPayment ? new Date(firstPaidPayment.paymentDate) : new Date((booking as any).createdAt);
               
-              // Filtrar por fecha si existe
-              if (!dateFilter || this.isDateInRange(effectiveDate, dateFilter)) {
-                const proratedAmount = vehicleItemTotal * vehicleProportion;
-                
-                this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
+              const proratedAmount = vehicleItemTotal * vehicleProportion;
+              
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
-                incomeDetails.push({
-                  type: 'INCOME',
-                  date: effectiveDate,
-                  amount: Math.round(proratedAmount * 100) / 100,
-                  description: `Transferencia - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-                  sourceId: (booking as any)._id.toString(),
-                });
-              } else {
-                this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Pago fuera del rango de fecha (${effectiveDate.toISOString()})`);
-              }
+              incomeDetails.push({
+                type: 'INCOME',
+                date: effectiveDate,
+                amount: Math.round(proratedAmount * 100) / 100,
+                description: `Transferencia - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+                sourceId: (booking as any)._id.toString(),
+              });
             } else {
               // CRÉDITO/DÉBITO y OTROS: Fecha de carga (createdAt)
               effectiveDate = new Date((booking as any).createdAt);
               
-              // Filtrar por fecha si existe
-              if (!dateFilter || this.isDateInRange(effectiveDate, dateFilter)) {
-                const proratedAmount = vehicleItemTotal * vehicleProportion;
-                
-                this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
+              const proratedAmount = vehicleItemTotal * vehicleProportion;
+              
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
-                incomeDetails.push({
-                  type: 'INCOME',
-                  date: effectiveDate,
-                  amount: Math.round(proratedAmount * 100) / 100,
-                  description: `Pago - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
-                  sourceId: (booking as any)._id.toString(),
-                });
-              } else {
-                this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Pago fuera del rango de fecha (${effectiveDate.toISOString()})`);
-              }
+              incomeDetails.push({
+                type: 'INCOME',
+                date: effectiveDate,
+                amount: Math.round(proratedAmount * 100) / 100,
+                description: `Pago - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
+                sourceId: (booking as any)._id.toString(),
+              });
             }
           }
         }
@@ -563,10 +573,6 @@ export class MetricsRepository implements IMetricsRepository {
         for (const extension of extensions) {
           const extensionDate = new Date((extension as any).createdAt);
           const extensionAmount = (extension as any).eventMetadata?.amount || 0;
-          
-          if (dateFilter && !this.isDateInRange(extensionDate, dateFilter)) {
-            continue;
-          }
           
           incomeDetails.push({
             type: 'INCOME',
@@ -742,34 +748,41 @@ export class MetricsRepository implements IMetricsRepository {
                 const vehicleOriginalEnd = new Date(vehicleInOld.dates.end);
                 vehicleTotal = vehicleInOld.total || 0;
                 
-                // CORRECCIÓN: Determinar cuándo terminó realmente el uso del vehículo removido
-                // Opción 1: Usar la fecha de INICIO del vehículo de reemplazo (más preciso)
-                // Opción 2: Usar el timestamp del cambio (fallback)
-                // Opción 3: Usar la fecha de fin original si las otras opciones dan fechas inválidas
+                // CORRECCIÓN CRÍTICA: Priorizar la fecha de inicio del vehículo de reemplazo
+                // Si hay un vehículo de reemplazo, usar su fecha de inicio como fecha de fin del vehículo anterior
+                // Esto es más preciso que el timestamp del cambio, que puede registrarse tarde
                 
                 let effectiveEndDate: Date;
                 
                 if (newVehicles.length > 0 && newVehicles[0].dates?.start) {
-                  // Usar la fecha de inicio del veh��culo de reemplazo
+                  // PRIORIDAD 1: Usar la fecha de inicio del vehículo de reemplazo
                   const replacementStartDate = new Date(newVehicles[0].dates.start);
                   
-                  // Validar que la fecha de inicio del reemplazo sea después del inicio del vehículo removido
-                  if (replacementStartDate > vehicleStartDate) {
+                  // Validar que la fecha de reemplazo esté entre el inicio y fin del vehículo
+                  if (replacementStartDate >= vehicleStartDate && replacementStartDate <= vehicleOriginalEnd) {
                     effectiveEndDate = replacementStartDate;
-                    this.logger.debug(`[calculateVehicleProportionFromChanges] Usando fecha inicio del reemplazo: ${effectiveEndDate.toISOString()}`);
-                  } else {
-                    // Si la fecha de inicio del reemplazo es antes o igual, usar la fecha de fin original
+                    this.logger.debug(`[calculateVehicleProportionFromChanges] Usando fecha inicio del reemplazo (PRIORIDAD): ${effectiveEndDate.toISOString()}`);
+                  } else if (replacementStartDate > vehicleOriginalEnd) {
+                    // Si el reemplazo empieza después del fin original, usar el fin original
                     effectiveEndDate = vehicleOriginalEnd;
-                    this.logger.debug(`[calculateVehicleProportionFromChanges] Fecha reemplazo inválida, usando fin original: ${effectiveEndDate.toISOString()}`);
+                    this.logger.debug(`[calculateVehicleProportionFromChanges] Reemplazo después del fin original, usando fecha fin original: ${effectiveEndDate.toISOString()}`);
+                  } else {
+                    // Si el reemplazo empieza antes del inicio, usar el timestamp del cambio
+                    effectiveEndDate = changeDate >= vehicleStartDate && changeDate <= vehicleOriginalEnd ? changeDate : vehicleOriginalEnd;
+                    this.logger.debug(`[calculateVehicleProportionFromChanges] Reemplazo antes del inicio, usando timestamp o fin original: ${effectiveEndDate.toISOString()}`);
                   }
-                } else if (changeDate > vehicleStartDate && changeDate <= vehicleOriginalEnd) {
-                  // Usar el timestamp del cambio si está dentro del rango válido
+                } else if (changeDate >= vehicleStartDate && changeDate <= vehicleOriginalEnd) {
+                  // PRIORIDAD 2: Usar el timestamp del cambio si está dentro del rango
                   effectiveEndDate = changeDate;
-                  this.logger.debug(`[calculateVehicleProportionFromChanges] Usando timestamp del cambio: ${effectiveEndDate.toISOString()}`);
-                } else {
-                  // Fallback: usar la fecha de fin original
+                  this.logger.debug(`[calculateVehicleProportionFromChanges] Usando timestamp del cambio (fecha real): ${effectiveEndDate.toISOString()}`);
+                } else if (changeDate > vehicleOriginalEnd) {
+                  // PRIORIDAD 3: Si el cambio ocurrió después del fin programado, usar el fin original
                   effectiveEndDate = vehicleOriginalEnd;
-                  this.logger.debug(`[calculateVehicleProportionFromChanges] Usando fecha fin original: ${effectiveEndDate.toISOString()}`);
+                  this.logger.debug(`[calculateVehicleProportionFromChanges] Cambio después del fin programado, usando fecha fin original: ${effectiveEndDate.toISOString()}`);
+                } else {
+                  // Último fallback: usar la fecha de fin original
+                  effectiveEndDate = vehicleOriginalEnd;
+                  this.logger.debug(`[calculateVehicleProportionFromChanges] Sin timestamp válido ni reemplazo, usando fecha fin original: ${effectiveEndDate.toISOString()}`);
                 }
                 
                 vehicleEndDate = effectiveEndDate;
@@ -1065,13 +1078,7 @@ export class MetricsRepository implements IMetricsRepository {
           const payments = (booking as any).payments || [];
           const bookingCreatedAt = new Date((booking as any).createdAt);
           
-          // Verificar si el booking fue creado en el período
-          const bookingInPeriod = !dateFilter || this.isDateInRange(bookingCreatedAt, dateFilter);
-          
-          if (!bookingInPeriod) {
-            continue;
-          }
-          
+                    
           if (payments.length > 0) {
             // Caso 1: Reservas con payments array
             for (const payment of payments) {
