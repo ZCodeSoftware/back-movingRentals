@@ -72,6 +72,7 @@ export interface PopularVehicle {
   image?: string;
   revenue: number;
   bookingCount: number;
+  rentalDays?: number;
 }
 
 export type TransactionDetail = {
