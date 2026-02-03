@@ -2470,8 +2470,17 @@ export class BookingService implements IBookingService {
     const timelineEntries = await ContractHistory.find({
     contract: { $in: contractIds },
     isDeleted: { $ne: true },
-    action: 'NOTE_ADDED', // Solo las notas que representan movimientos
+    $or: [
+    // Movimientos regulares (NOTE_ADDED con eventType)
+    {
+    action: 'NOTE_ADDED',
     eventType: { $exists: true, $ne: null }
+    },
+    // Extensiones de renta
+    {
+    action: 'EXTENSION_UPDATED'
+    }
+    ]
     })
     .populate('eventType')
     .lean();
