@@ -83,21 +83,21 @@ function formatDate(dateString?: string): string {
 function formatDateTime(dateString?: string): string {
   if (!dateString) return 'Fecha y hora no especificadas';
   try {
+    // Parsear la fecha como UTC y luego ajustar a la zona horaria de Cancún
     const date = new Date(dateString);
-    const dateStr = date.toLocaleDateString('es-ES', {
+    
+    // Formatear la fecha completa con zona horaria de Cancún
+    const formatted = date.toLocaleString('es-MX', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'America/Cancun',
-    });
-    // Obtener hora y minutos en zona horaria de Cancún con formato de 12 horas
-    const timeStr = date.toLocaleTimeString('es-ES', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
       timeZone: 'America/Cancun',
     });
-    return `${dateStr}, ${timeStr}`;
+    
+    return formatted;
   } catch (e) {
     return dateString;
   }

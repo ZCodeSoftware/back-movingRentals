@@ -86,27 +86,26 @@ function formatDate(dateString?: string): string {
 }
 
 function formatDateTime(dateString?: string): string {
-  if (!dateString) return 'Fecha y hora no especificadas';
-  try {
-    const date = new Date(dateString);
-    const dateStr = date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: 'America/Cancun',
-    });
-    
-    // Obtener hora y minutos en zona horaria de Cancún con formato de 12 horas
-    const timeStr = date.toLocaleTimeString('es-ES', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'America/Cancun',
-    });
-    return `${dateStr}, ${timeStr}`;
-  } catch (e) {
-    return dateString;
-  }
+if (!dateString) return 'Fecha y hora no especificadas';
+try {
+// Parsear la fecha como UTC y luego ajustar a la zona horaria de Cancún
+const date = new Date(dateString);
+
+// Formatear la fecha completa con zona horaria de Cancún
+const formatted = date.toLocaleString('es-MX', {
+year: 'numeric',
+month: 'long',
+day: 'numeric',
+hour: 'numeric',
+minute: '2-digit',
+hour12: true,
+timeZone: 'America/Cancun',
+});
+
+return formatted;
+} catch (e) {
+return dateString;
+}
 }
 
 function getPassengerCount(passengers: any): number | undefined {

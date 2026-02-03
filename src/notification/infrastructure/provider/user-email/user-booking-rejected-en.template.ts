@@ -83,15 +83,21 @@ function formatDate(dateString?: string): string {
 function formatDateTime(dateString?: string): string {
   if (!dateString) return 'Date and time not specified';
   try {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // Parse the date as UTC and then adjust to Cancun timezone
+    const date = new Date(dateString);
+    
+    // Format the complete date with Cancun timezone
+    const formatted = date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true,
       timeZone: 'America/Cancun',
     });
+    
+    return formatted;
   } catch (e) {
     return dateString;
   }

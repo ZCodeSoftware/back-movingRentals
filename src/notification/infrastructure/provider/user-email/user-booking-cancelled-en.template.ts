@@ -88,28 +88,21 @@ function formatDate(dateString?: string): string {
 function formatDateTime(dateString?: string): string {
   if (!dateString) return 'Date and time not specified';
   try {
+    // Parse the date as UTC and then adjust to Cancun timezone
     const date = new Date(dateString);
-    const dateStr = date.toLocaleDateString('en-US', {
+    
+    // Format the complete date with Cancun timezone
+    const formatted = date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'America/Cancun',
-    });
-    
-    // Get hour and minutes in Cancun timezone
-    const formatter = new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
       timeZone: 'America/Cancun',
     });
-    const parts = formatter.formatToParts(date);
-    const hour = parts.find(p => p.type === 'hour')?.value || '0';
-    const minute = parts.find(p => p.type === 'minute')?.value || '00';
-    const dayPeriod = parts.find(p => p.type === 'dayPeriod')?.value || 'AM';
     
-    const timeStr = `${hour}:${minute} ${dayPeriod}`;
-    return `${dateStr}, ${timeStr}`;
+    return formatted;
   } catch (e) {
     return dateString;
   }
