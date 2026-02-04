@@ -77,6 +77,18 @@ export class MovementRepository implements IMovementRepository {
             updateData.beneficiaryModel = beneficiaryModel;
         }
 
+        // Limpiar campos vacíos que pueden causar problemas con MongoDB
+        // Si vehicle es un string vacío, eliminarlo del updateData
+        if (updateData.vehicle === '' || updateData.vehicle === null) {
+            delete updateData.vehicle;
+        }
+        
+        // Si beneficiary es un string vacío, eliminarlo del updateData
+        if (updateData.beneficiary === '' || updateData.beneficiary === null) {
+            delete updateData.beneficiary;
+            delete updateData.beneficiaryModel;
+        }
+
         const updated = await this.movementDB.findByIdAndUpdate(id, updateData, { new: true })
             .populate({
                 path: 'createdBy',
@@ -86,7 +98,8 @@ export class MovementRepository implements IMovementRepository {
             .populate({
                 path: 'beneficiary',
                 select: '-password'
-            });
+            })
+            .populate('vehicle');
 
         if (!updated) throw new BaseErrorException('Movement not found', HttpStatus.NOT_FOUND);
 
