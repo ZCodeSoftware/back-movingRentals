@@ -28,6 +28,7 @@ export interface IContractFilters {
   paymentMethod?: string;
   vehicleId?: string;
   vehicleTag?: string;
+  currentVehicleOnly?: boolean;
   page?: number;
   limit?: number;
 }

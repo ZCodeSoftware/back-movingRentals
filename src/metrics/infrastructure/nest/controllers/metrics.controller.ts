@@ -1,4 +1,5 @@
-import { Controller, Get, Inject, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -458,6 +459,43 @@ export class MetricsController {
   async getVehicleExpenses(@Query() filtersDto: MetricsFiltersDTO) {
     const filters = this.transformFilters(filtersDto);
     return await this.metricsService.getVehicleExpenses(filters);
+  }
+
+  @Get('owner-report/export')
+  @ApiOperation({
+    summary: 'Export owner report to Excel',
+    description: 'Generates a detailed Excel report for a vehicle owner including all transactions, bookings, and financial details.'
+  })
+  @ApiQuery({ name: 'ownerId', required: true, type: String, description: 'Owner ID' })
+  @ApiQuery({ name: 'vehicleId', required: false, type: String, description: 'Optional vehicle ID to filter by specific vehicle' })
+  @ApiQuery({ name: 'dateFilterType', required: false, enum: ['day', 'week', 'month', 'lastMonth', 'year', 'range'], description: 'Type of date filter to apply' })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date for range filter (ISO 8601 format)', example: '2024-01-01' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date for range filter (ISO 8601 format)', example: '2024-12-31' })
+  @ApiQuery({ name: 'utilityPercentage', required: false, type: Number, description: 'Utility percentage for calculations', example: 50 })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  async exportOwnerReport(@Query() filtersDto: any, @Res() res: Response) {
+    const filters = this.transformFilters(filtersDto);
+    const result = await this.metricsService.exportOwnerReport(
+      filtersDto.ownerId,
+      filtersDto.vehicleId,
+      filters,
+      filtersDto.utilityPercentage || 50
+    );
+    
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    res.send(result.buffer);
   }
 
   private transformFilters(filtersDto: MetricsFiltersDTO): MetricsFilters {

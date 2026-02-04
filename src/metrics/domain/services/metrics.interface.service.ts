@@ -22,4 +22,5 @@ export interface IMetricsService {
   getTransactionDetails(filters?: MetricsFilters): Promise<{ data: TransactionDetail[]; total: number; page: number; limit: number; totalPages: number }>;
   getVehicleFinancialDetails(vehicleId: string, filters?: MetricsFilters): Promise<TransactionDetail[]>;
   getVehicleExpenses(filters?: MetricsFilters): Promise<VehicleExpenses[]>;
+  exportOwnerReport(ownerId: string, vehicleId: string | undefined, filters: MetricsFilters, utilityPercentage: number): Promise<any>;
 }
