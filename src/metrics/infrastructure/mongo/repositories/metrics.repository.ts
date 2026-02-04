@@ -55,6 +55,7 @@ export class MetricsRepository implements IMetricsRepository {
     @InjectModel('Contract') private readonly contractModel: Model<any>,
     @InjectModel('ContractHistory') private readonly contractHistoryModel: Model<any>,
     @InjectModel('CatContractEvent') private readonly catContractEventModel: Model<any>,
+    @InjectModel('VehicleOwner') private readonly vehicleOwnerModel: Model<any>,
   ) { }
 
   /**
@@ -217,11 +218,14 @@ export class MetricsRepository implements IMetricsRepository {
       };
     }
 
-    // CORRECCIÓN: Agregar filtro de fecha en la consulta de bookings
-    if (dateFilter) {
-      incomeMatch.createdAt = dateFilter;
+    // CORRECCIÓN CRÍTICA: Filtrar por createdAt para excluir reservas creadas DESPUÉS del rango
+    // Permitir reservas creadas ANTES del inicio del rango (para incluir servicios que empiezan en el rango)
+    // Pero EXCLUIR reservas creadas DESPUÉS del fin del rango
+    if (dateFilter && dateFilter.$lt) {
+      // Solo aplicar el límite superior (excluir reservas creadas después del rango)
+      incomeMatch.createdAt = { $lt: dateFilter.$lt };
     }
-
+    
     const bookings = await this.bookingModel.find(incomeMatch).populate('paymentMethod').lean();
     
     this.logger.log(`[getVehicleFinancialDetails] Total de reservas APROBADAS/COMPLETADAS encontradas: ${bookings.length}`);
@@ -2968,5 +2972,586 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     return result;
+  }
+
+  async exportOwnerReport(ownerId: string, vehicleId: string | undefined, filters: MetricsFilters, utilityPercentage: number): Promise<any> {
+    const XLSX = require('xlsx');
+    
+    this.logger.log(`[exportOwnerReport] Generando reporte para propietario ${ownerId}`);
+    
+    // 1. Obtener información del propietario
+    const owner = await this.vehicleOwnerModel.findById(ownerId).lean();
+    
+    if (!owner || Array.isArray(owner)) {
+    throw new Error('Propietario no encontrado');
+    }
+    
+    // 2. Obtener vehículos del propietario
+    let vehiclesToProcess: any[] = [];
+    
+    if (vehicleId) {
+      // Filtrar por vehículo específico
+      const vehicle = await this.vehicleModel.findById(vehicleId).lean();
+      if (vehicle && vehicle.owner?.toString() === ownerId) {
+        vehiclesToProcess = [vehicle];
+      }
+    } else {
+      // Obtener todos los vehículos del propietario
+      vehiclesToProcess = await this.vehicleModel.find({ 
+        owner: new mongoose.Types.ObjectId(ownerId),
+        isDeleted: { $ne: true }
+      }).lean();
+    }
+    
+    if (vehiclesToProcess.length === 0) {
+      throw new Error('No se encontraron vehículos para este propietario');
+    }
+    
+    this.logger.log(`[exportOwnerReport] Procesando ${vehiclesToProcess.length} vehículos`);
+    
+    // 3. Obtener transacciones detalladas para cada vehículo Y datos completos de reservas
+    const allVehicleData: any[] = [];
+    const allIncomeTransactions: any[] = [];
+    const allExpenseTransactions: any[] = [];
+    const allBookingsData: any[] = []; // Nueva estructura para datos completos de reservas
+    
+    // Obtener estados APROBADAS y COMPLETADAS
+    const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
+    const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
+    const statusIds = [];
+    if (approvedStatus) statusIds.push(approvedStatus._id);
+    if (completedStatus) statusIds.push(completedStatus._id);
+    
+    for (const vehicle of vehiclesToProcess) {
+    const transactions = await this.getVehicleFinancialDetails(vehicle._id.toString(), filters);
+    
+    const incomeTransactions = transactions.filter(t => t.type === 'INCOME');
+    const expenseTransactions = transactions.filter(t => t.type === 'EXPENSE');
+    
+    // Agrupar transacciones de ingreso por sourceId (reserva) para contar reservas únicas
+    const uniqueBookings = new Set<string>();
+    const bookingDetails = new Map<string, any>();
+    
+    for (const transaction of incomeTransactions) {
+    if (!transaction.description.includes('Extensión')) {
+    uniqueBookings.add(transaction.sourceId);
+    
+    if (!bookingDetails.has(transaction.sourceId)) {
+    bookingDetails.set(transaction.sourceId, {
+    bookingId: transaction.sourceId,
+    transactions: [],
+    totalAmount: 0
+    });
+    }
+    
+    const detail = bookingDetails.get(transaction.sourceId);
+    detail.transactions.push(transaction);
+    detail.totalAmount += transaction.amount;
+    }
+    }
+    
+    // NUEVO: Obtener información completa de las reservas
+    const bookingIds = Array.from(uniqueBookings);
+    if (bookingIds.length > 0) {
+    const bookings = await this.bookingModel.find({
+    _id: { $in: bookingIds.map(id => new mongoose.Types.ObjectId(id)) }
+    }).lean();
+    
+    // Obtener contratos para obtener información del usuario
+    const contracts = await this.contractModel.find({
+    booking: { $in: bookingIds.map(id => new mongoose.Types.ObjectId(id)) }
+    }).populate('reservingUser').lean();
+    
+    // Crear un mapa de booking -> usuario
+    const bookingUserMap = new Map();
+    for (const contract of contracts) {
+    bookingUserMap.set((contract as any).booking.toString(), (contract as any).reservingUser);
+    }
+    
+    for (const booking of bookings) {
+    try {
+    const cart = JSON.parse((booking as any).cart);
+    const payments = (booking as any).payments || [];
+    
+    // Encontrar el vehículo en el carrito actual O en el historial
+    let vehicleInCart = null;
+    let vehicleDates = null;
+    let vehicleTotal = 0;
+    let isOldVehicle = false;
+    
+    // 1. Buscar en el carrito actual
+    if (cart.vehicles && Array.isArray(cart.vehicles)) {
+    vehicleInCart = cart.vehicles.find((v: any) => {
+    const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+    return vId === vehicle._id.toString();
+    });
+    
+    if (vehicleInCart) {
+    vehicleDates = vehicleInCart.dates;
+    vehicleTotal = vehicleInCart.total || 0;
+    }
+    }
+    
+    // 2. Si no está en el carrito actual, buscar en el historial (vehículos removidos)
+    if (!vehicleInCart) {
+    const contract = contracts.find((c: any) => c.booking.toString() === (booking as any)._id.toString());
+    if (contract) {
+    const snapshots = (contract as any).snapshots || [];
+    
+    for (const snapshot of snapshots) {
+    const changes = snapshot.changes || [];
+    for (const change of changes) {
+    if (change.field === 'booking.cart.vehicles') {
+    const oldVehicles = change.oldValue || [];
+    
+    for (const oldVehicleItem of oldVehicles) {
+    const oldVehicleId = oldVehicleItem.vehicle?._id?.toString() || oldVehicleItem.vehicle?.toString();
+    if (oldVehicleId === vehicle._id.toString()) {
+    vehicleInCart = oldVehicleItem;
+    isOldVehicle = true;
+    vehicleDates = oldVehicleItem.dates;
+    vehicleTotal = oldVehicleItem.total || 0;
+    break;
+    }
+    }
+    }
+    if (vehicleInCart) break;
+    }
+    if (vehicleInCart) break;
+    }
+    }
+    }
+    
+    // Calcular días de renta
+    let rentalDays = 0;
+    if (vehicleDates?.start && vehicleDates?.end) {
+    const start = new Date(vehicleDates.start);
+    const end = new Date(vehicleDates.end);
+    rentalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    }
+    
+    // Obtener información del cliente desde el contrato
+    const user = bookingUserMap.get((booking as any)._id.toString());
+    const clientName = user ? `${user.name || ''} ${user.lastName || ''}`.trim() : 'N/A';
+    const clientEmail = user?.email || 'N/A';
+    const clientPhone = user?.phone || 'N/A';
+    
+    // CORRECCIÓN: Filtrar pagos duplicados (validaciones manuales del mismo pago)
+    // Agrupar pagos por monto y considerar solo el primero de cada grupo
+    const uniquePayments = new Map<number, any>();
+    for (const payment of payments) {
+    if (payment.status === 'PAID') {
+    const amount = payment.amount || 0;
+    if (!uniquePayments.has(amount)) {
+    uniquePayments.set(amount, payment);
+    }
+    }
+    }
+    
+    // Calcular total pagado de esta reserva (sin duplicados)
+    const totalPaid = Array.from(uniquePayments.values())
+    .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    
+    // Obtener método de pago
+    const paymentMethod = payments.length > 0 
+    ? payments[0].paymentType || 'N/A'
+    : 'N/A';
+    
+    allBookingsData.push({
+    bookingNumber: (booking as any).bookingNumber,
+    bookingId: (booking as any)._id.toString(),
+    vehicleName: vehicle.name,
+    vehicleTag: vehicle.tag,
+    clientName,
+    clientEmail,
+    clientPhone,
+    startDate: vehicleDates?.start ? new Date(vehicleDates.start) : null,
+    endDate: vehicleDates?.end ? new Date(vehicleDates.end) : null,
+    rentalDays,
+    vehicleTotal,
+    totalPaid,
+    paymentMethod,
+    createdAt: new Date((booking as any).createdAt),
+    status: (booking as any).status,
+    payments: payments.map((p: any) => ({
+    amount: p.amount,
+    status: p.status,
+    paymentType: p.paymentType,
+    paymentDate: p.paymentDate
+    }))
+    });
+    } catch (error) {
+    this.logger.warn(`Error al procesar booking ${(booking as any)._id}:`, error);
+    }
+    }
+    }
+    
+    const rentalDays = uniqueBookings.size;
+    const income = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const expenses = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const net = income - expenses;
+    
+    allVehicleData.push({
+    vehicleId: vehicle._id.toString(),
+    vehicleName: vehicle.name,
+    vehicleTag: vehicle.tag,
+    rentalDays,
+    income,
+    expenses,
+    net,
+    incomeTransactions,
+    expenseTransactions,
+    bookingDetails: Array.from(bookingDetails.values())
+    });
+    
+    // Agregar a las listas globales
+    allIncomeTransactions.push(...incomeTransactions.map(t => ({
+    ...t,
+    vehicleName: vehicle.name,
+    vehicleTag: vehicle.tag
+    })));
+    allExpenseTransactions.push(...expenseTransactions.map(t => ({
+    ...t,
+    vehicleName: vehicle.name,
+    vehicleTag: vehicle.tag
+    })));
+    }
+    
+    // 4. Calcular totales
+    const totalRentalDays = allVehicleData.reduce((sum, v) => sum + v.rentalDays, 0);
+    const totalIncome = allVehicleData.reduce((sum, v) => sum + v.income, 0);
+    const totalExpenses = allVehicleData.reduce((sum, v) => sum + v.expenses, 0);
+    const totalNet = totalIncome - totalExpenses;
+    const utilityValue = totalNet * (utilityPercentage / 100);
+    
+    // 5. Crear el libro de Excel
+    const workbook = XLSX.utils.book_new();
+    
+    // HOJA 1: Resumen General
+    const summaryData = [
+      ['REPORTE DE PROPIETARIO'],
+      [],
+      ['Propietario:', (owner as any).name],
+      ['Período:', this.getDateRangeLabel(filters)],
+      ['Fecha de generación:', new Date().toLocaleString('es-ES')],
+      [],
+      ['RESUMEN FINANCIERO'],
+      ['Concepto', 'Valor'],
+      ['Total Ventas', `${totalIncome.toFixed(2)}`],
+      ['Total Gastos', `${totalExpenses.toFixed(2)}`],
+      ['Total Neto', `${totalNet.toFixed(2)}`],
+      ['Porcentaje de Utilidad', `${utilityPercentage}%`],
+      ['Utilidad Calculada', `${utilityValue.toFixed(2)}`],
+      [],
+      ['RESUMEN POR VEHÍCULO'],
+      ['Vehículo', 'Días de Renta', 'Ventas', 'Gastos', 'Neto']
+    ];
+    
+    // Agregar datos de cada vehículo
+    for (const vehicleData of allVehicleData) {
+      summaryData.push([
+        vehicleData.vehicleName,
+        vehicleData.rentalDays,
+        `${vehicleData.income.toFixed(2)}`,
+        `${vehicleData.expenses.toFixed(2)}`,
+        `${vehicleData.net.toFixed(2)}`
+      ]);
+    }
+    
+    // Agregar fila de totales
+    summaryData.push([
+      'TOTAL',
+      totalRentalDays,
+      `${totalIncome.toFixed(2)}`,
+      `${totalExpenses.toFixed(2)}`,
+      `${totalNet.toFixed(2)}`
+    ]);
+    
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen');
+    
+    // HOJA 2: Detalle Completo de Reservas
+    const bookingsDetailData = [
+    ['DETALLE COMPLETO DE RESERVAS'],
+    [],
+    ['N° Reserva', 'Vehículo', 'Placa', 'Cliente', 'Email', 'Teléfono', 'Fecha Inicio', 'Fecha Fin', 'Días', 'Monto Vehículo', 'Total Pagado', 'Método Pago', 'Fecha Creación']
+    ];
+    
+    // Ordenar reservas por fecha de creación descendente
+    allBookingsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    for (const booking of allBookingsData) {
+    bookingsDetailData.push([
+    booking.bookingNumber || 'N/A',
+    booking.vehicleName,
+    booking.vehicleTag || 'N/A',
+    booking.clientName,
+    booking.clientEmail,
+    booking.clientPhone,
+    booking.startDate ? booking.startDate.toLocaleDateString('es-ES') : 'N/A',
+    booking.endDate ? booking.endDate.toLocaleDateString('es-ES') : 'N/A',
+    booking.rentalDays,
+    booking.vehicleTotal.toFixed(2),
+    booking.totalPaid.toFixed(2),
+    booking.paymentMethod,
+    booking.createdAt.toLocaleString('es-ES')
+    ]);
+    }
+    
+    // Agregar totales
+    const totalVehicleAmount = allBookingsData.reduce((sum, b) => sum + b.vehicleTotal, 0);
+    const totalPaidAmount = allBookingsData.reduce((sum, b) => sum + b.totalPaid, 0);
+    const totalDays = allBookingsData.reduce((sum, b) => sum + b.rentalDays, 0);
+    
+    bookingsDetailData.push([]);
+    bookingsDetailData.push([
+    'TOTALES',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    totalDays,
+    totalVehicleAmount.toFixed(2),
+    totalPaidAmount.toFixed(2),
+    '',
+    ''
+    ]);
+    
+    const bookingsSheet = XLSX.utils.aoa_to_sheet(bookingsDetailData);
+    XLSX.utils.book_append_sheet(workbook, bookingsSheet, 'Detalle de Reservas');
+    
+    // HOJA 3: Pagos por Reserva
+    const paymentsDetailData = [
+    ['DETALLE DE PAGOS POR RESERVA'],
+    [],
+    ['N° Reserva', 'Vehículo', 'Cliente', 'Monto Pago', 'Estado', 'Tipo Pago', 'Fecha Pago']
+    ];
+    
+    for (const booking of allBookingsData) {
+    if (booking.payments && booking.payments.length > 0) {
+    for (const payment of booking.payments) {
+    paymentsDetailData.push([
+    booking.bookingNumber || 'N/A',
+    booking.vehicleName,
+    booking.clientName,
+    payment.amount ? payment.amount.toFixed(2) : '0.00',
+    payment.status || 'N/A',
+    payment.paymentType || 'N/A',
+    payment.paymentDate ? new Date(payment.paymentDate).toLocaleString('es-ES') : 'N/A'
+    ]);
+    }
+    } else {
+    // Si no hay pagos en el array, mostrar el total pagado
+    paymentsDetailData.push([
+    booking.bookingNumber || 'N/A',
+    booking.vehicleName,
+    booking.clientName,
+    booking.totalPaid.toFixed(2),
+    'PAID',
+    booking.paymentMethod,
+    booking.createdAt.toLocaleString('es-ES')
+    ]);
+    }
+    }
+    
+    const paymentsSheet = XLSX.utils.aoa_to_sheet(paymentsDetailData);
+    XLSX.utils.book_append_sheet(workbook, paymentsSheet, 'Detalle de Pagos');
+    
+    // HOJA 4: Detalle de Ingresos por Transacción
+    const incomeDetailData = [
+    ['DETALLE DE INGRESOS POR TRANSACCIÓN'],
+    [],
+    ['Vehículo', 'Placa', 'N° Reserva', 'Fecha Transacción', 'Descripción', 'Monto']
+    ];
+    
+    // Ordenar por fecha descendente
+    allIncomeTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    for (const transaction of allIncomeTransactions) {
+    const bookingNumber = transaction.description.match(/#(\d+)/)?.[1] || 'N/A';
+    
+    incomeDetailData.push([
+    transaction.vehicleName,
+    transaction.vehicleTag || 'N/A',
+    bookingNumber,
+    new Date(transaction.date).toLocaleString('es-ES'),
+    transaction.description,
+    transaction.amount.toFixed(2)
+    ]);
+    }
+    
+    // Agregar total
+    incomeDetailData.push([]);
+    incomeDetailData.push(['', '', '', '', 'TOTAL INGRESOS', totalIncome.toFixed(2)]);
+    
+    const incomeSheet = XLSX.utils.aoa_to_sheet(incomeDetailData);
+    XLSX.utils.book_append_sheet(workbook, incomeSheet, 'Detalle de Ingresos');
+    
+    // HOJA 5: Detalle de Gastos
+    const expenseDetailData = [
+    ['DETALLE DE GASTOS'],
+    [],
+    ['Vehículo', 'Placa', 'Fecha', 'Descripción', 'Monto']
+    ];
+    
+    // Ordenar gastos por fecha descendente
+    allExpenseTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    for (const transaction of allExpenseTransactions) {
+    expenseDetailData.push([
+    transaction.vehicleName,
+    transaction.vehicleTag || 'N/A',
+    new Date(transaction.date).toLocaleString('es-ES'),
+    transaction.description,
+    transaction.amount.toFixed(2)
+    ]);
+    }
+    
+    // Agregar total
+    expenseDetailData.push([]);
+    expenseDetailData.push(['', '', '', 'TOTAL GASTOS', totalExpenses.toFixed(2)]);
+    
+    const expenseSheet = XLSX.utils.aoa_to_sheet(expenseDetailData);
+    XLSX.utils.book_append_sheet(workbook, expenseSheet, 'Detalle de Gastos');
+    
+    // HOJA 6: Resumen por Vehículo Detallado
+    const vehicleSummaryData = [
+    ['RESUMEN DETALLADO POR VEHÍCULO'],
+    [],
+    ['Vehículo', 'Placa', 'N° Reservas', 'Días Totales', 'Ingresos', 'Gastos', 'Neto', 'Margen %']
+    ];
+    
+    for (const vehicleData of allVehicleData) {
+    const margin = vehicleData.income > 0 
+    ? ((vehicleData.net / vehicleData.income) * 100).toFixed(2)
+    : '0.00';
+    
+    vehicleSummaryData.push([
+    vehicleData.vehicleName,
+    vehicleData.vehicleTag || 'N/A',
+    vehicleData.rentalDays,
+    vehicleData.rentalDays, // Días totales = número de reservas en este contexto
+    vehicleData.income.toFixed(2),
+    vehicleData.expenses.toFixed(2),
+    vehicleData.net.toFixed(2),
+    `${margin}%`
+    ]);
+    }
+    
+    // Totales
+    const totalMargin = totalIncome > 0 
+    ? ((totalNet / totalIncome) * 100).toFixed(2)
+    : '0.00';
+    
+    vehicleSummaryData.push([]);
+    vehicleSummaryData.push([
+    'TOTAL',
+    '',
+    totalRentalDays,
+    totalRentalDays,
+    totalIncome.toFixed(2),
+    totalExpenses.toFixed(2),
+    totalNet.toFixed(2),
+    `${totalMargin}%`
+    ]);
+    
+    const vehicleSummarySheet = XLSX.utils.aoa_to_sheet(vehicleSummaryData);
+    XLSX.utils.book_append_sheet(workbook, vehicleSummarySheet, 'Resumen por Vehículo');
+    
+    // HOJA 7: Todas las Transacciones (Libro Mayor)
+    const allTransactionsData = [
+    ['LIBRO MAYOR - TODAS LAS TRANSACCIONES'],
+    [],
+    ['Fecha', 'Tipo', 'Vehículo', 'Placa', 'N° Reserva', 'Descripción', 'Ingreso', 'Gasto', 'Balance']
+    ];
+    
+    // Combinar y ordenar todas las transacciones
+    const allTransactions = [
+    ...allIncomeTransactions.map(t => ({ ...t, transactionType: 'INGRESO' })),
+    ...allExpenseTransactions.map(t => ({ ...t, transactionType: 'GASTO' }))
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Ordenar ascendente para calcular balance
+    
+    let runningBalance = 0;
+    for (const transaction of allTransactions) {
+    const bookingNumber = transaction.description.match(/#(\d+)/)?.[1] || '';
+    const isIncome = transaction.transactionType === 'INGRESO';
+    const incomeAmount = isIncome ? transaction.amount : 0;
+    const expenseAmount = !isIncome ? transaction.amount : 0;
+    
+    runningBalance += incomeAmount - expenseAmount;
+    
+    allTransactionsData.push([
+    new Date(transaction.date).toLocaleString('es-ES'),
+    transaction.transactionType,
+    transaction.vehicleName,
+    transaction.vehicleTag || 'N/A',
+    bookingNumber,
+    transaction.description,
+    isIncome ? transaction.amount.toFixed(2) : '',
+    !isIncome ? transaction.amount.toFixed(2) : '',
+    runningBalance.toFixed(2)
+    ]);
+    }
+    
+    // Totales finales
+    allTransactionsData.push([]);
+    allTransactionsData.push([
+    '',
+    'TOTALES',
+    '',
+    '',
+    '',
+    '',
+    totalIncome.toFixed(2),
+    totalExpenses.toFixed(2),
+    totalNet.toFixed(2)
+    ]);
+    
+    const allTransactionsSheet = XLSX.utils.aoa_to_sheet(allTransactionsData);
+    XLSX.utils.book_append_sheet(workbook, allTransactionsSheet, 'Libro Mayor');
+    
+    // 6. Generar el archivo Excel
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    const fileName = `Reporte_${(owner as any).name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    this.logger.log(`[exportOwnerReport] Reporte generado exitosamente: ${fileName}`);
+    
+    return {
+      buffer: excelBuffer,
+      fileName,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    };
+  }
+  
+  private getDateRangeLabel(filters: MetricsFilters): string {
+    if (!filters.dateFilter) {
+      return 'Todos los períodos';
+    }
+    
+    const { type, startDate, endDate } = filters.dateFilter;
+    
+    switch (type) {
+      case 'day':
+        return 'Hoy';
+      case 'week':
+        return 'Esta semana';
+      case 'month':
+        return 'Este mes';
+      case 'lastMonth':
+        return 'Mes pasado';
+      case 'year':
+        return 'Este año';
+      case 'range':
+        if (startDate && endDate) {
+          return `${startDate.toLocaleDateString('es-ES')} - ${endDate.toLocaleDateString('es-ES')}`;
+        }
+        return 'Rango personalizado';
+      default:
+        return 'Período no especificado';
+    }
   }
 }

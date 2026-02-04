@@ -62,4 +62,8 @@ export class MetricsService implements IMetricsService {
     return await this.metricsRepository.getVehicleExpenses(filters);
   }
 
+  async exportOwnerReport(ownerId: string, vehicleId: string | undefined, filters: MetricsFilters, utilityPercentage: number): Promise<any> {
+    return await this.metricsRepository.exportOwnerReport(ownerId, vehicleId, filters, utilityPercentage);
+  }
+
 }

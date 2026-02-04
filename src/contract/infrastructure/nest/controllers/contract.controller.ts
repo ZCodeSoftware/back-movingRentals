@@ -214,6 +214,24 @@ export class ContractController {
     type: 'string',
     description: 'Filter by payment method ID',
   })
+  @ApiQuery({
+    name: 'vehicleId',
+    required: false,
+    type: 'string',
+    description: 'Filter by vehicle ID (includes historical vehicles - vehicles that were in the booking at any point)',
+  })
+  @ApiQuery({
+    name: 'vehicleTag',
+    required: false,
+    type: 'string',
+    description: 'Filter by vehicle tag/name (for display purposes)',
+  })
+  @ApiQuery({
+    name: 'currentVehicleOnly',
+    required: false,
+    type: 'boolean',
+    description: 'When true, only returns bookings where the vehicle is currently active (not historical). Must be used with vehicleId or service filter.',
+  })
   async findAll(@Query() filters: any) {
     if (filters.lang) {
       delete filters.lang;
@@ -228,6 +246,11 @@ export class ContractController {
 
     if (filters.limit) {
       filters.limit = parseInt(filters.limit, 10);
+    }
+    
+    // Convertir currentVehicleOnly a boolean
+    if (filters.currentVehicleOnly !== undefined) {
+      filters.currentVehicleOnly = filters.currentVehicleOnly === 'true' || filters.currentVehicleOnly === true;
     }
 
     return this.contractService.findAll(filters);
