@@ -388,7 +388,7 @@ export class MetricsRepository implements IMetricsRepository {
               if (isCambioVehiculo) {
                 // IMPORTANTE: Los cambios de vehículo se suman al vehículo ANTERIOR (oldValue)
                 // porque es una penalización/compensación por rescindir el contrato del veh��culo anterior
-                if (isOldVehicle) {
+                if (!isOldVehicle) {
                   vehicleAdjustments += adjustment.amount;
                   this.logger.debug(`[getVehicleFinancialDetails] Ajuste de cambio de vehículo para vehículo anterior ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount}`);
                 }
@@ -3274,7 +3274,7 @@ export class MetricsRepository implements IMetricsRepository {
     const bookingsDetailData = [
     ['DETALLE COMPLETO DE RESERVAS'],
     [],
-    ['N° Reserva', 'Vehículo', 'Placa', 'Cliente', 'Email', 'Teléfono', 'Fecha Inicio', 'Fecha Fin', 'Días', 'Monto Vehículo', 'Total Pagado', 'Método Pago', 'Fecha Creación']
+    ['N° Reserva', 'Vehículo',, 'Cliente', 'Email', 'Teléfono', 'Fecha Inicio', 'Fecha Fin', 'Días', 'Monto Vehículo', 'Total Pagado', 'Método Pago', 'Fecha Creación']
     ];
     
     // Ordenar reservas por fecha de creación descendente
@@ -3284,7 +3284,7 @@ export class MetricsRepository implements IMetricsRepository {
     bookingsDetailData.push([
     booking.bookingNumber || 'N/A',
     booking.vehicleName,
-    booking.vehicleTag || 'N/A',
+    
     booking.clientName,
     booking.clientEmail,
     booking.clientPhone,
@@ -3364,7 +3364,7 @@ export class MetricsRepository implements IMetricsRepository {
     const incomeDetailData = [
     ['DETALLE DE INGRESOS POR TRANSACCIÓN'],
     [],
-    ['Vehículo', 'Placa', 'N° Reserva', 'Fecha Transacción', 'Descripción', 'Monto']
+    ['Vehículo',, 'N° Reserva', 'Fecha Transacción', 'Descripción', 'Monto']
     ];
     
     // Ordenar por fecha descendente
@@ -3375,7 +3375,7 @@ export class MetricsRepository implements IMetricsRepository {
     
     incomeDetailData.push([
     transaction.vehicleName,
-    transaction.vehicleTag || 'N/A',
+    
     bookingNumber,
     new Date(transaction.date).toLocaleString('es-ES'),
     transaction.description,
@@ -3394,7 +3394,7 @@ export class MetricsRepository implements IMetricsRepository {
     const expenseDetailData = [
     ['DETALLE DE GASTOS'],
     [],
-    ['Vehículo', 'Placa', 'Fecha', 'Descripción', 'Monto']
+    ['Vehículo',, 'Fecha', 'Descripción', 'Monto']
     ];
     
     // Ordenar gastos por fecha descendente
@@ -3403,7 +3403,7 @@ export class MetricsRepository implements IMetricsRepository {
     for (const transaction of allExpenseTransactions) {
     expenseDetailData.push([
     transaction.vehicleName,
-    transaction.vehicleTag || 'N/A',
+    
     new Date(transaction.date).toLocaleString('es-ES'),
     transaction.description,
     transaction.amount.toFixed(2)
@@ -3421,7 +3421,7 @@ export class MetricsRepository implements IMetricsRepository {
     const vehicleSummaryData = [
     ['RESUMEN DETALLADO POR VEHÍCULO'],
     [],
-    ['Vehículo', 'Placa', 'N° Reservas', 'Días Totales', 'Ingresos', 'Gastos', 'Neto', 'Margen %']
+    ['Vehículo',, 'N° Reservas', 'Días Totales', 'Ingresos', 'Gastos', 'Neto', 'Margen %']
     ];
     
     for (const vehicleData of allVehicleData) {
@@ -3431,7 +3431,7 @@ export class MetricsRepository implements IMetricsRepository {
     
     vehicleSummaryData.push([
     vehicleData.vehicleName,
-    vehicleData.vehicleTag || 'N/A',
+    
     vehicleData.rentalDays,
     vehicleData.rentalDays, // Días totales = número de reservas en este contexto
     vehicleData.income.toFixed(2),
@@ -3465,7 +3465,7 @@ export class MetricsRepository implements IMetricsRepository {
     const allTransactionsData = [
     ['LIBRO MAYOR - TODAS LAS TRANSACCIONES'],
     [],
-    ['Fecha', 'Tipo', 'Vehículo', 'Placa', 'N° Reserva', 'Descripción', 'Ingreso', 'Gasto', 'Balance']
+    ['Fecha', 'Tipo', 'Vehículo',, 'N° Reserva', 'Descripción', 'Ingreso', 'Gasto', 'Balance']
     ];
     
     // Combinar y ordenar todas las transacciones
@@ -3487,7 +3487,7 @@ export class MetricsRepository implements IMetricsRepository {
     new Date(transaction.date).toLocaleString('es-ES'),
     transaction.transactionType,
     transaction.vehicleName,
-    transaction.vehicleTag || 'N/A',
+    
     bookingNumber,
     transaction.description,
     isIncome ? transaction.amount.toFixed(2) : '',
