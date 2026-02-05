@@ -388,9 +388,13 @@ export class MetricsRepository implements IMetricsRepository {
               if (isCambioVehiculo) {
                 // IMPORTANTE: Los cambios de vehículo se suman al vehículo ANTERIOR (oldValue)
                 // porque es una penalización/compensación por rescindir el contrato del veh��culo anterior
-                if (!isOldVehicle) {
+                if (isOldVehicle) {
+                  // Este es el vehículo anterior (removido), NO sumar el ajuste de cambio
+                  this.logger.debug(`[getVehicleFinancialDetails] Vehículo ${vehicleId} es el ANTERIOR (removido), NO se suma ajuste de cambio: ${adjustment.eventName} = ${adjustment.amount}`);
+                } else {
+                  // Este es el vehículo nuevo (que entra), SUMAR el ajuste de cambio
                   vehicleAdjustments += adjustment.amount;
-                  this.logger.debug(`[getVehicleFinancialDetails] Ajuste de cambio de vehículo para vehículo anterior ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount}`);
+                  this.logger.debug(`[getVehicleFinancialDetails] Ajuste de cambio de vehículo para vehículo NUEVO ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount}`);
                 }
               } else {
                 // Otros ajustes (extensiones, combustible, etc.) se suman al vehículo correspondiente
