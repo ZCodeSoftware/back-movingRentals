@@ -218,13 +218,9 @@ export class MetricsRepository implements IMetricsRepository {
       };
     }
 
-    // CORRECCIÓN CRÍTICA: Filtrar por createdAt para excluir reservas creadas DESPUÉS del rango
-    // Permitir reservas creadas ANTES del inicio del rango (para incluir servicios que empiezan en el rango)
-    // Pero EXCLUIR reservas creadas DESPUÉS del fin del rango
-    if (dateFilter && dateFilter.$lt) {
-      // Solo aplicar el límite superior (excluir reservas creadas después del rango)
-      incomeMatch.createdAt = { $lt: dateFilter.$lt };
-    }
+    // CORRECCIÓN CRÍTICA: NO filtrar por createdAt aquí
+    // El filtro de fecha se aplicará después, basándose en la fecha de pago aprobado
+    // Esto permite incluir reservas creadas fuera del rango si el pago se aprobó dentro del rango
     
     const bookings = await this.bookingModel.find(incomeMatch).populate('paymentMethod').lean();
     
@@ -236,12 +232,23 @@ export class MetricsRepository implements IMetricsRepository {
     const contractsMap = new Map();
     
     if (bookingIds.length > 0) {
+      // CORRECCIÓN: El campo booking puede ser un ObjectId O un objeto poblado
+      // Intentar ambas formas de búsqueda
       const contracts = await this.contractModel.find({
-        booking: { $in: bookingIds }
+        $or: [
+          { booking: { $in: bookingIds } },
+          { 'booking._id': { $in: bookingIds } }
+        ]
       }).lean();
       
+      this.logger.debug(`[getVehicleFinancialDetails] Contratos encontrados: ${contracts.length} de ${bookingIds.length} bookings`);
+      
       for (const contract of contracts) {
-        contractsMap.set((contract as any).booking.toString(), contract);
+        // El booking puede ser un ObjectId o un objeto poblado
+        const bookingId = (contract as any).booking?._id 
+          ? (contract as any).booking._id.toString() 
+          : (contract as any).booking.toString();
+        contractsMap.set(bookingId, contract);
       }
     }
 
@@ -371,13 +378,85 @@ export class MetricsRepository implements IMetricsRepository {
         
         // IMPORTANTE: Sumar los ajustes (cambios de vehículo, extensiones, combustible, etc.)
         // Los ajustes están en booking.bookingTotals.adjustments
-        // Los ajustes de CAMBIO DE VEHICULO se suman al vehículo ANTERIOR (oldValue)
+        // Los ajustes de CAMBIO DE VEHICULO se suman al vehículo NUEVO (que entra)
         // Las extensiones y otros ajustes se suman al vehículo correspondiente
         let vehicleAdjustments = 0;
         const bookingTotals = (booking as any).bookingTotals;
         
-        if (bookingTotals && bookingTotals.adjustments && Array.isArray(bookingTotals.adjustments)) {
-          for (const adjustment of bookingTotals.adjustments) {
+        this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: bookingTotals existe? ${!!bookingTotals}, adjustments existe? ${!!bookingTotals?.adjustments}, es array? ${Array.isArray(bookingTotals?.adjustments)}, length: ${bookingTotals?.adjustments?.length || 0}`);
+        
+        // CORRECCIÓN: Los ajustes pueden estar en bookingTotals.adjustments O en contract_history
+        // Intentar primero desde bookingTotals, si no existe, buscar en contract_history
+        let adjustmentsToProcess: any[] = [];
+        
+        if (bookingTotals && bookingTotals.adjustments && Array.isArray(bookingTotals.adjustments) && bookingTotals.adjustments.length > 0) {
+          // Caso 1: Ajustes en bookingTotals (estructura nueva)
+          adjustmentsToProcess = bookingTotals.adjustments;
+          this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Usando ajustes de bookingTotals (${adjustmentsToProcess.length} ajustes)`);
+        } else {
+          // Caso 2: Buscar ajustes en contract_history (estructura antigua)
+          const contract = contractsMap.get((booking as any)._id.toString());
+          if (contract) {
+            try {
+              // Buscar eventos de tipo "CAMBIO DE VEHICULO" y "COMBUSTIBLE PAGADO POR CLIENTE"
+              const adjustmentEvents = await this.catContractEventModel.find({
+                name: { $in: ['CAMBIO DE VEHICULO', 'COMBUSTIBLE PAGADO POR CLIENTE', 'EXTENSION'] }
+              }).lean();
+              
+              const adjustmentEventIds = adjustmentEvents.map((e: any) => e._id);
+              
+              if (adjustmentEventIds.length > 0) {
+                const historyAdjustments = await this.contractHistoryModel.find({
+                  contract: (contract as any)._id,
+                  eventType: { $in: adjustmentEventIds },
+                  isDeleted: { $ne: true },
+                  'eventMetadata.amount': { $exists: true }
+                }).lean();
+                
+                // Convertir a formato de adjustments
+                for (const historyItem of historyAdjustments) {
+                  const eventType = adjustmentEvents.find((e: any) => e._id.toString() === (historyItem as any).eventType.toString());
+                  adjustmentsToProcess.push({
+                    eventType: (historyItem as any).eventType,
+                    eventName: eventType ? (eventType as any).name : 'AJUSTE',
+                    amount: (historyItem as any).eventMetadata?.amount || 0,
+                    direction: 'IN',
+                    date: (historyItem as any).createdAt
+                  });
+                }
+                
+                this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Usando ajustes de contract_history (${adjustmentsToProcess.length} ajustes)`);
+              }
+            } catch (error) {
+              this.logger.warn(`[getVehicleFinancialDetails] Error al buscar ajustes en contract_history para reserva #${(booking as any).bookingNumber}:`, error);
+            }
+          }
+        }
+        
+        // CORRECCIÓN FINAL: Si no hay ajustes en bookingTotals ni en contract_history,
+        // calcular los ajustes como la diferencia entre totalPaid y total
+        if (adjustmentsToProcess.length === 0) {
+          const totalPaid = (booking as any).totalPaid || 0;
+          const bookingTotal = (booking as any).total || 0;
+          const adjustmentAmount = totalPaid - bookingTotal;
+          
+          if (adjustmentAmount > 0) {
+            // Hay una diferencia positiva - esto son ajustes no documentados
+            adjustmentsToProcess.push({
+              eventType: null,
+              eventName: 'AJUSTE (calculado desde totalPaid)',
+              amount: adjustmentAmount,
+              direction: 'IN',
+              date: (booking as any).updatedAt || (booking as any).createdAt
+            });
+            
+            this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Ajuste calculado desde totalPaid: ${adjustmentAmount} (totalPaid=${totalPaid}, total=${bookingTotal})`);
+          }
+        }
+        
+        if (adjustmentsToProcess.length > 0) {
+          this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Procesando ${adjustmentsToProcess.length} ajustes`);
+          for (const adjustment of adjustmentsToProcess) {
             // Solo sumar ajustes de tipo "IN" (ingresos adicionales)
             if (adjustment.direction === 'IN' && adjustment.amount > 0) {
               // Verificar si es un cambio de vehículo
@@ -500,8 +579,8 @@ export class MetricsRepository implements IMetricsRepository {
               const firstPaidPayment = payments.find((p: any) => p.status === 'PAID');
               const paymentDate = firstPaidPayment ? new Date(firstPaidPayment.paymentDate) : createdAt;
               
-              // CORRECCIÓN: Usar el monto del vehículo multiplicado por la proporción de tiempo
-              const proratedAmount = vehicleItemTotal * vehicleProportion;
+              // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
+              const proratedAmount = totalVehicleAmount * vehicleProportion;
               
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
@@ -528,9 +607,10 @@ export class MetricsRepository implements IMetricsRepository {
               const firstPaidPayment = payments.find((p: any) => p.status === 'PAID');
               effectiveDate = firstPaidPayment ? new Date(firstPaidPayment.paymentDate) : new Date((booking as any).createdAt);
               
-              const proratedAmount = vehicleItemTotal * vehicleProportion;
+              // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
+              const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
               incomeDetails.push({
                 type: 'INCOME',
@@ -543,9 +623,10 @@ export class MetricsRepository implements IMetricsRepository {
               // CRÉDITO/DÉBITO y OTROS: Fecha de carga (createdAt)
               effectiveDate = new Date((booking as any).createdAt);
               
-              const proratedAmount = vehicleItemTotal * vehicleProportion;
+              // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
+              const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${vehicleItemTotal} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
+              this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
               incomeDetails.push({
                 type: 'INCOME',
@@ -671,12 +752,37 @@ export class MetricsRepository implements IMetricsRepository {
     }
     this.logger.log(`[getVehicleFinancialDetails] ===== FIN LISTADO DE RESERVAS =====`);
 
-    // --- 4. COMBINAR Y ORDENAR LOS RESULTADOS ---
-    const combinedTransactions = [...incomeDetails, ...expenseDetails];
+    // --- 4. FILTRAR TRANSACCIONES POR FECHA DE PAGO ---
+    // IMPORTANTE: Filtrar por la fecha de la transacción (fecha de pago aprobado)
+    // NO por la fecha de creación de la reserva
+    let filteredIncomeDetails = incomeDetails;
+    let filteredExpenseDetails = expenseDetails;
+    
+    if (dateFilter) {
+      this.logger.debug(`[getVehicleFinancialDetails] Filtrando transacciones por fecha de pago: ${JSON.stringify(dateFilter)}`);
+      
+      filteredIncomeDetails = incomeDetails.filter(t => {
+        const transactionDate = new Date(t.date);
+        const inRange = transactionDate >= dateFilter.$gte && transactionDate < dateFilter.$lt;
+        
+        if (!inRange) {
+          this.logger.debug(`[getVehicleFinancialDetails] Transacción EXCLUIDA: ${t.description} (fecha: ${transactionDate.toISOString()})`);
+        }
+        
+        return inRange;
+      });
+      
+      // Los gastos ya están filtrados por fecha en la consulta inicial
+    }
+    
+    this.logger.log(`[getVehicleFinancialDetails] Transacciones de ingreso después del filtro de fecha: ${filteredIncomeDetails.length} de ${incomeDetails.length}`);
+    
+    // --- 5. COMBINAR Y ORDENAR LOS RESULTADOS ---
+    const combinedTransactions = [...filteredIncomeDetails, ...filteredExpenseDetails];
     combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const totalIncome = incomeDetails.reduce((sum, t) => sum + t.amount, 0);
-    const totalExpenses = expenseDetails.reduce((sum, t) => sum + t.amount, 0);
+    const totalIncome = filteredIncomeDetails.reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = filteredExpenseDetails.reduce((sum, t) => sum + t.amount, 0);
     this.logger.log(`[getVehicleFinancialDetails] ===== TOTALES =====`);
     this.logger.log(`[getVehicleFinancialDetails] Ingresos: ${totalIncome.toFixed(2)}`);
     this.logger.log(`[getVehicleFinancialDetails] Gastos: ${totalExpenses.toFixed(2)}`);
