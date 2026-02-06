@@ -85,6 +85,9 @@ export type TransactionDetail = {
   services?: string; // Para INGRESOS: servicios incluidos, Para EGRESOS: vehículo asociado
   paymentMethod?: string; // Método de pago/ingreso
   paymentMedium?: string; // Medio de pago (US$, E$, CAN, GBP, CLIP, CUENTA, etc.)
+  rentalStartDate?: Date; // Fecha de inicio de la renta (solo para INCOME)
+  rentalEndDate?: Date; // Fecha de fin de la renta (solo para INCOME)
+  rentalDays?: number; // Número de días de renta (solo para INCOME)
 };
 
 export interface VehicleExpenses {

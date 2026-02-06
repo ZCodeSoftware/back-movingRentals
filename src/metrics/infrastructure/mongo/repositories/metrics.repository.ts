@@ -510,6 +510,7 @@ export class MetricsRepository implements IMetricsRepository {
 
         // Obtener la proporción de uso del vehículo si hubo cambios
         let vehicleProportion = 1.0;
+        let adjustedVehicleDates = vehicleDates; // Fechas ajustadas si hay cambio de vehículo
         const contract = contractsMap.get((booking as any)._id.toString());
         
         if (contract) {
@@ -525,6 +526,8 @@ export class MetricsRepository implements IMetricsRepository {
         
         if (proportionInfo) {
         vehicleProportion = proportionInfo.proportion;
+        // IMPORTANTE: Usar las fechas ajustadas del proportionInfo para calcular los días reales
+        adjustedVehicleDates = proportionInfo.dates;
         this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Proporción calculada: ${vehicleProportion.toFixed(2)} (${proportionInfo.dates.start.toISOString()} a ${proportionInfo.dates.end.toISOString()})`);
         } else {
         this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: No se pudo calcular proporción, usando 1.0`);
@@ -550,12 +553,20 @@ export class MetricsRepository implements IMetricsRepository {
           
           this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
           
+          // CORRECCIÓN: Mostrar días de renta con decimales para mayor precisión (ej: 3.16 días)
+          const rentalDays = adjustedVehicleDates 
+            ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+            : 0;
+          
           incomeDetails.push({
             type: 'INCOME',
             date: createdAt,
             amount: Math.round(proratedAmount * 100) / 100,
             description: `Pago - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
             sourceId: (booking as any)._id.toString(),
+            rentalStartDate: adjustedVehicleDates?.start,
+            rentalEndDate: adjustedVehicleDates?.end,
+            rentalDays
           });
         } else if (payments.length > 0) {
           // CORRECCIÓN: Para reservas CON payments, generar UN SOLO ingreso por reserva
@@ -585,6 +596,12 @@ export class MetricsRepository implements IMetricsRepository {
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
               
+              // CORRECCIÓN: Usar adjustedVehicleDates (fechas reales de uso) en lugar de vehicleDates (fechas originales)
+              // Mostrar días con decimales (ej: 3.17 días) en lugar de redondear
+              const rentalDays = adjustedVehicleDates 
+                ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+                : 0;
+              
               // 20% en fecha de carga
               incomeDetails.push({
                 type: 'INCOME',
@@ -592,6 +609,9 @@ export class MetricsRepository implements IMetricsRepository {
                 amount: Math.round(amount20 * 100) / 100,
                 description: `Efectivo 20% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
                 sourceId: (booking as any)._id.toString(),
+                rentalStartDate: adjustedVehicleDates?.start,
+                rentalEndDate: adjustedVehicleDates?.end,
+                rentalDays
               });
               
               // 80% en fecha de aprobación
@@ -601,6 +621,9 @@ export class MetricsRepository implements IMetricsRepository {
                 amount: Math.round(amount80 * 100) / 100,
                 description: `Efectivo 80% - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
                 sourceId: (booking as any)._id.toString(),
+                rentalStartDate: adjustedVehicleDates?.start,
+                rentalEndDate: adjustedVehicleDates?.end,
+                rentalDays
               });
             } else if (paymentType === 'TRANSFER' || paymentMethod.includes('TRANSFERENCIA')) {
               // TRANSFERENCIA: Fecha de aprobación (paymentDate del primer pago PAID)
@@ -610,6 +633,12 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
+              // CORRECCIÓN: Usar adjustedVehicleDates (fechas reales de uso) en lugar de vehicleDates (fechas originales)
+              // Mostrar días con decimales (ej: 3.17 días) en lugar de redondear
+              const rentalDays = adjustedVehicleDates 
+                ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+                : 0;
+              
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
               incomeDetails.push({
@@ -618,6 +647,9 @@ export class MetricsRepository implements IMetricsRepository {
                 amount: Math.round(proratedAmount * 100) / 100,
                 description: `Transferencia - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
                 sourceId: (booking as any)._id.toString(),
+                rentalStartDate: adjustedVehicleDates?.start,
+                rentalEndDate: adjustedVehicleDates?.end,
+                rentalDays
               });
             } else {
               // CRÉDITO/DÉBITO y OTROS: Fecha de carga (createdAt)
@@ -625,6 +657,12 @@ export class MetricsRepository implements IMetricsRepository {
               
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
+              
+              // CORRECCIÓN: Usar adjustedVehicleDates (fechas reales de uso) en lugar de vehicleDates (fechas originales)
+              // Mostrar días con decimales (ej: 3.17 días) en lugar de redondear
+              const rentalDays = adjustedVehicleDates 
+                ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+                : 0;
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
@@ -634,6 +672,9 @@ export class MetricsRepository implements IMetricsRepository {
                 amount: Math.round(proratedAmount * 100) / 100,
                 description: `Pago - Reserva #${(booking as any).bookingNumber}${vehicleProportion < 1 ? ` (${(vehicleProportion * 100).toFixed(0)}% del período)` : ''}`,
                 sourceId: (booking as any)._id.toString(),
+                rentalStartDate: adjustedVehicleDates?.start,
+                rentalEndDate: adjustedVehicleDates?.end,
+                rentalDays
               });
             }
           }
@@ -644,37 +685,10 @@ export class MetricsRepository implements IMetricsRepository {
     }
 
     // --- 3. OBTENER EXTENSIONES DEL VEHÍCULO ---
-    try {
-      const contracts = await this.contractModel.find({ 
-        vehicle: new mongoose.Types.ObjectId(vehicleId) 
-      }).select('_id');
-      
-      const contractIds = contracts.map(c => c._id);
-      
-      if (contractIds.length > 0) {
-        const extensions = await this.contractHistoryModel.find({
-          contract: { $in: contractIds },
-          action: 'EXTENSION_UPDATED',
-          isDeleted: { $ne: true },
-          'eventMetadata.amount': { $exists: true, $gt: 0 }
-        }).lean();
-        
-        for (const extension of extensions) {
-          const extensionDate = new Date((extension as any).createdAt);
-          const extensionAmount = (extension as any).eventMetadata?.amount || 0;
-          
-          incomeDetails.push({
-            type: 'INCOME',
-            date: extensionDate,
-            amount: extensionAmount,
-            description: `Extensión de Renta - Contrato`,
-            sourceId: (extension as any)._id.toString(),
-          });
-        }
-      }
-    } catch (error) {
-      this.logger.warn(`Error al procesar extensiones del vehículo ${vehicleId}:`, error);
-    }
+    // CORRECCIÓN: Las extensiones ya se procesan en el loop de bookings como ajustes
+    // NO necesitamos buscarlas por separado porque ya están incluidas en bookingTotals.adjustments
+    // o en contract_history como eventos de tipo EXTENSION
+    // Eliminar esta sección para evitar duplicados
 
     this.logger.log(`[getVehicleFinancialDetails] ===== RESUMEN =====`);
     this.logger.log(`[getVehicleFinancialDetails] Total reservas analizadas: ${bookings.length}`);
@@ -761,9 +775,14 @@ export class MetricsRepository implements IMetricsRepository {
     if (dateFilter) {
       this.logger.debug(`[getVehicleFinancialDetails] Filtrando transacciones por fecha de pago: ${JSON.stringify(dateFilter)}`);
       
+      // CORRECCIÓN: Usar <= en lugar de < para incluir el último día del rango
+      // Por ejemplo, si el rango es 2025-10-01 a 2025-12-31, debe incluir todo el 31 de diciembre
+      const endDate = new Date(dateFilter.$lt);
+      endDate.setHours(23, 59, 59, 999); // Incluir todo el último día
+      
       filteredIncomeDetails = incomeDetails.filter(t => {
         const transactionDate = new Date(t.date);
-        const inRange = transactionDate >= dateFilter.$gte && transactionDate < dateFilter.$lt;
+        const inRange = transactionDate >= dateFilter.$gte && transactionDate <= endDate;
         
         if (!inRange) {
           this.logger.debug(`[getVehicleFinancialDetails] Transacción EXCLUIDA: ${t.description} (fecha: ${transactionDate.toISOString()})`);
@@ -901,23 +920,18 @@ export class MetricsRepository implements IMetricsRepository {
                 
                 vehicleEndDate = effectiveEndDate;
                 
-                // Para calcular la proporción, necesitamos las fechas totales de la renta
-                // El período total es desde el inicio del vehículo removido hasta el fin del vehículo nuevo
-                if (newVehicles.length > 0 && newVehicles[0].dates?.end) {
-                  totalRentalStartDate = vehicleStartDate;
-                  totalRentalEndDate = new Date(newVehicles[0].dates.end);
-                } else if (vehicleInOld.dates?.end) {
-                  // Si no hay vehículo nuevo, usar las fechas originales del vehículo removido
-                  totalRentalStartDate = vehicleStartDate;
-                  totalRentalEndDate = vehicleOriginalEnd;
-                }
+                // CORRECCIÓN CRÍTICA: Para calcular la proporción correctamente, el período total debe ser
+                // desde el inicio del vehículo removido hasta CUANDO FUE REEMPLAZADO (effectiveEndDate)
+                // NO hasta su fecha fin original, porque el vehículo fue reemplazado antes
+                totalRentalStartDate = vehicleStartDate;
+                totalRentalEndDate = effectiveEndDate; // USAR effectiveEndDate en lugar de vehicleOriginalEnd
                 
                 this.logger.debug(`[calculateVehicleProportionFromChanges] Vehículo ${vehicleId} REMOVIDO:`);
                 this.logger.debug(`  - Fecha inicio original: ${vehicleStartDate.toISOString()}`);
                 this.logger.debug(`  - Fecha fin original: ${vehicleInOld.dates?.end}`);
                 this.logger.debug(`  - Fecha del cambio (timestamp): ${changeDate.toISOString()}`);
-                this.logger.debug(`  - Fecha fin efectiva: ${vehicleEndDate.toISOString()}`);
-                this.logger.debug(`  - Período real de uso: ${vehicleStartDate.toISOString()} a ${vehicleEndDate.toISOString()}`);
+                this.logger.debug(`  - Fecha fin efectiva (cuando fue reemplazado): ${vehicleEndDate.toISOString()}`);
+                this.logger.debug(`  - Período total para proporción: ${vehicleStartDate.toISOString()} a ${totalRentalEndDate.toISOString()}`);
                 this.logger.debug(`  - Total base: ${vehicleTotal}`);
               }
             } else if (!wasInOld && isInNew) {
@@ -982,6 +996,20 @@ export class MetricsRepository implements IMetricsRepository {
       if (vehicleHours < 0) {
         this.logger.warn(`[calculateVehicleProportionFromChanges] Fechas invertidas para vehículo ${vehicleId}: start=${vehicleStartDate.toISOString()}, end=${vehicleEndDate.toISOString()}`);
         return null;
+      }
+      
+      // CORRECCIÓN: Si el vehículo tuvo 0 horas de uso (cambio inmediato/error), retornar proporción 0
+      // Esto evita incluir reservas donde se equivocaron de vehículo y lo cambiaron al instante
+      if (vehicleHours === 0) {
+        this.logger.debug(`[calculateVehicleProportionFromChanges] Vehículo ${vehicleId} con 0 horas de uso (cambio inmediato), retornando proporción 0`);
+        return {
+          proportion: 0,
+          vehicleTotal,
+          dates: {
+            start: vehicleStartDate,
+            end: vehicleEndDate
+          }
+        };
       }
       
       // Calcular la duración total de la renta
@@ -3296,7 +3324,15 @@ export class MetricsRepository implements IMetricsRepository {
     }
     }
     
-    const rentalDays = uniqueBookings.size;
+    // CORRECCIÓN: Sumar los días de todas las reservas de este vehículo
+    // Calcular desde los bookings procesados para este vehículo
+    const vehicleBookings = allBookingsData.filter(b => b.vehicleName === vehicle.name);
+    const rentalDays = vehicleBookings.reduce((sum, b) => sum + (b.rentalDays || 0), 0);
+    
+    this.logger.debug(`[exportOwnerReport] Vehículo ${vehicle.name}: ${vehicleBookings.length} reservas encontradas en allBookingsData`);
+    this.logger.debug(`[exportOwnerReport] Días por reserva: ${vehicleBookings.map(b => `#${b.bookingNumber}=${b.rentalDays}d`).join(', ')}`);
+    this.logger.debug(`[exportOwnerReport] Total días calculado: ${rentalDays}`);
+    
     const income = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
     const expenses = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
     const net = income - expenses;
