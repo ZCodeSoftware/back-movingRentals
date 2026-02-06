@@ -920,11 +920,12 @@ export class MetricsRepository implements IMetricsRepository {
                 
                 vehicleEndDate = effectiveEndDate;
                 
-                // CORRECCIÓN CRÍTICA: Para calcular la proporción correctamente, el período total debe ser
-                // desde el inicio del vehículo removido hasta CUANDO FUE REEMPLAZADO (effectiveEndDate)
-                // NO hasta su fecha fin original, porque el vehículo fue reemplazado antes
+                // CORRECCIÓN CRÍTICA: Para calcular la proporción correctamente:
+                // - El período del vehículo es desde su inicio hasta cuando fue reemplazado (effectiveEndDate)
+                // - El período total es desde el inicio del vehículo hasta su fecha fin ORIGINAL (no la fecha de reemplazo)
+                // Esto permite calcular correctamente la proporción de tiempo que el vehículo estuvo en uso
                 totalRentalStartDate = vehicleStartDate;
-                totalRentalEndDate = effectiveEndDate; // USAR effectiveEndDate en lugar de vehicleOriginalEnd
+                totalRentalEndDate = vehicleOriginalEnd; // USAR vehicleOriginalEnd para el período total
                 
                 this.logger.debug(`[calculateVehicleProportionFromChanges] Vehículo ${vehicleId} REMOVIDO:`);
                 this.logger.debug(`  - Fecha inicio original: ${vehicleStartDate.toISOString()}`);
@@ -3260,12 +3261,102 @@ export class MetricsRepository implements IMetricsRepository {
     }
     }
     
-    // Calcular días de renta
+    // CORRECCIÓN CRÍTICA: Ajustar fechas considerando extensiones y cambios de vehículo
+    // Las extensiones modifican la fecha de fin, pero NO actualizan las fechas en el carrito
+    // Los cambios de vehículo modifican las fechas de inicio/fin según cuándo ocurrió el cambio
+    const contract = contracts.find((c: any) => c.booking.toString() === (booking as any)._id.toString());
+    
+    if (contract && vehicleDates) {
+    // 1. Verificar si hay extensión
+    const extension = (contract as any).extension;
+    if (extension && extension.newEndDateTime) {
+    const extensionEndDate = new Date(extension.newEndDateTime);
+    const originalEndDate = new Date(vehicleDates.end);
+    
+    // Si la extensión es posterior a la fecha original, actualizar la fecha de fin
+    if (extensionEndDate > originalEndDate) {
+    this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}: Extensión detectada, actualizando fecha fin de ${vehicleDates.end} a ${extension.newEndDateTime}`);
+    vehicleDates = {
+    ...vehicleDates,
+    end: extension.newEndDateTime
+    };
+    }
+    }
+    
+    // 2. Verificar si hay cambios de vehículo que afecten las fechas
+    const snapshots = (contract as any).snapshots || [];
+    const vehicleChanges = snapshots.filter((snapshot: any) => {
+    const changes = snapshot.changes || [];
+    return changes.some((change: any) => change.field === 'booking.cart.vehicles');
+    });
+    
+    if (vehicleChanges.length > 0) {
+    // Calcular las fechas ajustadas basándose en los cambios
+    for (const change of vehicleChanges) {
+    const changes = (change as any).changes || [];
+    for (const changeDetail of changes) {
+    if (changeDetail.field === 'booking.cart.vehicles') {
+    const oldVehicles = changeDetail.oldValue || [];
+    const newVehicles = changeDetail.newValue || [];
+    
+    // Verificar si este vehículo fue removido (estaba en oldValue)
+    const wasRemoved = oldVehicles.some((v: any) => {
+    const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+    return vId === vehicle._id.toString();
+    });
+    
+    // Verificar si este vehículo fue agregado (está en newValue)
+    const wasAdded = newVehicles.some((v: any) => {
+    const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+    return vId === vehicle._id.toString();
+    });
+    
+    if (wasRemoved && !wasAdded) {
+    // El vehículo fue REMOVIDO - usar la fecha de inicio del vehículo de reemplazo como fecha de fin
+    if (newVehicles.length > 0 && newVehicles[0].dates?.start) {
+    const replacementStartDate = new Date(newVehicles[0].dates.start);
+    const originalStartDate = new Date(vehicleDates.start);
+    const originalEndDate = new Date(vehicleDates.end);
+    
+    // Validar que la fecha de reemplazo esté entre el inicio y fin del vehículo
+    if (replacementStartDate >= originalStartDate && replacementStartDate <= originalEndDate) {
+    this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}: Vehículo ${vehicle.name} removido, ajustando fecha fin a ${replacementStartDate.toISOString()}`);
+    vehicleDates = {
+    ...vehicleDates,
+    end: replacementStartDate.toISOString()
+    };
+    }
+    }
+    } else if (wasAdded && !wasRemoved) {
+    // El vehículo fue AGREGADO - las fechas en newValue ya son correctas
+    const addedVehicle = newVehicles.find((v: any) => {
+    const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+    return vId === vehicle._id.toString();
+    });
+    
+    if (addedVehicle && addedVehicle.dates) {
+    this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}: Vehículo ${vehicle.name} agregado, usando fechas del carrito`);
+    vehicleDates = addedVehicle.dates;
+    }
+    }
+    }
+    }
+    }
+    }
+    }
+    
+    // Calcular días de renta con decimales (más preciso)
+    // IMPORTANTE: Usar las fechas REALES de uso del vehículo, considerando cambios y extensiones
     let rentalDays = 0;
     if (vehicleDates?.start && vehicleDates?.end) {
     const start = new Date(vehicleDates.start);
     const end = new Date(vehicleDates.end);
-    rentalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // CORRECCIÓN: Calcular días con 2 decimales de precisión (ej: 3.17 días)
+    // NO redondear hacia arriba con Math.ceil
+    rentalDays = Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100;
+    
+    this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}, Vehículo ${vehicle.name}: ${rentalDays} días (${start.toISOString()} a ${end.toISOString()})`);
     }
     
     // Obtener información del cliente desde el contrato
