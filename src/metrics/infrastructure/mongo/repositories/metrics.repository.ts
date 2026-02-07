@@ -398,9 +398,10 @@ export class MetricsRepository implements IMetricsRepository {
           const contract = contractsMap.get((booking as any)._id.toString());
           if (contract) {
             try {
-              // Buscar eventos de tipo "CAMBIO DE VEHICULO" y "COMBUSTIBLE PAGADO POR CLIENTE"
+              // Buscar eventos de tipo "CAMBIO DE VEHICULO" y "EXTENSION"
+              // IMPORTANTE: NO incluir "COMBUSTIBLE PAGADO POR CLIENTE" porque no es ingreso del propietario
               const adjustmentEvents = await this.catContractEventModel.find({
-                name: { $in: ['CAMBIO DE VEHICULO', 'COMBUSTIBLE PAGADO POR CLIENTE', 'EXTENSION'] }
+                name: { $in: ['CAMBIO DE VEHICULO', 'EXTENSION DE RENTA'] }
               }).lean();
               
               const adjustmentEventIds = adjustmentEvents.map((e: any) => e._id);
@@ -775,14 +776,11 @@ export class MetricsRepository implements IMetricsRepository {
     if (dateFilter) {
       this.logger.debug(`[getVehicleFinancialDetails] Filtrando transacciones por fecha de pago: ${JSON.stringify(dateFilter)}`);
       
-      // CORRECCIÓN: Usar <= en lugar de < para incluir el último día del rango
-      // Por ejemplo, si el rango es 2025-10-01 a 2025-12-31, debe incluir todo el 31 de diciembre
-      const endDate = new Date(dateFilter.$lt);
-      endDate.setHours(23, 59, 59, 999); // Incluir todo el último día
-      
+      // El frontend ya envía la fecha de fin ajustada (23:59:59.999 UTC)
+      // Usar directamente dateFilter.$lt sin ajustes adicionales
       filteredIncomeDetails = incomeDetails.filter(t => {
         const transactionDate = new Date(t.date);
-        const inRange = transactionDate >= dateFilter.$gte && transactionDate <= endDate;
+        const inRange = transactionDate >= dateFilter.$gte && transactionDate < dateFilter.$lt;
         
         if (!inRange) {
           this.logger.debug(`[getVehicleFinancialDetails] Transacción EXCLUIDA: ${t.description} (fecha: ${transactionDate.toISOString()})`);
@@ -2526,6 +2524,8 @@ export class MetricsRepository implements IMetricsRepository {
       case 'range':
         if (dateFilter.startDate && dateFilter.endDate) {
           start = dateFilter.startDate;
+          // El frontend ya envía la fecha de fin ajustada (23:59:59.999)
+          // No necesitamos ajustarla nuevamente aquí
           end = dateFilter.endDate;
         } else {
           return null;
@@ -3521,7 +3521,6 @@ export class MetricsRepository implements IMetricsRepository {
     bookingsDetailData.push([
     booking.bookingNumber || 'N/A',
     booking.vehicleName,
-    
     booking.clientName,
     booking.clientEmail,
     booking.clientPhone,
@@ -3612,7 +3611,6 @@ export class MetricsRepository implements IMetricsRepository {
     
     incomeDetailData.push([
     transaction.vehicleName,
-    
     bookingNumber,
     new Date(transaction.date).toLocaleString('es-ES'),
     transaction.description,
@@ -3668,7 +3666,6 @@ export class MetricsRepository implements IMetricsRepository {
     
     vehicleSummaryData.push([
     vehicleData.vehicleName,
-    
     vehicleData.rentalDays,
     vehicleData.rentalDays, // Días totales = número de reservas en este contexto
     vehicleData.income.toFixed(2),
@@ -3724,7 +3721,6 @@ export class MetricsRepository implements IMetricsRepository {
     new Date(transaction.date).toLocaleString('es-ES'),
     transaction.transactionType,
     transaction.vehicleName,
-    
     bookingNumber,
     transaction.description,
     isIncome ? transaction.amount.toFixed(2) : '',
