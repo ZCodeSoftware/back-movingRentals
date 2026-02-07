@@ -1,0 +1,22 @@
+﻿if (adjustmentsToProcess.length > 0) {
+          this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Procesando ${adjustmentsToProcess.length} ajustes`);
+          for (const adjustment of adjustmentsToProcess) {
+            // Solo sumar ajustes de tipo "IN" (ingresos adicionales)
+            if (adjustment.direction === 'IN' && adjustment.amount > 0) {
+              // Verificar si es un cambio de vehÃ­culo
+              const isCambioVehiculo = adjustment.eventName && 
+                                      (adjustment.eventName.includes('CAMBIO') || 
+                                       adjustment.eventName.includes('VEHICLE'));
+              
+              if (isCambioVehiculo) {
+                // IMPORTANTE: Los cambios de vehÃ­culo se suman al vehÃ­culo ANTERIOR (oldValue)
+                // porque es una penalizaciÃ³n/compensaciÃ³n por rescindir el contrato del vehï¿½ï¿½culo anterior
+                if (isOldVehicle) {
+                  // Este es el vehÃ­culo anterior (removido), NO sumar el ajuste de cambio
+                  this.logger.debug(`[getVehicleFinancialDetails] VehÃ­culo ${vehicleId} es el ANTERIOR (removido), NO se suma ajuste de cambio: ${adjustment.eventName} = ${adjustment.amount}`);
+                } else {
+                  // Este es el vehÃ­culo nuevo (que entra), SUMAR el ajuste de cambio
+                  vehicleAdjustments += adjustment.amount;
+                  this.logger.debug(`[getVehicleFinancialDetails] Ajuste de cambio de vehÃ­culo para vehÃ­culo NUEVO ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount}`);
+                }
+              }

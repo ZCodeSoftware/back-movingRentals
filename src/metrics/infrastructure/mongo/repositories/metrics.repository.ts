@@ -460,6 +460,26 @@ export class MetricsRepository implements IMetricsRepository {
           for (const adjustment of adjustmentsToProcess) {
             // Solo sumar ajustes de tipo "IN" (ingresos adicionales)
             if (adjustment.direction === 'IN' && adjustment.amount > 0) {
+              // CORRECCIÓN CRÍTICA: Verificar si la fecha del ajuste está dentro del rango de filtro
+              // Los ajustes tienen una fecha (adjustment.date) que debe estar dentro del período filtrado
+              let adjustmentInRange = true;
+              if (dateFilter) {
+              // Si hay filtro de fecha, el ajuste DEBE tener fecha para ser incluido
+              if (!adjustment.date) {
+              adjustmentInRange = false;
+              this.logger.debug(`[getVehicleFinancialDetails] Ajuste EXCLUIDO por falta de fecha: ${adjustment.eventName} = ${adjustment.amount}`);
+              } else {
+              const adjustmentDate = new Date(adjustment.date);
+              adjustmentInRange = adjustmentDate >= dateFilter.$gte && adjustmentDate < dateFilter.$lt;
+              
+              if (!adjustmentInRange) {
+              this.logger.debug(`[getVehicleFinancialDetails] Ajuste EXCLUIDO por fecha: ${adjustment.eventName} = ${adjustment.amount} (fecha: ${adjustmentDate.toISOString()}, rango: ${dateFilter.$gte.toISOString()} a ${dateFilter.$lt.toISOString()})`);
+              }
+              }
+              }
+              
+              // Solo sumar el ajuste si está dentro del rango de fecha
+              if (adjustmentInRange) {
               // Verificar si es un cambio de vehículo
               const isCambioVehiculo = adjustment.eventName && 
                                       (adjustment.eventName.includes('CAMBIO') || 
@@ -474,12 +494,13 @@ export class MetricsRepository implements IMetricsRepository {
                 } else {
                   // Este es el vehículo nuevo (que entra), SUMAR el ajuste de cambio
                   vehicleAdjustments += adjustment.amount;
-                  this.logger.debug(`[getVehicleFinancialDetails] Ajuste de cambio de vehículo para vehículo NUEVO ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount}`);
+                  this.logger.debug(`[getVehicleFinancialDetails] Ajuste de cambio de vehículo para vehículo NUEVO ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount} (fecha: ${adjustment.date ? new Date(adjustment.date).toISOString() : 'N/A'})`);
                 }
               } else {
                 // Otros ajustes (extensiones, combustible, etc.) se suman al vehículo correspondiente
                 vehicleAdjustments += adjustment.amount;
-                this.logger.debug(`[getVehicleFinancialDetails] Ajuste encontrado para ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount}`);
+                this.logger.debug(`[getVehicleFinancialDetails] Ajuste encontrado para ${vehicleId}: ${adjustment.eventName} = ${adjustment.amount} (fecha: ${adjustment.date ? new Date(adjustment.date).toISOString() : 'N/A'})`);
+              }
               }
             }
           }
