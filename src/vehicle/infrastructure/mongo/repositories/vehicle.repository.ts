@@ -116,11 +116,16 @@ export class VehicleRepository implements IVehicleRepository {
     const filter: any = {};
 
     if (start && end) {
-      const bufferMs = 0;
+      // Buffer de 1 minuto para dar tiempo de limpieza/preparación del vehículo
+      // Esto evita que un vehículo que termina a las 09:02 esté disponible a las 09:03
+      const bufferMs = 1 * 60 * 1000; // 1 minuto en milisegundos
 
       const startWithBuffer = new Date(start.getTime() - bufferMs);
       const endWithBuffer = new Date(end.getTime() + bufferMs);
 
+      // Lógica estándar de solapamiento de intervalos:
+      // Dos rangos se solapan si: (reserva.start < búsqueda.end) AND (reserva.end > búsqueda.start)
+      // Usamos $not para excluir vehículos con reservas que se solapen
       filter.$or = [
         { reservations: { $exists: false } },
         { reservations: { $size: 0 } },
@@ -128,14 +133,8 @@ export class VehicleRepository implements IVehicleRepository {
           reservations: {
             $not: {
               $elemMatch: {
-                $or: [
-                  {
-                    start: { $lte: startWithBuffer },
-                    end: { $gte: endWithBuffer },
-                  },
-                  { start: { $gte: startWithBuffer, $lt: endWithBuffer } },
-                  { end: { $gt: startWithBuffer, $lte: endWithBuffer } },
-                ],
+                start: { $lt: endWithBuffer },
+                end: { $gt: startWithBuffer }
               },
             },
           },

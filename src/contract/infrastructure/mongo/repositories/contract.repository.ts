@@ -1702,68 +1702,82 @@ export class ContractRepository implements IContractRepository {
             const currentTotal = booking.total || 0;
             const currentTotalPaid = booking.totalPaid || 0;
             
-            // VERIFICAR SI ES UN EVENTO DE DELIVERY
-            const isDeliveryEvent = eventTypeIdFromPayload && 
-              await this.catContractEventModel.findById(eventTypeIdFromPayload)
-                .then(e => e && (e as any).name === 'DELIVERY');
+            // VERIFICAR EL TIPO DE EVENTO para determinar si debe sumarse al total
+            let shouldAddToTotal = false; // Por defecto NO sumar
+            let shouldAddToTotalPaid = false; // Por defecto NO sumar al totalPaid
             
-            // VERIFICAR SI EL DELIVERY YA ESTÁ INCLUIDO EN EL TOTAL
-            let shouldAddToTotal = true;
+            if (eventTypeIdFromPayload) {
+            const eventType = await this.catContractEventModel.findById(eventTypeIdFromPayload);
+            const eventName = eventType ? (eventType as any).name.toUpperCase() : '';
             
-            if (isDeliveryEvent) {
-              // Si es delivery, verificar si ya existe requiresDelivery en el booking
-              // Si ya existe, significa que el delivery ya fue incluido en el total original
-              if (booking.requiresDelivery && booking.deliveryCost && booking.deliveryCost > 0) {
-                console.log(
-                  '[ContractRepository][update] ⚠️ DELIVERY ya existe en el booking - NO sumar al total',
-                  {
-                    deliveryCostExistente: booking.deliveryCost,
-                    totalActual: currentTotal,
-                    tipoEvento: reasonForChange,
-                  },
-                );
-                shouldAddToTotal = false;
-              } else {
-                console.log(
-                  '[ContractRepository][update] ✅ DELIVERY nuevo - Sumar al total',
-                  {
-                    montoEvento: eventAmount,
-                    totalActual: currentTotal,
-                    tipoEvento: reasonForChange,
-                  },
-                );
-              }
-            }
+            console.log('[ContractRepository][update] Tipo de evento:', eventName);
             
-            // REGLA 1: Sumar al Total General SOLO si no está ya incluido
-            if (shouldAddToTotal) {
-              const newTotal = currentTotal + eventAmount;
-              booking.total = newTotal;
-              
-              console.log(
-                '[ContractRepository][update] Total General actualizado con evento:',
-                {
-                  anterior: currentTotal,
-                  montoEvento: eventAmount,
-                  nuevo: newTotal,
-                  tipoEvento: reasonForChange,
-                },
-              );
+            // SOLO sumar al total si es DELIVERY y NO está ya incluido
+            if (eventName === 'DELIVERY') {
+            if (booking.requiresDelivery && booking.deliveryCost && booking.deliveryCost > 0) {
+            console.log(
+            '[ContractRepository][update] ⚠️ DELIVERY ya existe en el booking - NO sumar al total',
+            {
+            deliveryCostExistente: booking.deliveryCost,
+            totalActual: currentTotal,
+            },
+            );
+            shouldAddToTotal = false;
             } else {
-              console.log(
-                '[ContractRepository][update] Total General NO actualizado (monto ya incluido):',
-                {
-                  totalActual: currentTotal,
-                  montoEvento: eventAmount,
-                  tipoEvento: reasonForChange,
-                },
-              );
+            console.log(
+            '[ContractRepository][update] ✅ DELIVERY nuevo - Sumar al total',
+            {
+            montoEvento: eventAmount,
+            totalActual: currentTotal,
+            },
+            );
+            shouldAddToTotal = true;
+            }
+            } else {
+            // Para eventos como COMBUSTIBLE, LLANTA, CRASH, etc.
+            // NO sumar al total de la reserva, pero SÍ al totalPaid si está APROBADO
+            console.log(
+            '[ContractRepository][update] ℹ️ Evento adicional (no modifica total de reserva):',
+            {
+            tipoEvento: eventName,
+            montoEvento: eventAmount,
+            totalActual: currentTotal,
+            },
+            );
+            shouldAddToTotal = false;
+            shouldAddToTotalPaid = true; // Estos eventos SÍ se suman al totalPaid
+            }
             }
             
-            // REGLA 2: Sumar al Total Pagado SOLO si el status es APROBADO Y si se sumó al total
+            // REGLA 1: Sumar al Total General SOLO si es DELIVERY nuevo
+            if (shouldAddToTotal) {
+            const newTotal = currentTotal + eventAmount;
+            booking.total = newTotal;
+            
+            console.log(
+            '[ContractRepository][update] Total General actualizado con evento:',
+            {
+            anterior: currentTotal,
+            montoEvento: eventAmount,
+            nuevo: newTotal,
+            tipoEvento: reasonForChange,
+            },
+            );
+            } else {
+            console.log(
+            '[ContractRepository][update] Total General NO actualizado:',
+            {
+            totalActual: currentTotal,
+            montoEvento: eventAmount,
+            tipoEvento: reasonForChange,
+            },
+            );
+            }
+            
+            // REGLA 2: Sumar al Total Pagado SOLO si el status es APROBADO
             const statusToCheck = contractUpdateData.status || originalContract.status;
             
-            if (statusToCheck && shouldAddToTotal) {
+            if (statusToCheck && (shouldAddToTotal || shouldAddToTotalPaid)) {
               // Convertir a string si es un ObjectId
               const statusId = typeof statusToCheck === 'string' 
                 ? statusToCheck 
