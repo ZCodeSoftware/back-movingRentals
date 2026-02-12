@@ -60,6 +60,22 @@ export class ContractRepository implements IContractRepository {
     private readonly catContractEventModel: Model<CatContractEvent>,
   ) {}
 
+  /**
+   * Convierte una fecha a la zona horaria de México (America/Cancun)
+   * Si no se proporciona fecha, retorna la fecha actual en timezone de México
+   * @param dateInput - Fecha opcional a convertir
+   * @returns Date en timezone de México
+   */
+  private getMexicoDate(dateInput?: string | Date): Date {
+    if (dateInput) {
+      const date = new Date(dateInput);
+      // Convertir a timezone de México
+      return new Date(date.toLocaleString('en-US', { timeZone: 'America/Cancun' }));
+    }
+    // Si no hay fecha, usar fecha actual en timezone de México
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Cancun' }));
+  }
+
   async create(
     contract: ContractModel,
     userId: string,
@@ -147,7 +163,7 @@ export class ContractRepository implements IContractRepository {
             paymentMethod: 'CUENTA', // Método de pago por defecto para delivery
             vehicle: vehicleId,
             beneficiary: concierge,
-            date: new Date(),
+            date: this.getMexicoDate(), // ✅ CORRECCIÓN: Fecha actual en TZ México
             deliveryType: booking.deliveryType,
             oneWayType: booking.oneWayType,
             deliveryAddress: booking.deliveryAddress,
@@ -1611,32 +1627,67 @@ export class ContractRepository implements IContractRepository {
           // Obtener el concierge del contractData
           const concierge = (contractData as any).concierge;
 
-          // Crear eventMetadata para el evento (no extensión)
-          const nonExtensionMetadata = {
-            amount: contractUpdateData.extension.extensionAmount,
-            paymentMethod: contractUpdateData.extension.paymentMethod,
-            paymentMedium:
-              contractUpdateData.extension.paymentMedium || 'CUENTA',
-            depositNote: (contractData as any).extension?.depositNote,
-            vehicle: vehicleId,
-            beneficiary: concierge,
-            date: contractUpdateData.extension.newEndDateTime || new Date(),
-          };
-
-          const savedHistory = await new this.contractHistoryModel({
+          // CORRECCIÓN 1: Verificar si ya existe un movimiento similar para prevenir duplicados
+          const existingMovement = await this.contractHistoryModel.findOne({
             contract: id,
-            performedBy: userId,
-            action: ContractAction.NOTE_ADDED, // Usar NOTE_ADDED para eventos personalizados
-            changes: changesToLog,
-            details: reasonForChange || 'Evento registrado',
-            createdBy: createdByValue,
-            eventMetadata: nonExtensionMetadata,
-            eventType: eventTypeIdFromPayload
-              ? new mongoose.Types.ObjectId(eventTypeIdFromPayload)
-              : undefined,
-          }).save({ session });
+            'eventMetadata.amount': contractUpdateData.extension.extensionAmount,
+            'eventMetadata.vehicle': vehicleId,
+            createdAt: { $gte: new Date(Date.now() - 60000) } // Últimos 60 segundos
+          }).session(session);
 
-          createdHistoryEntryId = savedHistory._id;
+          if (existingMovement) {
+            console.log(
+              '[ContractRepository][update] ⚠️ Movimiento duplicado detectado - NO se creará',
+              {
+                amount: contractUpdateData.extension.extensionAmount,
+                vehicle: vehicleId,
+                existingId: existingMovement._id
+              }
+            );
+            // No crear el movimiento duplicado, pero continuar con el flujo
+            createdHistoryEntryId = existingMovement._id;
+          } else {
+            // CORRECCIÓN 3: Usar siempre new Date() para la fecha del movimiento
+            // NO usar newEndDateTime que es la fecha de fin de la renta
+            const nonExtensionMetadata = {
+              amount: contractUpdateData.extension.extensionAmount,
+              paymentMethod: contractUpdateData.extension.paymentMethod,
+              paymentMedium:
+                contractUpdateData.extension.paymentMedium || 'CUENTA',
+              depositNote: (contractData as any).extension?.depositNote,
+              vehicle: vehicleId,
+              beneficiary: concierge,
+              date: new Date(), // ✅ CORRECCIÓN: Siempre usar fecha actual
+              // Agregar campos adicionales para referencia
+              rentalStartDate: (contractData as any).newCart?.vehicles?.[0]?.dates?.start,
+              rentalEndDate: (contractData as any).newCart?.vehicles?.[0]?.dates?.end,
+            };
+
+            const savedHistory = await new this.contractHistoryModel({
+              contract: id,
+              performedBy: userId,
+              action: ContractAction.NOTE_ADDED, // Usar NOTE_ADDED para eventos personalizados
+              changes: changesToLog,
+              details: reasonForChange || 'Evento registrado',
+              createdBy: createdByValue,
+              eventMetadata: nonExtensionMetadata,
+              eventType: eventTypeIdFromPayload
+                ? new mongoose.Types.ObjectId(eventTypeIdFromPayload)
+                : undefined,
+            }).save({ session });
+
+            createdHistoryEntryId = savedHistory._id;
+            
+            console.log(
+              '[ContractRepository][update] ✅ Movimiento creado exitosamente',
+              {
+                amount: contractUpdateData.extension.extensionAmount,
+                vehicle: vehicleId,
+                date: new Date().toISOString(),
+                historyId: savedHistory._id
+              }
+            );
+          }
 
           // NUEVA FUNCIONALIDAD: Sumar el monto al total y totalPaid del booking cuando se agrega un evento con monto
           // (como DELIVERY, CRASH, etc.) después de la creación inicial
@@ -1804,6 +1855,7 @@ export class ContractRepository implements IContractRepository {
           id,
           isVehicleChange,
           isExtension,
+          userId, // NUEVO: Pasar userId para crear movimientos de edición de fecha
         );
       }
 
@@ -1938,6 +1990,7 @@ export class ContractRepository implements IContractRepository {
     contractId?: string,
     isVehicleChange?: boolean,
     isExtension?: boolean,
+    userId?: string, // NUEVO: Agregar userId para crear movimientos
   ): Promise<void> {
     // Crear mapas de vehículos para comparar
     const oldVehiclesMap = new Map(
@@ -2098,6 +2151,77 @@ export class ContractRepository implements IContractRepository {
               newEnd: endChanged ? newEndDate : 'sin cambios',
             }
           );
+
+          // CORRECCIÓN 2: Crear movimiento de EDICION DE FECHA
+          if (contractId && userId) {
+            try {
+              // Buscar el evento de EDICION DE FECHA
+              const editDateEvent = await this.catContractEventModel.findOne({ 
+                name: 'EDICION DE FECHA' 
+              }).session(session);
+              
+              // Obtener información del usuario
+              const userInfo = await this.connection.db
+                .collection('users')
+                .findOne({ _id: new mongoose.Types.ObjectId(userId) });
+              
+              const createdByValue = userInfo
+                ? `${userInfo.name || ''} ${userInfo.lastName || ''}`.trim() +
+                  (userInfo.email ? ` - ${userInfo.email}` : '')
+                : 'Usuario desconocido';
+              
+              // Construir el detalle del cambio
+              let details = 'Fecha de renta modificada: ';
+              const changes = [];
+              
+              if (startChanged) {
+                changes.push(`inicio ${originalStartDate.toLocaleDateString('es-ES')} → ${newStartDate.toLocaleDateString('es-ES')}`);
+              }
+              if (endChanged) {
+                changes.push(`fin ${originalEndDate.toLocaleDateString('es-ES')} → ${newEndDate.toLocaleDateString('es-ES')}`);
+              }
+              
+              details += changes.join(', ');
+              
+              // Obtener el nombre del vehículo para el detalle
+              const vehicleName = vehicle.name || vehicleId;
+              details = `Vehículo ${vehicleName}: ${details}`;
+              
+              // Crear el movimiento
+              const historyEntry = new this.contractHistoryModel({
+                contract: contractId,
+                performedBy: userId,
+                action: ContractAction.NOTE_ADDED,
+                eventType: editDateEvent?._id,
+                details: details,
+                eventMetadata: {
+                  oldStartDate: originalStartDate,
+                  oldEndDate: originalEndDate,
+                  newStartDate: newStartDate,
+                  newEndDate: newEndDate,
+                  vehicle: vehicleId,
+                  date: this.getMexicoDate(), // ✅ CORRECCIÓN: Fecha actual en TZ México
+                },
+                createdBy: createdByValue,
+              });
+              
+              await historyEntry.save({ session });
+              
+              console.log(
+                `[updateVehicleReservations] ✅ Movimiento de EDICION DE FECHA creado para vehículo ${vehicleId}`,
+                {
+                  details,
+                  historyId: historyEntry._id
+                }
+              );
+            } catch (error) {
+              console.error(
+                `[updateVehicleReservations] ❌ Error al crear movimiento de EDICION DE FECHA:`,
+                error
+              );
+              // No fallar la actualización si falla la creación del movimiento
+            }
+          }
         }
       } else {
         // Vehículo NUEVO - crear reserva

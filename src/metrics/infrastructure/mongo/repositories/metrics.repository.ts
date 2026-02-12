@@ -398,10 +398,10 @@ export class MetricsRepository implements IMetricsRepository {
           const contract = contractsMap.get((booking as any)._id.toString());
           if (contract) {
             try {
-              // Buscar eventos de tipo "CAMBIO DE VEHICULO" y "EXTENSION"
+              // Buscar eventos de tipo "CAMBIO DE VEHICULO", "EXTENSION" y "HORAS EXTRAS"
               // IMPORTANTE: NO incluir "COMBUSTIBLE PAGADO POR CLIENTE" porque no es ingreso del propietario
               const adjustmentEvents = await this.catContractEventModel.find({
-                name: { $in: ['CAMBIO DE VEHICULO', 'EXTENSION DE RENTA'] }
+                name: { $in: ['CAMBIO DE VEHICULO', 'EXTENSION DE RENTA', 'HORAS EXTRAS'] }
               }).lean();
               
               const adjustmentEventIds = adjustmentEvents.map((e: any) => e._id);
@@ -410,8 +410,9 @@ export class MetricsRepository implements IMetricsRepository {
                 const historyAdjustments = await this.contractHistoryModel.find({
                   contract: (contract as any)._id,
                   eventType: { $in: adjustmentEventIds },
-                  isDeleted: { $ne: true },
-                  'eventMetadata.amount': { $exists: true }
+                  isDeleted: { $ne: true }
+                  // CORRECCIÓN: NO filtrar por 'eventMetadata.amount': { $exists: true }
+                  // porque los cambios con monto $0 también son importantes para calcular días
                 }).lean();
                 
                 // Convertir a formato de adjustments
