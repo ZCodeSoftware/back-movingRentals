@@ -32,6 +32,7 @@ import { CommissionModule } from './commission/commission.module';
 import { PromotionalPriceModule } from './promotional-price/promotional-price.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthStatusInterceptor } from './auth/infrastructure/nest/interceptors/auth-status.interceptor';
+import { ImagekitModule } from './imagekit/imagekit.module';
 
 @Module({
   imports: [
@@ -61,7 +62,8 @@ import { AuthStatusInterceptor } from './auth/infrastructure/nest/interceptors/a
     MovementModule,
     ContractModule,
     CommissionModule,
-    PromotionalPriceModule
+    PromotionalPriceModule,
+    ImagekitModule
   ],
   controllers: [AppController],
   providers: [
