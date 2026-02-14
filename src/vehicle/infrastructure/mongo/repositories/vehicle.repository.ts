@@ -151,7 +151,106 @@ export class VehicleRepository implements IVehicleRepository {
       .populate('owner')
       .populate('model');
 
+    // VERIFICACIÓN DUAL: También verificar contra bookings aprobados
+    // Esto es un backup en caso de que las reservaciones no se hayan creado correctamente
+    if (start && end) {
+      const filteredVehicles = await this.filterVehiclesByBookings(
+        vehicles,
+        start,
+        end,
+      );
+      return this.enrichVehiclesWithPromotions(filteredVehicles);
+    }
+
     return this.enrichVehiclesWithPromotions(vehicles);
+  }
+
+  /**
+   * Filtra vehículos verificando también contra bookings aprobados
+   * Esto es un backup en caso de que vehicle.reservations no esté sincronizado
+   */
+  private async filterVehiclesByBookings(
+    vehicles: any[],
+    searchStart: Date,
+    searchEnd: Date,
+  ): Promise<any[]> {
+    // Obtener todos los bookings aprobados que solapan con las fechas de búsqueda
+    const BookingModel = this.vehicleDB.db.model('Booking');
+    const StatusModel = this.vehicleDB.db.model('CatStatus');
+
+    // Buscar el status "APROBADO"
+    const approvedStatus = await StatusModel.findOne({ name: 'APROBADO' });
+    if (!approvedStatus) {
+      console.warn('[VehicleRepository] Status APROBADO no encontrado');
+      return vehicles;
+    }
+
+    // Obtener todos los bookings aprobados
+    const approvedBookings = await BookingModel.find({
+      status: approvedStatus._id,
+    }).lean();
+
+    console.log(
+      `[VehicleRepository] Verificando ${vehicles.length} vehículos contra ${approvedBookings.length} bookings aprobados`,
+    );
+
+    // Crear un Set de vehículos que están ocupados según los bookings
+    const occupiedVehicleIds = new Set<string>();
+
+    for (const booking of approvedBookings) {
+      try {
+        const cart = JSON.parse(booking.cart || '{}');
+
+        if (cart.vehicles && Array.isArray(cart.vehicles)) {
+          for (const vehicleItem of cart.vehicles) {
+            if (vehicleItem.dates?.start && vehicleItem.dates?.end) {
+              const bookingStart = new Date(vehicleItem.dates.start);
+              const bookingEnd = new Date(vehicleItem.dates.end);
+
+              // Verificar solapamiento: (booking.start < search.end) AND (booking.end > search.start)
+              const overlaps =
+                bookingStart < searchEnd && bookingEnd > searchStart;
+
+              if (overlaps) {
+                const vehicleId =
+                  vehicleItem.vehicle?._id || vehicleItem.vehicle;
+                if (vehicleId) {
+                  occupiedVehicleIds.add(vehicleId.toString());
+                  console.log(
+                    `[VehicleRepository] Vehículo ${vehicleId} ocupado por booking #${booking.bookingNumber} (${bookingStart.toISOString()} - ${bookingEnd.toISOString()})`,
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[VehicleRepository] Error parsing cart for booking ${booking._id}:`,
+          error,
+        );
+      }
+    }
+
+    // Filtrar vehículos que NO están ocupados
+    const availableVehicles = vehicles.filter((vehicle) => {
+      const vehicleId = vehicle._id.toString();
+      const isOccupied = occupiedVehicleIds.has(vehicleId);
+
+      if (isOccupied) {
+        console.log(
+          `[VehicleRepository] ❌ Vehículo ${vehicle.name} (${vehicleId}) filtrado por booking aprobado`,
+        );
+      }
+
+      return !isOccupied;
+    });
+
+    console.log(
+      `[VehicleRepository] ${vehicles.length - availableVehicles.length} vehículos filtrados por bookings aprobados`,
+    );
+
+    return availableVehicles;
   }
 
   async findAll(filters: any): Promise<any[]> {
