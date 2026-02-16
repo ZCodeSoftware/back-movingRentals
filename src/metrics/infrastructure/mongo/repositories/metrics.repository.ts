@@ -578,7 +578,12 @@ export class MetricsRepository implements IMetricsRepository {
           
           // CORRECCIÓN: Mostrar días de renta con decimales para mayor precisión (ej: 3.16 días)
           const rentalDays = adjustedVehicleDates 
-            ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+            ? this.calculateRentalDaysInRange(
+                adjustedVehicleDates.start,
+                adjustedVehicleDates.end,
+                dateFilter?.$gte,
+                dateFilter?.$lt
+              )
             : 0;
           
           incomeDetails.push({
@@ -619,10 +624,14 @@ export class MetricsRepository implements IMetricsRepository {
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
               
-              // CORRECCIÓN: Usar adjustedVehicleDates (fechas reales de uso) en lugar de vehicleDates (fechas originales)
-              // Mostrar días con decimales (ej: 3.17 días) en lugar de redondear
+              // CORRECCIÓN: Calcular días de renta SOLO dentro del rango de fecha filtrado
               const rentalDays = adjustedVehicleDates 
-                ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+                ? this.calculateRentalDaysInRange(
+                    adjustedVehicleDates.start,
+                    adjustedVehicleDates.end,
+                    dateFilter?.$gte,
+                    dateFilter?.$lt
+                  )
                 : 0;
               
               // 20% en fecha de carga
@@ -656,10 +665,14 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN: Usar adjustedVehicleDates (fechas reales de uso) en lugar de vehicleDates (fechas originales)
-              // Mostrar días con decimales (ej: 3.17 días) en lugar de redondear
+              // CORRECCIÓN: Calcular días de renta SOLO dentro del rango de fecha filtrado
               const rentalDays = adjustedVehicleDates 
-                ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+                ? this.calculateRentalDaysInRange(
+                    adjustedVehicleDates.start,
+                    adjustedVehicleDates.end,
+                    dateFilter?.$gte,
+                    dateFilter?.$lt
+                  )
                 : 0;
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
@@ -681,10 +694,14 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN: Usar adjustedVehicleDates (fechas reales de uso) en lugar de vehicleDates (fechas originales)
-              // Mostrar días con decimales (ej: 3.17 días) en lugar de redondear
+              // CORRECCIÓN: Calcular días de renta SOLO dentro del rango de fecha filtrado
               const rentalDays = adjustedVehicleDates 
-                ? Math.round(((adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100
+                ? this.calculateRentalDaysInRange(
+                    adjustedVehicleDates.start,
+                    adjustedVehicleDates.end,
+                    dateFilter?.$gte,
+                    dateFilter?.$lt
+                  )
                 : 0;
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
@@ -2507,6 +2524,38 @@ export class MetricsRepository implements IMetricsRepository {
     return date >= dateFilter.$gte && date < dateFilter.$lt;
   }
 
+  /**
+   * Calcula los días de renta SOLO dentro del rango de fecha filtrado
+   * Si no hay filtro, retorna todos los días de la renta
+   * Si no hay intersección entre el período de renta y el rango filtrado, retorna 0
+   */
+  private calculateRentalDaysInRange(
+    rentalStart: Date,
+    rentalEnd: Date,
+    filterStart?: Date,
+    filterEnd?: Date
+  ): number {
+    // Si no hay filtro, retornar todos los días
+    if (!filterStart || !filterEnd) {
+      return Math.round(((rentalEnd.getTime() - rentalStart.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100;
+    }
+    
+    // Calcular la intersección entre el período de renta y el rango filtrado
+    const effectiveStart = rentalStart > filterStart ? rentalStart : filterStart;
+    const effectiveEnd = rentalEnd < filterEnd ? rentalEnd : filterEnd;
+    
+    // Si no hay intersección, retornar 0
+    if (effectiveStart >= effectiveEnd) {
+      return 0;
+    }
+    
+    // Calcular días dentro del rango
+    const daysInRange = (effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24);
+    
+    // Redondear a 2 decimales
+    return Math.round(daysInRange * 100) / 100;
+  }
+
   private buildDateFilter(dateFilter?: { type: string; startDate?: Date; endDate?: Date }) {
     if (!dateFilter) {
       // Por defecto usar el mes actual
@@ -3376,7 +3425,14 @@ export class MetricsRepository implements IMetricsRepository {
     
     // CORRECCIÓN: Calcular días con 2 decimales de precisión (ej: 3.17 días)
     // NO redondear hacia arriba con Math.ceil
-    rentalDays = Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) * 100) / 100;
+    // CORRECCIÓN: Calcular días SOLO dentro del rango de fecha filtrado
+    const dateFilter = this.buildDateFilter(filters?.dateFilter);
+    rentalDays = this.calculateRentalDaysInRange(
+      start,
+      end,
+      dateFilter?.$gte,
+      dateFilter?.$lt
+    );
     
     this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}, Vehículo ${vehicle.name}: ${rentalDays} días (${start.toISOString()} a ${end.toISOString()})`);
     }
@@ -3533,7 +3589,7 @@ export class MetricsRepository implements IMetricsRepository {
     const bookingsDetailData = [
     ['DETALLE COMPLETO DE RESERVAS'],
     [],
-    ['N° Reserva', 'Vehículo',, 'Cliente', 'Email', 'Teléfono', 'Fecha Inicio', 'Fecha Fin', 'Días', 'Monto Vehículo', 'Total Pagado', 'Método Pago', 'Fecha Creación']
+    ['N° Reserva', 'Vehículo', 'Cliente', 'Email', 'Teléfono', 'Fecha Inicio', 'Fecha Fin', 'Días', 'Monto Vehículo', 'Total Pagado', 'Método Pago', 'Fecha Creación']
     ];
     
     // Ordenar reservas por fecha de creación descendente
@@ -3622,7 +3678,7 @@ export class MetricsRepository implements IMetricsRepository {
     const incomeDetailData = [
     ['DETALLE DE INGRESOS POR TRANSACCIÓN'],
     [],
-    ['Vehículo',, 'N° Reserva', 'Fecha Transacción', 'Descripción', 'Monto']
+    ['Vehículo', 'N° Reserva', 'Fecha Transacción', 'Descripción', 'Monto']
     ];
     
     // Ordenar por fecha descendente
@@ -3651,7 +3707,7 @@ export class MetricsRepository implements IMetricsRepository {
     const expenseDetailData = [
     ['DETALLE DE GASTOS'],
     [],
-    ['Vehículo',, 'Fecha', 'Descripción', 'Monto']
+    ['Vehículo', 'Fecha', 'Descripción', 'Monto']
     ];
     
     // Ordenar gastos por fecha descendente
@@ -3678,7 +3734,7 @@ export class MetricsRepository implements IMetricsRepository {
     const vehicleSummaryData = [
     ['RESUMEN DETALLADO POR VEHÍCULO'],
     [],
-    ['Vehículo',, 'N° Reservas', 'Días Totales', 'Ingresos', 'Gastos', 'Neto', 'Margen %']
+    ['Vehículo', 'N° Reservas', 'Días Totales', 'Ingresos', 'Gastos', 'Neto', 'Margen %']
     ];
     
     for (const vehicleData of allVehicleData) {
@@ -3721,7 +3777,7 @@ export class MetricsRepository implements IMetricsRepository {
     const allTransactionsData = [
     ['LIBRO MAYOR - TODAS LAS TRANSACCIONES'],
     [],
-    ['Fecha', 'Tipo', 'Vehículo',, 'N° Reserva', 'Descripción', 'Ingreso', 'Gasto', 'Balance']
+    ['Fecha', 'Tipo', 'Vehículo', 'N° Reserva', 'Descripción', 'Ingreso', 'Gasto', 'Balance']
     ];
     
     // Combinar y ordenar todas las transacciones
