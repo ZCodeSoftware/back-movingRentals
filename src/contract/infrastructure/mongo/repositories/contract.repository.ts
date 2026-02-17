@@ -1,4 +1,4 @@
-import {
+﻿import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
@@ -1431,6 +1431,13 @@ export class ContractRepository implements IContractRepository {
       const { newCart, reasonForChange, ...contractUpdateData } = contractData;
       const changesToLog = [];
 
+      // Normalizar el reasonForChange para comparación (trim y uppercase)
+      // Definir aquí para que esté disponible en todo el scope
+      const isExtensionReason =
+        reasonForChange &&
+        typeof reasonForChange === 'string' &&
+        reasonForChange.trim().toUpperCase() === 'EXTENSION DE RENTA';
+
       // Obtener el booking completo para detectar cambios en el carrito
       const bookingBeforeUpdate = await this.bookingModel
         .findById(originalContract.booking)
@@ -1626,27 +1633,79 @@ export class ContractRepository implements IContractRepository {
 
           // Obtener el concierge del contractData
           const concierge = (contractData as any).concierge;
-
           // CORRECCIÓN 1: Verificar si ya existe un movimiento similar para prevenir duplicados
+          // Buscar movimientos del mismo día (00:00:00 a 23:59:59)
+          const startOfDay = new Date();
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date();
+          endOfDay.setHours(23, 59, 59, 999);
+
           const existingMovement = await this.contractHistoryModel.findOne({
             contract: id,
             'eventMetadata.amount': contractUpdateData.extension.extensionAmount,
             'eventMetadata.vehicle': vehicleId,
-            createdAt: { $gte: new Date(Date.now() - 60000) } // Últimos 60 segundos
+            eventType: eventTypeIdFromPayload ? new mongoose.Types.ObjectId(eventTypeIdFromPayload) : undefined,
+            isDeleted: { $ne: true }, // Ignorar movimientos eliminados
+            createdAt: { $gte: startOfDay, $lte: endOfDay }, // Mismo día
           }).session(session);
 
           if (existingMovement) {
             console.log(
-              '[ContractRepository][update] ⚠️ Movimiento duplicado detectado - NO se creará',
+              '[ContractRepository][update] ⚠️ Movimiento duplicado detectado - Requiere confirmación',
               {
                 amount: contractUpdateData.extension.extensionAmount,
                 vehicle: vehicleId,
-                existingId: existingMovement._id
-              }
+                existingId: existingMovement._id,
+              },
             );
-            // No crear el movimiento duplicado, pero continuar con el flujo
-            createdHistoryEntryId = existingMovement._id;
-          } else {
+            
+            // Verificar si el usuario confirmó explícitamente crear el duplicado
+            console.log('[ContractRepository][update] 🔍 Verificando confirmDuplicate:', {
+              confirmDuplicate: (contractData as any).confirmDuplicate,
+              contractDataKeys: Object.keys(contractData).slice(0, 10),
+              hasConfirmDuplicate: 'confirmDuplicate' in contractData
+            });
+            
+            if (!(contractData as any).confirmDuplicate) {
+              // Obtener detalles del movimiento existente para mostrar al usuario
+              const eventType = await this.catContractEventModel.findById(existingMovement.eventType);
+              
+              // Intentar obtener el vehículo usando el modelo de Mongoose primero
+              let vehicleName = vehicleId;
+              try {
+                const vehicleDoc = await this.vehicleModel.findById(vehicleId).session(session).lean();
+                if (vehicleDoc) {
+                  vehicleName = vehicleDoc.name || vehicleDoc.tag || vehicleId;
+                  console.log('[ContractRepository][update] Vehículo encontrado:', { id: vehicleId, name: vehicleName });
+                } else {
+                  console.warn('[ContractRepository][update] Vehículo no encontrado con ID:', vehicleId);
+                }
+              } catch (vehicleError) {
+                console.error('[ContractRepository][update] Error al buscar vehículo:', vehicleError);
+              }
+              
+              const error: any = new Error('DUPLICATE_MOVEMENT_DETECTED');
+              error.statusCode = 409;
+              error.duplicateDetails = {
+                existingMovement: {
+                  _id: existingMovement._id,
+                  eventType: eventType ? (eventType as any).name : 'Desconocido',
+                  amount: existingMovement.eventMetadata.amount,
+                  vehicle: vehicleName,
+                  date: (existingMovement as any).createdAt,
+                  paymentMethod: existingMovement.eventMetadata.paymentMethod,
+                  paymentMedium: existingMovement.eventMetadata.paymentMedium,
+                },
+              };
+              throw error;
+            }
+            
+            // Si confirmDuplicate es true, permitir la creación
+            console.log('[ContractRepository][update] ✅ Usuario confirmó crear duplicado - Continuando');
+          }
+          
+          // Crear el movimiento (ya sea porque no hay duplicado o porque el usuario confirmó)
+          {
             // CORRECCIÓN 3: Usar siempre new Date() para la fecha del movimiento
             // NO usar newEndDateTime que es la fecha de fin de la renta
             const nonExtensionMetadata = {
@@ -1829,10 +1888,18 @@ export class ContractRepository implements IContractRepository {
         // Detectar si es un cambio de vehículo o una extensión
         const isVehicleChange = await this.isVehicleChangeEvent(contractData);
         const isExtension = this.isExtensionEvent(contractData);
+        
+        // Detectar si es un evento con monto pero sin cambios reales en el carrito
+        // (como COMBUSTIBLE, LLANTA, CRASH, etc.)
+        const isMovementWithoutCartChange = 
+          contractUpdateData.extension?.extensionAmount !== undefined &&
+          !isExtensionReason &&
+          JSON.stringify(oldCartData) === JSON.stringify(newCart);
 
         // Si es una extensión, NO crear BOOKING_MODIFIED porque ya se creó EXTENSION_UPDATED
-        if (!isExtension) {
-          // Solo aplicar cambios al booking si NO es una extensión
+        // Si es un movimiento sin cambios en el carrito, NO crear BOOKING_MODIFIED
+        if (!isExtension && !isMovementWithoutCartChange) {
+          // Solo aplicar cambios al booking si NO es una extensión Y hay cambios reales en el carrito
           await this.applyBookingChangesFromExtension(
             id,
             newCart,

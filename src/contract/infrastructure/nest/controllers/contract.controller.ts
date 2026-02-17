@@ -4,6 +4,8 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpException,
+  HttpStatus,
   Inject,
   NotFoundException,
   Param,
@@ -412,9 +414,37 @@ export class ContractController {
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Contract updated' })
   @ApiResponse({ status: 404, description: 'Contract not found' })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Duplicate movement detected - confirmation required',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 409 },
+        message: { type: 'string', example: 'DUPLICATE_MOVEMENT_DETECTED' },
+        duplicateDetails: {
+          type: 'object',
+          properties: {
+            existingMovement: {
+              type: 'object',
+              properties: {
+                _id: { type: 'string', description: 'ID del movimiento existente' },
+                eventType: { type: 'string', description: 'Tipo de evento' },
+                amount: { type: 'number', description: 'Monto' },
+                vehicle: { type: 'string', description: 'Vehículo' },
+                date: { type: 'string', format: 'date-time', description: 'Fecha de creación' },
+                paymentMethod: { type: 'string', description: 'Método de pago' },
+                paymentMedium: { type: 'string', description: 'Medio de pago' }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
   @ApiBody({
     type: UpdateContractDTO,
-    description: 'Data to update a Contract',
+    description: 'Data to update a Contract. Include confirmDuplicate: true to bypass duplicate detection.',
   })
   @Roles(
     TypeRoles.ADMIN,
@@ -428,19 +458,35 @@ export class ContractController {
     @Body() body: UpdateContractDTO,
     @Req() req: IUserRequest,
   ) {
-    const contractData = {
-      ...body,
-      extension: body.extension
-        ? {
-          ...body.extension,
-          newEndDateTime: body.extension.newEndDateTime
-            ? body.extension.newEndDateTime
-            : undefined,
-        }
-        : undefined,
-    };
+    try {
+      const contractData = {
+        ...body,
+        extension: body.extension
+          ? {
+            ...body.extension,
+            newEndDateTime: body.extension.newEndDateTime
+              ? body.extension.newEndDateTime
+              : undefined,
+          }
+          : undefined,
+      };
 
-    return this.contractService.update(id, contractData, req.user._id);
+      return await this.contractService.update(id, contractData, req.user._id);
+    } catch (error) {
+      // Si es un error de duplicado, devolverlo con código 409
+      if (error.message === 'DUPLICATE_MOVEMENT_DETECTED' && error.statusCode === 409) {
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.CONFLICT,
+            message: 'DUPLICATE_MOVEMENT_DETECTED',
+            duplicateDetails: error.duplicateDetails,
+          },
+          HttpStatus.CONFLICT,
+        );
+      }
+      // Si es otro error, re-lanzarlo
+      throw error;
+    }
   }
 
   @Delete('history/:historyId')
