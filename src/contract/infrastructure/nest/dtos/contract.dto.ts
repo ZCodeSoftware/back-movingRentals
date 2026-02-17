@@ -161,6 +161,11 @@ export class UpdateContractDTO {
   @IsOptional()
   @IsBoolean()
   isExtension?: boolean;
+
+  @ApiPropertyOptional({ description: 'Confirmar creación de movimiento duplicado' })
+  @IsOptional()
+  @IsBoolean()
+  confirmDuplicate?: boolean;
 }
 
 export class ReportEventMetadataDTO {

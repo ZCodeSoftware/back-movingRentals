@@ -374,6 +374,12 @@ export class ContractService implements IContractService {
         `Fallo en la capa de servicio al actualizar el contrato ${id}`,
         error,
       );
+      
+      // Si es un error de duplicado (409), re-lanzarlo sin modificar
+      if (error.message === 'DUPLICATE_MOVEMENT_DETECTED' && error.statusCode === 409) {
+        throw error;
+      }
+      
       throw new InternalServerErrorException(
         'Ocurrió un error al intentar actualizar el contrato.',
       );
