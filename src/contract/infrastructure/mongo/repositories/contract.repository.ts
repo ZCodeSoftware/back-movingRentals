@@ -320,24 +320,24 @@ export class ContractRepository implements IContractRepository {
       });
     };
 
-    if (difVehs.removed.length)
-      autoDetails.push(
-        `Quitado(s) vehículo(s): ${difVehs.removed.map((v) => {
-          const name = vehLabel(safeId(v.vehicle));
-          const start = v.dates?.start ? formatUTCToMexicoDateTime(v.dates.start) : '';
-          const end = v.dates?.end ? formatUTCToMexicoDateTime(v.dates.end) : '';
-          return start && end ? `${name} (${start} - ${end})` : name;
-        }).join(', ')}`,
-      );
-    if (difVehs.added.length)
-      autoDetails.push(
-        `Agregado(s) vehículo(s): ${difVehs.added.map((v) => {
-          const name = vehLabel(safeId(v.vehicle));
-          const start = v.dates?.start ? formatUTCToMexicoDateTime(v.dates.start) : '';
-          const end = v.dates?.end ? formatUTCToMexicoDateTime(v.dates.end) : '';
-          return start && end ? `${name} (${start} - ${end})` : name;
-        }).join(', ')}`,
-      );
+    if (difVehs.removed.length) {
+      difVehs.removed.forEach((v) => {
+        const name = vehLabel(safeId(v.vehicle));
+        const start = v.dates?.start ? formatUTCToMexicoDateTime(v.dates.start) : '';
+        const end = v.dates?.end ? formatUTCToMexicoDateTime(v.dates.end) : '';
+        const vehicleInfo = start && end ? `${name} (${start} - ${end})` : name;
+        autoDetails.push(`Quitado(s) vehículo(s): ${vehicleInfo}`);
+      });
+    }
+    if (difVehs.added.length) {
+      difVehs.added.forEach((v) => {
+        const name = vehLabel(safeId(v.vehicle));
+        const start = v.dates?.start ? formatUTCToMexicoDateTime(v.dates.start) : '';
+        const end = v.dates?.end ? formatUTCToMexicoDateTime(v.dates.end) : '';
+        const vehicleInfo = start && end ? `${name} (${start} - ${end})` : name;
+        autoDetails.push(`Servicio: ${vehicleInfo}`);
+      });
+    }
     difVehs.updated.forEach(([ov, nv]) => {
       const cambios = [];
       if (ov.dates?.start !== nv.dates?.start)
