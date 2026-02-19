@@ -576,14 +576,10 @@ export class MetricsRepository implements IMetricsRepository {
           
           this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
           
-          // CORRECCIÓN: Mostrar días de renta con decimales para mayor precisión (ej: 3.16 días)
+          // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
+          // El filtro de fecha solo aplica a las VENTAS, no a los días
           const rentalDays = adjustedVehicleDates 
-            ? this.calculateRentalDaysInRange(
-                adjustedVehicleDates.start,
-                adjustedVehicleDates.end,
-                dateFilter?.$gte,
-                dateFilter?.$lt
-              )
+            ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
             : 0;
           
           incomeDetails.push({
@@ -624,14 +620,9 @@ export class MetricsRepository implements IMetricsRepository {
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
               
-              // CORRECCIÓN: Calcular días de renta SOLO dentro del rango de fecha filtrado
+              // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
               const rentalDays = adjustedVehicleDates 
-                ? this.calculateRentalDaysInRange(
-                    adjustedVehicleDates.start,
-                    adjustedVehicleDates.end,
-                    dateFilter?.$gte,
-                    dateFilter?.$lt
-                  )
+                ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
                 : 0;
               
               // 20% en fecha de carga
@@ -665,14 +656,9 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN: Calcular días de renta SOLO dentro del rango de fecha filtrado
+              // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
               const rentalDays = adjustedVehicleDates 
-                ? this.calculateRentalDaysInRange(
-                    adjustedVehicleDates.start,
-                    adjustedVehicleDates.end,
-                    dateFilter?.$gte,
-                    dateFilter?.$lt
-                  )
+                ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
                 : 0;
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
@@ -694,14 +680,9 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN: Calcular días de renta SOLO dentro del rango de fecha filtrado
+              // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
               const rentalDays = adjustedVehicleDates 
-                ? this.calculateRentalDaysInRange(
-                    adjustedVehicleDates.start,
-                    adjustedVehicleDates.end,
-                    dateFilter?.$gte,
-                    dateFilter?.$lt
-                  )
+                ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
                 : 0;
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
@@ -3423,16 +3404,10 @@ export class MetricsRepository implements IMetricsRepository {
     const start = new Date(vehicleDates.start);
     const end = new Date(vehicleDates.end);
     
-    // CORRECCIÓN: Calcular días con 2 decimales de precisión (ej: 3.17 días)
-    // NO redondear hacia arriba con Math.ceil
-    // CORRECCIÓN: Calcular días SOLO dentro del rango de fecha filtrado
-    const dateFilter = this.buildDateFilter(filters?.dateFilter);
-    rentalDays = this.calculateRentalDaysInRange(
-      start,
-      end,
-      dateFilter?.$gte,
-      dateFilter?.$lt
-    );
+    // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
+    // El filtro de fecha solo aplica a las VENTAS, no a los días
+    const totalDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+    rentalDays = Math.round(totalDays * 100) / 100; // Redondear a 2 decimales
     
     this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}, Vehículo ${vehicle.name}: ${rentalDays} días (${start.toISOString()} a ${end.toISOString()})`);
     }
