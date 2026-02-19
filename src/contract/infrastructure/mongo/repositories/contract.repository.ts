@@ -305,12 +305,27 @@ export class ContractRepository implements IContractRepository {
     function vehLabel(id) {
       return vehicleNameMap[id] || id;
     }
+    // Función helper para formatear fechas UTC a zona horaria de México con hora
+    const formatUTCToMexicoDateTime = (dateString: string): string => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleString('es-MX', {
+        timeZone: 'America/Cancun',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    };
+
     if (difVehs.removed.length)
       autoDetails.push(
         `Quitado(s) vehículo(s): ${difVehs.removed.map((v) => {
           const name = vehLabel(safeId(v.vehicle));
-          const start = v.dates?.start ? new Date(v.dates.start).toLocaleDateString('es-ES') : '';
-          const end = v.dates?.end ? new Date(v.dates.end).toLocaleDateString('es-ES') : '';
+          const start = v.dates?.start ? formatUTCToMexicoDateTime(v.dates.start) : '';
+          const end = v.dates?.end ? formatUTCToMexicoDateTime(v.dates.end) : '';
           return start && end ? `${name} (${start} - ${end})` : name;
         }).join(', ')}`,
       );
@@ -318,8 +333,8 @@ export class ContractRepository implements IContractRepository {
       autoDetails.push(
         `Agregado(s) vehículo(s): ${difVehs.added.map((v) => {
           const name = vehLabel(safeId(v.vehicle));
-          const start = v.dates?.start ? new Date(v.dates.start).toLocaleDateString('es-ES') : '';
-          const end = v.dates?.end ? new Date(v.dates.end).toLocaleDateString('es-ES') : '';
+          const start = v.dates?.start ? formatUTCToMexicoDateTime(v.dates.start) : '';
+          const end = v.dates?.end ? formatUTCToMexicoDateTime(v.dates.end) : '';
           return start && end ? `${name} (${start} - ${end})` : name;
         }).join(', ')}`,
       );
