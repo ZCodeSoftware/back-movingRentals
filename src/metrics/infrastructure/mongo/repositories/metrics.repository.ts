@@ -576,11 +576,39 @@ export class MetricsRepository implements IMetricsRepository {
           
           this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
           
-          // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
-          // El filtro de fecha solo aplica a las VENTAS, no a los días
-          const rentalDays = adjustedVehicleDates 
-            ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
-            : 0;
+          // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+          // Si hay filtro de fecha, solo contar los días DENTRO del rango filtrado
+          // Esto asegura que los días reflejen solo el período que se está reportando
+          let rentalDays = 0;
+          
+          if (adjustedVehicleDates) {
+            let effectiveStartDate = adjustedVehicleDates.start;
+            let effectiveEndDate = adjustedVehicleDates.end;
+            
+            // Si hay filtro de fecha, ajustar las fechas al rango filtrado
+            if (dateFilter) {
+              // Si la fecha de inicio está antes del rango, usar el inicio del rango
+              if (effectiveStartDate < dateFilter.$gte) {
+                effectiveStartDate = dateFilter.$gte;
+              }
+              
+              // Si la fecha de fin está después del rango, usar el fin del rango
+              if (effectiveEndDate >= dateFilter.$lt) {
+                effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1); // Restar 1ms para no incluir el día siguiente
+              }
+              
+              // Si las fechas ajustadas son válidas (inicio < fin), calcular días
+              if (effectiveStartDate < effectiveEndDate) {
+                rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+              } else {
+                // Si las fechas están invertidas o son iguales, la renta está completamente fuera del rango
+                rentalDays = 0;
+              }
+            } else {
+              // Sin filtro de fecha, usar las fechas completas
+              rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+            }
+          }
           
           incomeDetails.push({
             type: 'INCOME',
@@ -620,10 +648,27 @@ export class MetricsRepository implements IMetricsRepository {
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
               
-              // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
-              const rentalDays = adjustedVehicleDates 
-                ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
-                : 0;
+              // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+              let rentalDays = 0;
+              
+              if (adjustedVehicleDates) {
+                let effectiveStartDate = adjustedVehicleDates.start;
+                let effectiveEndDate = adjustedVehicleDates.end;
+                
+                if (dateFilter) {
+                  if (effectiveStartDate < dateFilter.$gte) {
+                    effectiveStartDate = dateFilter.$gte;
+                  }
+                  if (effectiveEndDate >= dateFilter.$lt) {
+                    effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1);
+                  }
+                  if (effectiveStartDate < effectiveEndDate) {
+                    rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                  }
+                } else {
+                  rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                }
+              }
               
               // 20% en fecha de carga
               incomeDetails.push({
@@ -656,10 +701,27 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
-              const rentalDays = adjustedVehicleDates 
-                ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
-                : 0;
+              // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+              let rentalDays = 0;
+              
+              if (adjustedVehicleDates) {
+                let effectiveStartDate = adjustedVehicleDates.start;
+                let effectiveEndDate = adjustedVehicleDates.end;
+                
+                if (dateFilter) {
+                  if (effectiveStartDate < dateFilter.$gte) {
+                    effectiveStartDate = dateFilter.$gte;
+                  }
+                  if (effectiveEndDate >= dateFilter.$lt) {
+                    effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1);
+                  }
+                  if (effectiveStartDate < effectiveEndDate) {
+                    rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                  }
+                } else {
+                  rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                }
+              }
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
@@ -680,10 +742,27 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
-              const rentalDays = adjustedVehicleDates 
-                ? (adjustedVehicleDates.end.getTime() - adjustedVehicleDates.start.getTime()) / (1000 * 60 * 60 * 24)
-                : 0;
+              // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+              let rentalDays = 0;
+              
+              if (adjustedVehicleDates) {
+                let effectiveStartDate = adjustedVehicleDates.start;
+                let effectiveEndDate = adjustedVehicleDates.end;
+                
+                if (dateFilter) {
+                  if (effectiveStartDate < dateFilter.$gte) {
+                    effectiveStartDate = dateFilter.$gte;
+                  }
+                  if (effectiveEndDate >= dateFilter.$lt) {
+                    effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1);
+                  }
+                  if (effectiveStartDate < effectiveEndDate) {
+                    rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                  }
+                } else {
+                  rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                }
+              }
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
 
@@ -3435,10 +3514,13 @@ export class MetricsRepository implements IMetricsRepository {
     .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
     
     // Obtener método de pago
-    const paymentMethod = payments.length > 0 
+    const paymentMethod = payments.length > 0
     ? payments[0].paymentType || 'N/A'
     : 'N/A';
     
+    // CORRECCIÓN: Solo agregar a allBookingsData si la reserva tiene ingresos en el período filtrado
+    // uniqueBookings contiene los IDs de reservas que tienen transacciones de ingreso
+    if (uniqueBookings.has((booking as any)._id.toString())) {
     allBookingsData.push({
     bookingNumber: (booking as any).bookingNumber,
     bookingId: (booking as any)._id.toString(),
@@ -3462,6 +3544,7 @@ export class MetricsRepository implements IMetricsRepository {
     paymentDate: p.paymentDate
     }))
     });
+    } // Cerrar el if de uniqueBookings.has
     } catch (error) {
     this.logger.warn(`Error al procesar booking ${(booking as any)._id}:`, error);
     }
@@ -3550,11 +3633,11 @@ export class MetricsRepository implements IMetricsRepository {
     
     // Agregar fila de totales
     summaryData.push([
-      'TOTAL',
-      totalRentalDays,
-      `${totalIncome.toFixed(2)}`,
-      `${totalExpenses.toFixed(2)}`,
-      `${totalNet.toFixed(2)}`
+    'TOTAL',
+    totalRentalDays.toFixed(2),
+    `${totalIncome.toFixed(2)}`,
+    `${totalExpenses.toFixed(2)}`,
+    `${totalNet.toFixed(2)}`
     ]);
     
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
@@ -3612,38 +3695,64 @@ export class MetricsRepository implements IMetricsRepository {
     const bookingsSheet = XLSX.utils.aoa_to_sheet(bookingsDetailData);
     XLSX.utils.book_append_sheet(workbook, bookingsSheet, 'Detalle de Reservas');
     
-    // HOJA 3: Pagos por Reserva
+    // HOJA 3: Pagos por Reserva (agrupados por reserva con motivos)
     const paymentsDetailData = [
     ['DETALLE DE PAGOS POR RESERVA'],
     [],
-    ['N° Reserva', 'Vehículo', 'Cliente', 'Monto Pago', 'Estado', 'Tipo Pago', 'Fecha Pago']
+    ['N° Reserva', 'Vehículo', 'Cliente', 'Monto Pago', 'Estado', 'Tipo Pago', 'Fecha Pago', 'Motivo']
     ];
     
     for (const booking of allBookingsData) {
-    if (booking.payments && booking.payments.length > 0) {
-    for (const payment of booking.payments) {
-    paymentsDetailData.push([
-    booking.bookingNumber || 'N/A',
-    booking.vehicleName,
-    booking.clientName,
-    payment.amount ? payment.amount.toFixed(2) : '0.00',
-    payment.status || 'N/A',
-    payment.paymentType || 'N/A',
-    payment.paymentDate ? new Date(payment.paymentDate).toLocaleString('es-ES') : 'N/A'
-    ]);
+    // Calcular el monto base de la renta (sin ajustes)
+    const baseAmount = booking.vehicleTotal || 0;
+    
+    // Obtener ajustes (cambio de vehículo, extensión, horas extras)
+    const adjustments = booking.adjustments || [];
+    
+    // Determinar el motivo principal
+    let motivo = 'RENTA';
+    const motivosParts: string[] = ['RENTA'];
+    
+    // Agregar motivos de ajustes
+    for (const adjustment of adjustments) {
+    if (adjustment.eventName) {
+    if (adjustment.eventName.includes('CAMBIO')) {
+    motivosParts.push('CAMBIO DE VEHICULO');
+    } else if (adjustment.eventName.includes('EXTENSION')) {
+    motivosParts.push('EXTENSION');
+    } else if (adjustment.eventName.includes('HORAS EXTRAS')) {
+    motivosParts.push('HORAS EXTRAS');
     }
-    } else {
-    // Si no hay pagos en el array, mostrar el total pagado
+    }
+    }
+    
+    // Unir todos los motivos
+    motivo = motivosParts.join(', ');
+    
+    // Determinar fecha de pago y tipo de pago
+    let paymentDate = booking.createdAt;
+    let paymentType = booking.paymentMethod || 'N/A';
+    
+    if (booking.payments && booking.payments.length > 0) {
+    // Usar la fecha del primer pago PAID
+    const firstPaidPayment = booking.payments.find((p: any) => p.status === 'PAID');
+    if (firstPaidPayment) {
+    paymentDate = firstPaidPayment.paymentDate ? new Date(firstPaidPayment.paymentDate) : booking.createdAt;
+    paymentType = firstPaidPayment.paymentType || paymentType;
+    }
+    }
+    
+    // Agregar UNA SOLA fila por reserva con el monto total y el motivo
     paymentsDetailData.push([
     booking.bookingNumber || 'N/A',
     booking.vehicleName,
     booking.clientName,
     booking.totalPaid.toFixed(2),
     'PAID',
-    booking.paymentMethod,
-    booking.createdAt.toLocaleString('es-ES')
+    paymentType,
+    paymentDate.toLocaleString('es-ES'),
+    motivo
     ]);
-    }
     }
     
     const paymentsSheet = XLSX.utils.aoa_to_sheet(paymentsDetailData);
@@ -3737,8 +3846,8 @@ export class MetricsRepository implements IMetricsRepository {
     vehicleSummaryData.push([
     'TOTAL',
     '',
-    totalRentalDays,
-    totalRentalDays,
+    totalRentalDays.toFixed(2),
+    totalRentalDays.toFixed(2),
     totalIncome.toFixed(2),
     totalExpenses.toFixed(2),
     totalNet.toFixed(2),
