@@ -381,6 +381,8 @@ export class MetricsRepository implements IMetricsRepository {
         // Los ajustes de CAMBIO DE VEHICULO se suman al vehículo NUEVO (que entra)
         // Las extensiones y otros ajustes se suman al vehículo correspondiente
         let vehicleAdjustments = 0;
+        let hasExcludedExtension = false; // Flag para detectar extensión excluida
+        let originalEndDate: Date | null = null; // Fecha fin antes de la extensión
         const bookingTotals = (booking as any).bookingTotals;
         
         this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: bookingTotals existe? ${!!bookingTotals}, adjustments existe? ${!!bookingTotals?.adjustments}, es array? ${Array.isArray(bookingTotals?.adjustments)}, length: ${bookingTotals?.adjustments?.length || 0}`);
@@ -475,6 +477,56 @@ export class MetricsRepository implements IMetricsRepository {
               
               if (!adjustmentInRange) {
               this.logger.debug(`[getVehicleFinancialDetails] Ajuste EXCLUIDO por fecha: ${adjustment.eventName} = ${adjustment.amount} (fecha: ${adjustmentDate.toISOString()}, rango: ${dateFilter.$gte.toISOString()} a ${dateFilter.$lt.toISOString()})`);
+              
+              // Detectar si es una extensión excluida
+              const isExtension = adjustment.eventName && 
+                                 (adjustment.eventName.includes('EXTENSION') || 
+                                  adjustment.eventName.includes('EXTENSIÓN'));
+              
+              if (isExtension && !hasExcludedExtension) {
+                hasExcludedExtension = true;
+                this.logger.debug(`[getVehicleFinancialDetails] Extensión excluida detectada para reserva #${(booking as any).bookingNumber}`);
+                
+                // Buscar la fecha fin original en los snapshots del contrato
+                const contract = contractsMap.get((booking as any)._id.toString());
+                if (contract) {
+                  const snapshots = (contract as any).snapshots || [];
+                  
+                  // Buscar el snapshot de extensión (tiene cambios en booking.cart.vehicles)
+                  for (const snapshot of snapshots) {
+                    const changes = snapshot.changes || [];
+                    const reason = snapshot.reason || '';
+                    
+                    // Verificar si es snapshot de extensión
+                    const isExtensionSnapshot = reason.includes('EXTENSION') || 
+                                               changes.some((c: any) => c.field === 'extension' || c.field === 'isExtension');
+                    
+                    if (isExtensionSnapshot) {
+                      for (const change of changes) {
+                        if (change.field === 'booking.cart.vehicles' && change.oldValue) {
+                          const oldVehicles = change.oldValue || [];
+                          const oldVehicle = oldVehicles.find((v: any) => {
+                            const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+                            return vId === vehicleId;
+                          });
+                          
+                          if (oldVehicle && oldVehicle.dates?.end) {
+                            originalEndDate = new Date(oldVehicle.dates.end);
+                            this.logger.debug(`[getVehicleFinancialDetails] Fecha fin original encontrada: ${originalEndDate.toISOString()} (antes de extensión)`);
+                            break;
+                          }
+                        }
+                      }
+                    }
+                    
+                    if (originalEndDate) break;
+                  }
+                  
+                  if (!originalEndDate) {
+                    this.logger.warn(`[getVehicleFinancialDetails] No se pudo encontrar fecha fin original para extensión excluida`);
+                  }
+                }
+              }
               }
               }
               }
@@ -576,38 +628,21 @@ export class MetricsRepository implements IMetricsRepository {
           
           this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber} (sin payments): Monto prorrateado = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount}`);
           
-          // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
-          // Si hay filtro de fecha, solo contar los días DENTRO del rango filtrado
-          // Esto asegura que los días reflejen solo el período que se está reportando
+          // CORRECCIÓN: Calcular días totales, pero usar fecha original si hay extensión excluida
           let rentalDays = 0;
           
           if (adjustedVehicleDates) {
-            let effectiveStartDate = adjustedVehicleDates.start;
+            const effectiveStartDate = adjustedVehicleDates.start;
             let effectiveEndDate = adjustedVehicleDates.end;
             
-            // Si hay filtro de fecha, ajustar las fechas al rango filtrado
-            if (dateFilter) {
-              // Si la fecha de inicio está antes del rango, usar el inicio del rango
-              if (effectiveStartDate < dateFilter.$gte) {
-                effectiveStartDate = dateFilter.$gte;
-              }
-              
-              // Si la fecha de fin está después del rango, usar el fin del rango
-              if (effectiveEndDate >= dateFilter.$lt) {
-                effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1); // Restar 1ms para no incluir el día siguiente
-              }
-              
-              // Si las fechas ajustadas son válidas (inicio < fin), calcular días
-              if (effectiveStartDate < effectiveEndDate) {
-                rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
-              } else {
-                // Si las fechas están invertidas o son iguales, la renta está completamente fuera del rango
-                rentalDays = 0;
-              }
-            } else {
-              // Sin filtro de fecha, usar las fechas completas
-              rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+            // Si hay extensión excluida, usar la fecha fin original (antes de la extensión)
+            if (hasExcludedExtension && originalEndDate) {
+              effectiveEndDate = originalEndDate;
+              this.logger.debug(`[getVehicleFinancialDetails] Usando fecha fin original (sin extensión): ${effectiveEndDate.toISOString()}`);
             }
+            
+            // Calcular días totales (sin filtro de fecha)
+            rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
           }
           
           incomeDetails.push({
@@ -648,26 +683,20 @@ export class MetricsRepository implements IMetricsRepository {
               const amount20 = proratedAmount * 0.20;
               const amount80 = proratedAmount * 0.80;
               
-              // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+              // CORRECCIÓN: Calcular días totales, pero usar fecha original si hay extensión excluida
               let rentalDays = 0;
               
               if (adjustedVehicleDates) {
-                let effectiveStartDate = adjustedVehicleDates.start;
+                const effectiveStartDate = adjustedVehicleDates.start;
                 let effectiveEndDate = adjustedVehicleDates.end;
                 
-                if (dateFilter) {
-                  if (effectiveStartDate < dateFilter.$gte) {
-                    effectiveStartDate = dateFilter.$gte;
-                  }
-                  if (effectiveEndDate >= dateFilter.$lt) {
-                    effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1);
-                  }
-                  if (effectiveStartDate < effectiveEndDate) {
-                    rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
-                  }
-                } else {
-                  rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                // Si hay extensión excluida, usar la fecha fin original (antes de la extensión)
+                if (hasExcludedExtension && originalEndDate) {
+                  effectiveEndDate = originalEndDate;
                 }
+                
+                // Calcular días totales (sin filtro de fecha)
+                rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
               }
               
               // 20% en fecha de carga
@@ -701,26 +730,20 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+              // CORRECCIÓN: Calcular días totales, pero usar fecha original si hay extensión excluida
               let rentalDays = 0;
               
               if (adjustedVehicleDates) {
-                let effectiveStartDate = adjustedVehicleDates.start;
+                const effectiveStartDate = adjustedVehicleDates.start;
                 let effectiveEndDate = adjustedVehicleDates.end;
                 
-                if (dateFilter) {
-                  if (effectiveStartDate < dateFilter.$gte) {
-                    effectiveStartDate = dateFilter.$gte;
-                  }
-                  if (effectiveEndDate >= dateFilter.$lt) {
-                    effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1);
-                  }
-                  if (effectiveStartDate < effectiveEndDate) {
-                    rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
-                  }
-                } else {
-                  rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                // Si hay extensión excluida, usar la fecha fin original (antes de la extensión)
+                if (hasExcludedExtension && originalEndDate) {
+                  effectiveEndDate = originalEndDate;
                 }
+                
+                // Calcular días totales (sin filtro de fecha)
+                rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
               }
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
@@ -742,26 +765,20 @@ export class MetricsRepository implements IMetricsRepository {
               // CORRECCIÓN: Usar totalVehicleAmount (que incluye ajustes) en lugar de vehicleItemTotal
               const proratedAmount = totalVehicleAmount * vehicleProportion;
               
-              // CORRECCIÓN CRÍTICA: Calcular días considerando el filtro de fecha
+              // CORRECCIÓN: Calcular días totales, pero usar fecha original si hay extensión excluida
               let rentalDays = 0;
               
               if (adjustedVehicleDates) {
-                let effectiveStartDate = adjustedVehicleDates.start;
+                const effectiveStartDate = adjustedVehicleDates.start;
                 let effectiveEndDate = adjustedVehicleDates.end;
                 
-                if (dateFilter) {
-                  if (effectiveStartDate < dateFilter.$gte) {
-                    effectiveStartDate = dateFilter.$gte;
-                  }
-                  if (effectiveEndDate >= dateFilter.$lt) {
-                    effectiveEndDate = new Date(dateFilter.$lt.getTime() - 1);
-                  }
-                  if (effectiveStartDate < effectiveEndDate) {
-                    rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
-                  }
-                } else {
-                  rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+                // Si hay extensión excluida, usar la fecha fin original (antes de la extensión)
+                if (hasExcludedExtension && originalEndDate) {
+                  effectiveEndDate = originalEndDate;
                 }
+                
+                // Calcular días totales (sin filtro de fecha)
+                rentalDays = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
               }
               
               this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Generando ingreso = ${totalVehicleAmount} * ${vehicleProportion} = ${proratedAmount} (fecha: ${effectiveDate.toISOString()})`);
@@ -3301,6 +3318,7 @@ export class MetricsRepository implements IMetricsRepository {
     // Agrupar transacciones de ingreso por sourceId (reserva) para contar reservas únicas
     const uniqueBookings = new Set<string>();
     const bookingDetails = new Map<string, any>();
+    const bookingRentalDays = new Map<string, number>(); // Mapa de booking -> días de renta
     
     for (const transaction of incomeTransactions) {
     if (!transaction.description.includes('Extensión')) {
@@ -3317,6 +3335,13 @@ export class MetricsRepository implements IMetricsRepository {
     const detail = bookingDetails.get(transaction.sourceId);
     detail.transactions.push(transaction);
     detail.totalAmount += transaction.amount;
+    
+    // IMPORTANTE: Guardar los días de renta de la transacción
+    // Los días ya vienen calculados correctamente desde getVehicleFinancialDetails
+    // (incluyendo el ajuste por extensiones excluidas)
+    if ((transaction as any).rentalDays && !bookingRentalDays.has(transaction.sourceId)) {
+    bookingRentalDays.set(transaction.sourceId, (transaction as any).rentalDays);
+    }
     }
     }
     
@@ -3481,14 +3506,68 @@ export class MetricsRepository implements IMetricsRepository {
     let rentalDays = 0;
     if (vehicleDates?.start && vehicleDates?.end) {
     const start = new Date(vehicleDates.start);
-    const end = new Date(vehicleDates.end);
+    let end = new Date(vehicleDates.end);
     
-    // CORRECCIÓN: Calcular días TOTALES de renta (sin filtro de fecha)
-    // El filtro de fecha solo aplica a las VENTAS, no a los días
+    // CORRECCIÓN: Detectar si hay extensión excluida por filtro de fecha
+    // Si hay extensión y está fuera del rango, usar la fecha fin original
+    let hasExcludedExtension = false;
+    const dateFilter = this.buildDateFilter(filters?.dateFilter);
+    
+    if (contract && dateFilter) {
+    const extension = (contract as any).extension;
+    if (extension && extension.newEndDateTime) {
+    const extensionDate = new Date(extension.newEndDateTime);
+    const extensionInRange = extensionDate >= dateFilter.$gte && extensionDate < dateFilter.$lt;
+    
+    if (!extensionInRange) {
+    // La extensión está fuera del rango - buscar fecha original en snapshots
+    hasExcludedExtension = true;
+    const snapshots = (contract as any).snapshots || [];
+    
+    for (const snapshot of snapshots) {
+    const changes = snapshot.changes || [];
+    const reason = snapshot.reason || '';
+    
+    const isExtensionSnapshot = reason.includes('EXTENSION') || 
+    changes.some((c: any) => c.field === 'extension' || c.field === 'isExtension');
+    
+    if (isExtensionSnapshot) {
+    for (const change of changes) {
+    if (change.field === 'booking.cart.vehicles' && change.oldValue) {
+    const oldVehicles = change.oldValue || [];
+    const oldVehicle = oldVehicles.find((v: any) => {
+    const vId = v.vehicle?._id?.toString() || v.vehicle?.toString();
+    return vId === vehicle._id.toString();
+    });
+    
+    if (oldVehicle && oldVehicle.dates?.end) {
+    end = new Date(oldVehicle.dates.end);
+    this.logger.debug(`[exportOwnerReport] Extensión excluida - usando fecha fin original: ${end.toISOString()}`);
+    break;
+    }
+    }
+    }
+    }
+    
+    if (end.getTime() !== new Date(vehicleDates.end).getTime()) break;
+    }
+    }
+    }
+    }
+    
+    // Calcular días totales (sin filtro de fecha, pero usando fecha original si hay extensión excluida)
     const totalDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
     rentalDays = Math.round(totalDays * 100) / 100; // Redondear a 2 decimales
     
-    this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}, Vehículo ${vehicle.name}: ${rentalDays} días (${start.toISOString()} a ${end.toISOString()})`);
+    this.logger.debug(`[exportOwnerReport] Reserva #${(booking as any).bookingNumber}, Vehículo ${vehicle.name}: ${rentalDays} días (${start.toISOString()} a ${end.toISOString()})${hasExcludedExtension ? ' [extensión excluida]' : ''}`);
+    }
+    
+    // CORRECCIÓN FINAL: Usar los días del mapa en lugar de los calculados manualmente
+    // El mapa contiene los días correctos desde getVehicleFinancialDetails
+    const bookingIdForMap = (booking as any)._id.toString();
+    if (bookingRentalDays.has(bookingIdForMap)) {
+    rentalDays = Math.round(bookingRentalDays.get(bookingIdForMap) * 100) / 100; // Redondear a 2 decimales
+    this.logger.debug(`[exportOwnerReport] Usando días del mapa para reserva #${(booking as any).bookingNumber}: ${rentalDays} días`);
     }
     
     // Obtener información del cliente desde el contrato
