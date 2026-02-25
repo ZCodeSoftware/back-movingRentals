@@ -112,6 +112,7 @@ export class VehicleRepository implements IVehicleRepository {
   async findByDate(query: any): Promise<VehicleModel[]> {
     const start = query.start ? new Date(query.start) : null;
     const end = query.end ? new Date(query.end) : null;
+    const excludeBookingId = query.excludeBookingId || null; // ID del booking a excluir
 
     const filter: any = {};
 
@@ -158,6 +159,7 @@ export class VehicleRepository implements IVehicleRepository {
         vehicles,
         start,
         end,
+        excludeBookingId, // Pasar el booking a excluir
       );
       return this.enrichVehiclesWithPromotions(filteredVehicles);
     }
@@ -168,11 +170,13 @@ export class VehicleRepository implements IVehicleRepository {
   /**
    * Filtra vehículos verificando también contra bookings aprobados
    * Esto es un backup en caso de que vehicle.reservations no esté sincronizado
+   * @param excludeBookingId - ID del booking a excluir de la verificación (útil al editar un booking existente)
    */
   private async filterVehiclesByBookings(
     vehicles: any[],
     searchStart: Date,
     searchEnd: Date,
+    excludeBookingId?: string,
   ): Promise<any[]> {
     // Obtener todos los bookings aprobados que solapan con las fechas de búsqueda
     const BookingModel = this.vehicleDB.db.model('Booking');
@@ -194,10 +198,24 @@ export class VehicleRepository implements IVehicleRepository {
       `[VehicleRepository] Verificando ${vehicles.length} vehículos contra ${approvedBookings.length} bookings aprobados`,
     );
 
+    if (excludeBookingId) {
+      console.log(
+        `[VehicleRepository] 🔄 Excluyendo booking ${excludeBookingId} de la verificación (edición en curso)`,
+      );
+    }
+
     // Crear un Set de vehículos que están ocupados según los bookings
     const occupiedVehicleIds = new Set<string>();
 
     for (const booking of approvedBookings) {
+      // IMPORTANTE: Saltar el booking que se está editando
+      if (excludeBookingId && booking._id.toString() === excludeBookingId) {
+        console.log(
+          `[VehicleRepository] ⏭️ Saltando booking #${booking.bookingNumber} (es el que se está editando)`,
+        );
+        continue;
+      }
+
       try {
         const cart = JSON.parse(booking.cart || '{}');
 
