@@ -44,7 +44,7 @@ export interface IContractRepository {
     name: string;
     lastName: string;
   }>>;
-  update(id: string, contractData: any, userId: string): Promise<ContractModel>;
+  update(id: string, contractData: any, userId: string, confirmDuplicate?: boolean): Promise<ContractModel>;
   createHistoryEvent(
     contractId: string,
     userId: string,
