@@ -1429,6 +1429,7 @@ export class ContractRepository implements IContractRepository {
     id: string,
     contractData: UpdateContractDTO,
     userId: string,
+    confirmDuplicate: boolean = false,
   ): Promise<ContractModel> {
     const session = await this.connection.startSession();
     session.startTransaction();
@@ -1671,17 +1672,13 @@ export class ContractRepository implements IContractRepository {
                 amount: contractUpdateData.extension.extensionAmount,
                 vehicle: vehicleId,
                 existingId: existingMovement._id,
+                confirmDuplicate: confirmDuplicate,
               },
             );
             
             // Verificar si el usuario confirmó explícitamente crear el duplicado
-            console.log('[ContractRepository][update] 🔍 Verificando confirmDuplicate:', {
-              confirmDuplicate: (contractData as any).confirmDuplicate,
-              contractDataKeys: Object.keys(contractData).slice(0, 10),
-              hasConfirmDuplicate: 'confirmDuplicate' in contractData
-            });
-            
-            if (!(contractData as any).confirmDuplicate) {
+            // Usar el parámetro confirmDuplicate en lugar de buscarlo en contractData
+            if (!confirmDuplicate) {
               // Obtener detalles del movimiento existente para mostrar al usuario
               const eventType = await this.catContractEventModel.findById(existingMovement.eventType);
               

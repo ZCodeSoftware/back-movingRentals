@@ -214,10 +214,20 @@ export class ContractService implements IContractService {
     }
 
     try {
+      // Extraer confirmDuplicate del updateData antes de pasar al repositorio
+      const { confirmDuplicate, ...dataWithoutConfirm } = updateData as any;
+      
+      console.log('[ContractService] Verificando confirmDuplicate:', {
+        confirmDuplicate,
+        hasConfirmDuplicate: 'confirmDuplicate' in updateData,
+        updateDataKeys: Object.keys(updateData).slice(0, 15)
+      });
+
       const updated = await this.contractRepository.update(
         id,
-        updateData,
+        dataWithoutConfirm,
         userId,
+        confirmDuplicate === true, // Pasar como parámetro separado
       );
 
       // Si es una extensión con pago, crear movimiento enlazado al EXTENSION_UPDATED
