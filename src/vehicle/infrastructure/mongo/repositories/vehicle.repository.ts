@@ -301,6 +301,10 @@ export class VehicleRepository implements IVehicleRepository {
             '_id' in value
           );
         }
+        // Permitir arrays (incluso vacíos) para campos como images
+        if (Array.isArray(value)) {
+          return true;
+        }
         return value !== null && value !== undefined;
       }),
     );
