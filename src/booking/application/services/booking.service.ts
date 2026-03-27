@@ -640,7 +640,19 @@ export class BookingService implements IBookingService {
         const percentage = body.commission !== undefined && body.commission !== null
         ? body.commission
         : (conciergeData.commissionPercentage ?? 15);
-        const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
+        // IMPORTANTE: Excluir el delivery del cálculo de comisión
+        // El deliveryCost viene del cart, no del body
+        const deliveryCost = deliveryInfo.deliveryCost || 0;
+        const bookingTotalWithoutDelivery = Math.max(0, bookingTotal - deliveryCost);
+        const amount = Math.round((bookingTotalWithoutDelivery * (percentage / 100)) * 100) / 100;
+        
+        console.log('[BookingService] Initial commission calculation:', {
+        bookingTotal,
+        deliveryCost,
+        bookingTotalWithoutDelivery,
+        percentage,
+        amount
+        });
         
         await this.commissionRepository.create(
         CommissionModel.create({
@@ -1095,7 +1107,19 @@ export class BookingService implements IBookingService {
             const userId = user?.toJSON()._id?.toString();
             const bookingTotal = (booking as any).total ?? currentBookingData.total;
             const commissionPercentage = (booking as any).commission ?? 15;
-            const amount = Math.round((bookingTotal * (commissionPercentage / 100)) * 100) / 100;
+            
+            // IMPORTANTE: Excluir el delivery del cálculo de comisión
+            const deliveryCost = currentBookingData.deliveryCost || 0;
+            const bookingTotalWithoutDelivery = Math.max(0, bookingTotal - deliveryCost);
+            const amount = Math.round((bookingTotalWithoutDelivery * (commissionPercentage / 100)) * 100) / 100;
+            
+            console.log('[BookingService] Update commission calculation:', {
+              bookingTotal,
+              deliveryCost,
+              bookingTotalWithoutDelivery,
+              commissionPercentage,
+              amount
+            });
 
             await this.commissionRepository.create(
               CommissionModel.create({
@@ -1541,9 +1565,19 @@ export class BookingService implements IBookingService {
               const currentBookingData = currentBooking.toJSON();
               const bookingTotal = currentBookingData.total || 0;
               
-              console.log(`[BookingService] Creando comisión única para concierge ${conciergeId} sobre total ${bookingTotal} con ${percentage}%`);
+              // IMPORTANTE: Excluir el delivery del cálculo de comisión
+              const deliveryCost = currentBookingData.deliveryCost || 0;
+              const bookingTotalWithoutDelivery = Math.max(0, bookingTotal - deliveryCost);
               
-              const amount = Math.round((bookingTotal * (percentage / 100)) * 100) / 100;
+              console.log(`[BookingService] Creando comisión única para concierge ${conciergeId} sobre total ${bookingTotal} (sin delivery: ${bookingTotalWithoutDelivery}) con ${percentage}%`);
+              console.log('[BookingService] Validate commission calculation:', {
+                bookingTotal,
+                deliveryCost,
+                bookingTotalWithoutDelivery,
+                percentage
+              });
+              
+              const amount = Math.round((bookingTotalWithoutDelivery * (percentage / 100)) * 100) / 100;
 
               await this.commissionRepository.create(
                 CommissionModel.create({

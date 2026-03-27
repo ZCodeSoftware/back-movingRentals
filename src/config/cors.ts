@@ -10,6 +10,8 @@ if (config().app.env === 'dev') {
     'http://localhost:5173',
     'https://0jfvmjkq-5173.brs.devtunnels.ms',
     'https://nx50gc3r-5173.brs.devtunnels.ms',
+    'https://wmz5jptq-5173.brs.devtunnels.ms',
+    'https://wmz5jptq-5173.brs.devtunnels.ms/',
   ];
 }
 
@@ -22,6 +24,11 @@ const whiteList = [
   'https://www.moovadventures.mx',
   'https://nx50gc3r-5173.brs.devtunnels.ms',
   'https://lbkdpvp7-5173.brs.devtunnels.ms',
+  'https://wmz5jptq-5173.brs.devtunnels.ms',
+  'https://wmz5jptq-5173.brs.devtunnels.ms/',
+  'https://wmz5jptq-3000.brs.devtunnels.ms',
+  'https://wmz5jptq-3000.brs.devtunnels.ms/',
+
   ...whiteListDev,
 ];
 
