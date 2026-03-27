@@ -288,6 +288,18 @@ export class ContractService implements IContractService {
             const extensionAmount = updateData.extension.extensionAmount;
             const commissionTotal = updateData.extension.commissionTotal;
             const commissionPercentage = updateData.extension.commissionPercentage ?? 15;
+            
+            // IMPORTANTE: Excluir el delivery del cálculo de comisión
+            // El delivery no genera comisión para el vendedor
+            const deliveryCost = (bookingData as any).deliveryCost || 0;
+            const extensionAmountWithoutDelivery = Math.max(0, extensionAmount - deliveryCost);
+            
+            console.log('[ContractService] Extension commission calculation:', {
+              extensionAmount,
+              deliveryCost,
+              extensionAmountWithoutDelivery,
+              commissionPercentage
+            });
             const concierge = (updateData as any).concierge;
             
             if (!concierge) {
@@ -306,10 +318,13 @@ export class ContractService implements IContractService {
               calculationMethod = 'fixed';
               console.log('[ContractService] Using fixed commission amount from frontend:', commissionAmount);
             } else {
-              commissionAmount = Math.round((extensionAmount * (commissionPercentage / 100)) * 100) / 100;
+              // Calcular comisión SOLO sobre el monto de extensión sin delivery
+              commissionAmount = Math.round((extensionAmountWithoutDelivery * (commissionPercentage / 100)) * 100) / 100;
               calculationMethod = 'percentage';
-              console.log('[ContractService] Calculating commission with percentage:', {
+              console.log('[ContractService] Calculating commission with percentage (excluding delivery):', {
                 extensionAmount,
+                deliveryCost,
+                extensionAmountWithoutDelivery,
                 commissionPercentage,
                 commissionAmount
               });
