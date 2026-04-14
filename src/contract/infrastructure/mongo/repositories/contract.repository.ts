@@ -2650,6 +2650,7 @@ export class ContractRepository implements IContractRepository {
     const savedHistory = await historyEntry.save();
 
     // Persistir en booking.metadata los campos relevantes de metadata (si vienen)
+    // Y sincronizar totalPaid si el evento tiene un monto negativo (ej. CAMBIO DE VEHICULO con descuento)
     try {
       if (metadata && typeof metadata === 'object') {
         const setObj: any = {};
@@ -2659,6 +2660,29 @@ export class ContractRepository implements IContractRepository {
         if ((metadata as any).depositNote !== undefined) {
           setObj['metadata.depositNote'] = (metadata as any).depositNote;
         }
+
+        // Si el evento tiene un monto negativo, reducir totalPaid del booking para que
+        // coincida con el Total General (netTotal). Ej: cambio de vehículo con descuento.
+        const eventAmount = parseFloat(String((metadata as any).amount));
+        if (!isNaN(eventAmount) && eventAmount < 0) {
+          const contractDoc = await this.contractModel.findById(contractId).lean();
+          if (contractDoc?.booking) {
+            const booking = await this.bookingModel.findById(contractDoc.booking);
+            if (booking) {
+              const currentTotalPaid = (booking as any).totalPaid || 0;
+              const newTotalPaid = Math.max(0, currentTotalPaid + eventAmount);
+              if (newTotalPaid !== currentTotalPaid) {
+                console.log(`[ContractRepository][createHistoryEvent] Ajustando totalPaid: ${currentTotalPaid} + ${eventAmount} = ${newTotalPaid}`);
+                await this.bookingModel.updateOne(
+                  { _id: contractDoc.booking },
+                  { $set: { ...setObj, totalPaid: newTotalPaid } },
+                );
+                return savedHistory;
+              }
+            }
+          }
+        }
+
         if (Object.keys(setObj).length > 0) {
           const contractDoc = await this.contractModel
             .findById(contractId)
@@ -2671,7 +2695,9 @@ export class ContractRepository implements IContractRepository {
           }
         }
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn('[ContractRepository][createHistoryEvent] Error al sincronizar totalPaid:', err);
+    }
 
     return savedHistory;
   }
@@ -3038,9 +3064,12 @@ export class ContractRepository implements IContractRepository {
                 totalPaidAnterior: currentTotalPaid
               });
 
-              // AJUSTAR TOTALES: Total General - restar delivery, Total Pagado - mantener
+              // AJUSTAR TOTALES: Total General y Total Pagado - restar delivery en ambos
+              // Si totalPaid incluía el delivery, también reducirlo para mantener totalPaid = total
               const newTotal = Math.max(0, currentTotal - deliveryCost);
-              const newTotalPaid = currentTotalPaid; // NO modificar
+              const newTotalPaid = currentTotalPaid >= deliveryCost
+                ? Math.max(0, currentTotalPaid - deliveryCost)
+                : currentTotalPaid;
 
               // Actualizar totales
               booking.total = newTotal;
@@ -3058,7 +3087,8 @@ export class ContractRepository implements IContractRepository {
               console.log('[softDeleteHistoryEntry] Totales ajustados:', {
                 totalNuevo: newTotal,
                 totalPaidNuevo: newTotalPaid,
-                deliveryEliminado: deliveryCost
+                deliveryEliminado: deliveryCost,
+                totalPaidReducido: currentTotalPaid !== newTotalPaid
               });
 
 

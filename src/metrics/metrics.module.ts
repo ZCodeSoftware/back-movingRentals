@@ -15,6 +15,7 @@ import { Contract, ContractSchema } from '../core/infrastructure/mongo/schemas/p
 import { ContractHistory, ContractHistorySchema } from '../core/infrastructure/mongo/schemas/public/contract-history.schema';
 import { CatContractEvent, CatContractEventSchema } from '../core/infrastructure/mongo/schemas/catalogs/cat-contract-event.schema';
 import { VehicleOwner, VehicleOwnerSchema } from '../core/infrastructure/mongo/schemas/public/vehicle-owner.schema';
+import { Commission, CommissionSchema } from '../core/infrastructure/mongo/schemas/public/commission.schema';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { VehicleOwner, VehicleOwnerSchema } from '../core/infrastructure/mongo/s
       { name: 'ContractHistory', schema: ContractHistorySchema },
       { name: 'CatContractEvent', schema: CatContractEventSchema },
       { name: 'VehicleOwner', schema: VehicleOwnerSchema },
+      { name: 'Commission', schema: CommissionSchema },
     ]),
   ],
   controllers: [MetricsController],

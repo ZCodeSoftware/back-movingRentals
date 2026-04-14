@@ -302,7 +302,7 @@ export class CommissionRepository implements ICommissionRepository {
   }
 
   async markAsPaid(id: string): Promise<CommissionModel> {
-    const updated = await this.commissionDB.findByIdAndUpdate(id, { status: 'PAID' }, { new: true });
+    const updated = await this.commissionDB.findByIdAndUpdate(id, { status: 'PAID', paidAt: new Date() }, { new: true });
     if (!updated) throw new BaseErrorException('Commission not found', HttpStatus.NOT_FOUND);
     return CommissionModel.hydrate(updated);
   }

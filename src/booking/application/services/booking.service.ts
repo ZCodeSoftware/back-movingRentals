@@ -1153,16 +1153,22 @@ export class BookingService implements IBookingService {
           if (hasCommissionChange) {
             const newTotal = (booking as any).total ?? currentBookingData.total;
             const newCommissionPercentage = (booking as any).commission;
-            const newAmount = Math.round((newTotal * (newCommissionPercentage / 100)) * 100) / 100;
+            // IMPORTANTE: Excluir el delivery del cálculo de comisión
+            const deliveryCostForUpdate = currentBookingData.deliveryCost || 0;
+            const newTotalWithoutDelivery = Math.max(0, newTotal - deliveryCostForUpdate);
+            const newAmount = Math.round((newTotalWithoutDelivery * (newCommissionPercentage / 100)) * 100) / 100;
             updates.amount = newAmount;
-            console.log(`Recalculating amount: ${newTotal} * ${newCommissionPercentage}% = ${newAmount}`);
+            console.log(`Recalculating amount: (${newTotal} - ${deliveryCostForUpdate}) * ${newCommissionPercentage}% = ${newAmount}`);
           } else if (hasTotalChange && !hasCommissionChange) {
             // Si solo cambió el total pero no el porcentaje, recalcular con el porcentaje actual
             const newTotal = (booking as any).total;
             const currentCommissionPercentage = currentBookingData.commission ?? 15;
-            const newAmount = Math.round((newTotal * (currentCommissionPercentage / 100)) * 100) / 100;
+            // IMPORTANTE: Excluir el delivery del cálculo de comisión
+            const deliveryCostForUpdate = currentBookingData.deliveryCost || 0;
+            const newTotalWithoutDelivery = Math.max(0, newTotal - deliveryCostForUpdate);
+            const newAmount = Math.round((newTotalWithoutDelivery * (currentCommissionPercentage / 100)) * 100) / 100;
             updates.amount = newAmount;
-            console.log(`Recalculating amount with current percentage: ${newTotal} * ${currentCommissionPercentage}% = ${newAmount}`);
+            console.log(`Recalculating amount with current percentage: (${newTotal} - ${deliveryCostForUpdate}) * ${currentCommissionPercentage}% = ${newAmount}`);
           }
 
           // Actualizar comisiones
@@ -1428,22 +1434,34 @@ export class BookingService implements IBookingService {
     } else if (paid && paidAmount && paidAmount > 0 && !paymentsData) {
       // Caso: Pago único o validación simple SIN paymentsData
       // Solo registrar si NO vienen paymentsData para evitar duplicados
-      const paymentType = paymentMethodName === 'Credito/Debito' ? 'STRIPE' : 
+      const paymentType = paymentMethodName === 'Credito/Debito' ? 'STRIPE' :
                          paymentMethodName === 'Efectivo' ? 'CASH' :
                          paymentMethodName === 'Transferencia' ? 'TRANSFER' : 'OTHER';
-      
-      booking.addPayment({
-        amount: paidAmount,
-        paymentMethod: paymentMethodName,
-        paymentDate: new Date(),
-        paymentType: paymentType,
-        notes: `Pago ${wasReserve ? 'parcial (anticipo)' : 'completo'} validado`,
-        status: 'PAID',
-        validatedBy: validatedBy,
-        validatedAt: validatedAt
-      });
-      
-      console.log(`[BookingService] Pago registrado: ${paidAmount} MXN - ${paymentMethodName} (${paymentType})`);
+
+      // PREVENCIÓN DE DUPLICADOS: Si el booking ya tiene un pago PAID por el mismo monto,
+      // no agregar otro. Esto evita el doble registro en bookings web con Stripe que ya
+      // tienen el pago registrado al momento de creación.
+      const existingPayments = booking.toJSON().payments || [];
+      const alreadyHasFullPayment = existingPayments.some(
+        (p: any) => p.status === 'PAID' && Math.abs(p.amount - paidAmount) < 0.01
+      );
+
+      if (alreadyHasFullPayment) {
+        console.log(`[BookingService] ⚠️ Booking ya tiene un pago PAID de ${paidAmount} - NO se agrega duplicado`);
+      } else {
+        booking.addPayment({
+          amount: paidAmount,
+          paymentMethod: paymentMethodName,
+          paymentDate: new Date(),
+          paymentType: paymentType,
+          notes: `Pago ${wasReserve ? 'parcial (anticipo)' : 'completo'} validado`,
+          status: 'PAID',
+          validatedBy: validatedBy,
+          validatedAt: validatedAt
+        });
+
+        console.log(`[BookingService] Pago registrado: ${paidAmount} MXN - ${paymentMethodName} (${paymentType})`);
+      }
     }
 
     // Establecer isValidated según el parámetro recibido

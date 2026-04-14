@@ -17,6 +17,7 @@ export class CommissionModel extends BaseModel {
   private _commissionPercentage?: number;
   private _isManual?: boolean;
   private _contract?: any;
+  private _paidAt?: Date;
 
   public toJSON() {
     const aggregate = this._id ? { _id: this._id.toValue() } : {};
@@ -33,6 +34,7 @@ export class CommissionModel extends BaseModel {
       source: this._source,
       commissionPercentage: this._commissionPercentage,
       isManual: this._isManual,
+      paidAt: this._paidAt,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };
@@ -80,6 +82,7 @@ export class CommissionModel extends BaseModel {
     m._commissionPercentage = data.commissionPercentage;
     m._isManual = data.isManual ?? false;
     m._contract = data.contract;
+    m._paidAt = data.paidAt;
     m._createdAt = data.createdAt;
     m._updatedAt = data.updatedAt;
     return m;

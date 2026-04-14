@@ -56,6 +56,7 @@ export class MetricsRepository implements IMetricsRepository {
     @InjectModel('ContractHistory') private readonly contractHistoryModel: Model<any>,
     @InjectModel('CatContractEvent') private readonly catContractEventModel: Model<any>,
     @InjectModel('VehicleOwner') private readonly vehicleOwnerModel: Model<any>,
+    @InjectModel('Commission') private readonly commissionModel: Model<any>,
   ) { }
 
   /**
@@ -150,6 +151,7 @@ export class MetricsRepository implements IMetricsRepository {
       activeClients: this.buildComparison(currentMetrics.activeClients, previousMetrics.activeClients),
       totalRevenue: this.buildComparison(currentMetrics.totalIncome, previousMetrics.totalIncome),
       totalExpenses: this.buildComparison(currentMetrics.totalExpenses, previousMetrics.totalExpenses),
+      totalCommissions: this.buildComparison(currentMetrics.totalCommissions, previousMetrics.totalCommissions),
       activeVehicles: this.buildComparison(currentMetrics.activeVehicles, previousMetrics.activeVehicles),
       monthlyBookings: this.buildComparison(currentMetrics.monthlyBookings, previousMetrics.monthlyBookings),
     };
@@ -437,26 +439,6 @@ export class MetricsRepository implements IMetricsRepository {
           }
         }
 
-        // CORRECCIÓN FINAL: Si no hay ajustes en bookingTotals ni en contract_history,
-        // calcular los ajustes como la diferencia entre totalPaid y total
-        if (adjustmentsToProcess.length === 0) {
-          const totalPaid = (booking as any).totalPaid || 0;
-          const bookingTotal = (booking as any).total || 0;
-          const adjustmentAmount = totalPaid - bookingTotal;
-
-          if (adjustmentAmount > 0) {
-            // Hay una diferencia positiva - esto son ajustes no documentados
-            adjustmentsToProcess.push({
-              eventType: null,
-              eventName: 'AJUSTE (calculado desde totalPaid)',
-              amount: adjustmentAmount,
-              direction: 'IN',
-              date: (booking as any).updatedAt || (booking as any).createdAt
-            });
-
-            this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Ajuste calculado desde totalPaid: ${adjustmentAmount} (totalPaid=${totalPaid}, total=${bookingTotal})`);
-          }
-        }
 
         if (adjustmentsToProcess.length > 0) {
           this.logger.debug(`[getVehicleFinancialDetails] Reserva #${(booking as any).bookingNumber}: Procesando ${adjustmentsToProcess.length} ajustes`);
@@ -910,12 +892,37 @@ export class MetricsRepository implements IMetricsRepository {
 
     this.logger.log(`[getVehicleFinancialDetails] Transacciones de ingreso después del filtro de fecha: ${filteredIncomeDetails.length} de ${incomeDetails.length}`);
 
-    // --- 5. COMBINAR Y ORDENAR LOS RESULTADOS ---
-    const combinedTransactions = [...filteredIncomeDetails, ...filteredExpenseDetails];
+    // --- 5. OBTENER COMISIONES DE LAS RESERVAS PROCESADAS ---
+    // Cada income transaction tiene sourceId = bookingId
+    const processedBookingIds = [...new Set(filteredIncomeDetails.map(t => t.sourceId).filter(Boolean))];
+    const commissionExpenses: TransactionDetail[] = [];
+
+    if (processedBookingIds.length > 0) {
+      const commissions = await this.commissionModel.find({
+        booking: { $in: processedBookingIds.map(id => new mongoose.Types.ObjectId(id)) },
+        status: { $ne: 'CANCELLED' },
+        amount: { $gt: 0 },
+      }).lean();
+
+      for (const commission of commissions) {
+        commissionExpenses.push({
+          type: 'EXPENSE',
+          date: commission.paidAt || commission.createdAt,
+          amount: commission.amount,
+          description: `Comisión - Reserva #${commission.bookingNumber || '?'}`,
+          sourceId: commission._id.toString(),
+        } as TransactionDetail);
+      }
+
+      this.logger.log(`[getVehicleFinancialDetails] Comisiones encontradas: ${commissions.length} (total: ${commissionExpenses.reduce((s, c) => s + c.amount, 0).toFixed(2)})`);
+    }
+
+    // --- 6. COMBINAR Y ORDENAR LOS RESULTADOS ---
+    const combinedTransactions = [...filteredIncomeDetails, ...filteredExpenseDetails, ...commissionExpenses];
     combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     const totalIncome = filteredIncomeDetails.reduce((sum, t) => sum + t.amount, 0);
-    const totalExpenses = filteredExpenseDetails.reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = [...filteredExpenseDetails, ...commissionExpenses].reduce((sum, t) => sum + t.amount, 0);
     this.logger.log(`[getVehicleFinancialDetails] ===== TOTALES =====`);
     this.logger.log(`[getVehicleFinancialDetails] Ingresos: ${totalIncome.toFixed(2)}`);
     this.logger.log(`[getVehicleFinancialDetails] Gastos: ${totalExpenses.toFixed(2)}`);
@@ -1161,6 +1168,7 @@ export class MetricsRepository implements IMetricsRepository {
     activeClients: number;
     totalIncome: number;
     totalExpenses: number;
+    totalCommissions: number;
     activeVehicles: number;
     monthlyBookings: number;
   }> {
@@ -1200,11 +1208,11 @@ export class MetricsRepository implements IMetricsRepository {
               as: 'booking',
               cond: {
                 $and: [
-                  { $in: ['$booking.status', statusIds] },
-                  ...(dateFilter ? [{
-                    $gte: ['$booking.createdAt', dateFilter.$gte]
-                  }, {
-                    $lt: ['$booking.createdAt', dateFilter.$lt]
+                  // NOTA: usar $$booking (doble $) para referenciar la variable del $filter
+                  { $in: ['$$booking.status', statusIds] },
+                  // Solo filtrar por fecha de fin (clientes activos acumulados hasta la fecha)
+                  ...(dateFilter?.$lt ? [{
+                    $lt: ['$$booking.createdAt', dateFilter.$lt]
                   }] : [])
                 ]
               }
@@ -1418,6 +1426,18 @@ export class MetricsRepository implements IMetricsRepository {
       totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
     }
 
+    // Sumar comisiones (no canceladas) a los egresos del dashboard
+    const commissionExpenseFilter: any = { status: { $ne: 'CANCELLED' }, amount: { $gt: 0 } };
+    if (dateFilter) {
+      commissionExpenseFilter.createdAt = dateFilter;
+    }
+    const commissionExpenseResult = await this.commissionModel.aggregate([
+      { $match: commissionExpenseFilter },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalCommissions = commissionExpenseResult.length > 0 ? commissionExpenseResult[0].total : 0;
+    totalExpenses += totalCommissions;
+
     let vehicleFilter: any = { isActive: true };
     if (categoryIds.length > 0) {
       vehicleFilter.category = { $in: categoryIds };
@@ -1439,6 +1459,7 @@ export class MetricsRepository implements IMetricsRepository {
       activeClients,
       totalIncome,
       totalExpenses,
+      totalCommissions,
       activeVehicles,
       monthlyBookings,
     };
@@ -1468,10 +1489,10 @@ export class MetricsRepository implements IMetricsRepository {
 
   private buildPreviousDateFilter(dateFilter?: { type: string; startDate?: Date; endDate?: Date }) {
     if (!dateFilter) {
-      // Por defecto comparar con el mes anterior
+      // Por defecto comparar con el mes anterior en UTC
       const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 1);
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
       return { $gte: start, $lt: end };
     }
 
@@ -1481,52 +1502,48 @@ export class MetricsRepository implements IMetricsRepository {
 
     switch (dateFilter.type) {
       case 'day':
-        // Día anterior
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // Día anterior en UTC
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
         break;
-      case 'week':
-        // Semana anterior
-        const dayOfWeek = now.getDay();
-        const currentWeekStart = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
-        currentWeekStart.setHours(0, 0, 0, 0);
+      case 'week': {
+        // Semana anterior en UTC
+        const dayOfWeek = now.getUTCDay();
+        const currentWeekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dayOfWeek));
         start = new Date(currentWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
-        end = new Date(currentWeekStart.getTime());
+        end = currentWeekStart;
         break;
+      }
       case 'month':
-        // Mes anterior
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 1);
+        // Mes anterior en UTC
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
         break;
       case 'lastMonth':
-        // Dos meses atrás (para comparar con el mes pasado)
-        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-        end = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        // Dos meses atrás en UTC
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
         break;
       case 'year':
-        // Año anterior
-        start = new Date(now.getFullYear() - 1, 0, 1);
-        end = new Date(now.getFullYear(), 0, 1);
+        // Año anterior en UTC
+        start = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
         break;
       case 'range':
         if (dateFilter.startDate && dateFilter.endDate) {
           const currentStart = dateFilter.startDate;
           const currentEnd = dateFilter.endDate;
           const duration = currentEnd.getTime() - currentStart.getTime();
-
-          // Período anterior del mismo tamaño
           end = new Date(currentStart.getTime());
           start = new Date(currentStart.getTime() - duration);
         } else {
-          // Fallback al mes anterior
-          start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          end = new Date(now.getFullYear(), now.getMonth(), 1);
+          start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+          end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
         }
         break;
       default:
-        // Fallback al mes anterior
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 1);
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     }
 
     return { $gte: start, $lt: end };
@@ -1943,13 +1960,8 @@ export class MetricsRepository implements IMetricsRepository {
     for (const booking of bookings) {
       const payments = (booking as any).payments || [];
 
-      // SOLO procesar si tiene metadata.paymentMedium (medios específicos como ZELLE, CLIP, etc.)
-      const paymentMedium = (booking as any).metadata?.paymentMedium;
-
-      if (!paymentMedium) {
-        // Sin medio de pago específico - esta reserva aparecerá en "Método de Pago"
-        continue;
-      }
+      // Usar metadata.paymentMedium si existe, sino agrupar bajo "SIN MEDIO"
+      const paymentMedium = (booking as any).metadata?.paymentMedium || 'SIN MEDIO';
 
       if (payments.length > 0) {
         // Sumar todos los pagos PAID de esta reserva
@@ -2635,45 +2647,43 @@ export class MetricsRepository implements IMetricsRepository {
 
   private buildDateFilter(dateFilter?: { type: string; startDate?: Date; endDate?: Date }) {
     if (!dateFilter) {
-      // Por defecto usar el mes actual
+      // Por defecto usar el mes actual en UTC
       const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
       return { $gte: start, $lt: end };
     }
 
     const now = new Date();
     let start: Date;
-    let end: Date = now;
+    let end: Date;
 
     switch (dateFilter.type) {
       case 'day':
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
         break;
-      case 'week':
-        const dayOfWeek = now.getDay();
-        start = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
-        start.setHours(0, 0, 0, 0);
+      case 'week': {
+        const dayOfWeek = now.getUTCDay();
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dayOfWeek));
         end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
         break;
+      }
       case 'month':
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
         break;
       case 'lastMonth':
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 1);
+        start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+        end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
         break;
       case 'year':
-        start = new Date(now.getFullYear(), 0, 1);
-        end = new Date(now.getFullYear() + 1, 0, 1);
+        start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+        end = new Date(Date.UTC(now.getUTCFullYear() + 1, 0, 1));
         break;
       case 'range':
         if (dateFilter.startDate && dateFilter.endDate) {
           start = dateFilter.startDate;
-          // El frontend ya envía la fecha de fin ajustada (23:59:59.999)
-          // No necesitamos ajustarla nuevamente aquí
           end = dateFilter.endDate;
         } else {
           return null;
@@ -3075,6 +3085,31 @@ export class MetricsRepository implements IMetricsRepository {
       ];
       const expenseDetails = await this.movementModel.aggregate(expensePipeline);
       combinedTransactions.push(...expenseDetails);
+
+      // Agregar comisiones como EGRESO (solo cuando no hay filtro de tipo de movimiento específico)
+      if (!filters?.movementType) {
+        const commissionMatch: any = { status: { $ne: 'CANCELLED' }, amount: { $gt: 0 } };
+        if (dateFilter) {
+          commissionMatch.createdAt = dateFilter;
+        }
+
+        const commissions = await this.commissionModel.find(commissionMatch)
+          .populate('vehicleOwner', 'name')
+          .lean();
+
+        for (const commission of commissions) {
+          combinedTransactions.push({
+            type: 'EXPENSE',
+            date: commission.paidAt || commission.createdAt,
+            amount: commission.amount,
+            description: `Comisión - Reserva #${commission.bookingNumber || '?'}`,
+            sourceId: commission._id.toString(),
+            movementType: 'COMISION',
+            services: (commission.vehicleOwner as any)?.name || 'N/A',
+            paymentMedium: 'N/A',
+          } as TransactionDetail);
+        }
+      }
     }
 
 
@@ -3119,10 +3154,10 @@ export class MetricsRepository implements IMetricsRepository {
       }
     }
 
-    // --- 3. FILTRAR TRANSACCIONES CON "VALIDADO" EN LA DESCRIPCIÓN ---
-    // Excluir transacciones cuya descripción contenga la palabra "validado" (case insensitive)
-    // para evitar confusión con duplicados
+    // --- 3. FILTRAR TRANSACCIONES NO VÁLIDAS ---
+    // Excluir transacciones con monto $0 o con "validado" en la descripción
     combinedTransactions = combinedTransactions.filter(transaction => {
+      if (!transaction.amount || transaction.amount === 0) return false;
       const description = transaction.description?.toLowerCase() || '';
       return !description.includes('validado');
     });
