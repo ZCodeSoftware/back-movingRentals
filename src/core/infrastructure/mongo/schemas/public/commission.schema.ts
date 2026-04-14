@@ -44,6 +44,9 @@ export class Commission {
 
   @Prop({ type: Boolean, default: false })
   isManual?: boolean;
+
+  @Prop({ type: Date, required: false })
+  paidAt?: Date;
 }
 
 export const CommissionSchema = SchemaFactory.createForClass(Commission);

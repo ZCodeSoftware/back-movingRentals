@@ -29,6 +29,7 @@ export interface GeneralMetrics {
   activeClients: MetricComparison;
   totalRevenue: MetricComparison;
   totalExpenses: MetricComparison;
+  totalCommissions: MetricComparison;
   activeVehicles: MetricComparison;
   monthlyBookings: MetricComparison;
 }
