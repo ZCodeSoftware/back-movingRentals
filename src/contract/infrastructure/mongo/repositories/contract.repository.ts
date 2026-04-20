@@ -3053,29 +3053,23 @@ export class ContractRepository implements IContractRepository {
         if (contract && contract.booking) {
           const booking = await this.bookingModel.findById(contract.booking);
           if (booking) {
-              // Obtener el costo del delivery antes de eliminarlo
-              const deliveryCost = booking.deliveryCost || 0;
-              const currentTotal = booking.total || 0;
-              const currentTotalPaid = booking.totalPaid || 0;
+              const deliveryCost = (booking as any).deliveryCost || 0;
+              const currentTotal = (booking as any).total || 0;
+              const currentTotalPaid = (booking as any).totalPaid || 0;
 
-              console.log('[softDeleteHistoryEntry] Ajustando totales:', {
-                deliveryCost,
-                totalAnterior: currentTotal,
-                totalPaidAnterior: currentTotalPaid
-              });
+              // Delivery en reserva original → sacar de 3 totales.
+              // Delivery agregado después → sacar de General y Pagado solamente.
+              const FIVE_MINUTES = 5 * 60 * 1000;
+              const wasAddedAtCreation =
+                Math.abs(
+                  new Date((historyEntry as any).createdAt).getTime() -
+                  new Date((contract as any).createdAt).getTime()
+                ) < FIVE_MINUTES;
 
-              // AJUSTAR TOTALES: Total General y Total Pagado - restar delivery en ambos
-              // Si totalPaid incluía el delivery, también reducirlo para mantener totalPaid = total
-              const newTotal = Math.max(0, currentTotal - deliveryCost);
-              const newTotalPaid = currentTotalPaid >= deliveryCost
-                ? Math.max(0, currentTotalPaid - deliveryCost)
-                : currentTotalPaid;
-
-              // Actualizar totales
-              booking.total = newTotal;
-              booking.totalPaid = newTotalPaid;
-              
-            // Quitar los campos de delivery del booking
+              (booking as any).totalPaid = Math.max(0, currentTotalPaid - deliveryCost);
+              if (wasAddedAtCreation) {
+                (booking as any).total = Math.max(0, currentTotal - deliveryCost);
+              }
             booking.requiresDelivery = false;
             booking.deliveryCost = 0;
             booking.deliveryType = undefined;
@@ -3084,16 +3078,8 @@ export class ContractRepository implements IContractRepository {
 
             await booking.save();
 
-              console.log('[softDeleteHistoryEntry] Totales ajustados:', {
-                totalNuevo: newTotal,
-                totalPaidNuevo: newTotalPaid,
-                deliveryEliminado: deliveryCost,
-                totalPaidReducido: currentTotalPaid !== newTotalPaid
-              });
-
-
             console.log(
-              '[softDeleteHistoryEntry] Delivery eliminado del booking exitosamente',
+              `[softDeleteHistoryEntry] Delivery eliminado. wasAddedAtCreation=${wasAddedAtCreation}, totalPaid: ${currentTotalPaid}→${(booking as any).totalPaid}`,
             );
 
             // También actualizar el carrito para quitar el delivery de los vehículos
