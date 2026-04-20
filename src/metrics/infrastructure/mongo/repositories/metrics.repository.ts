@@ -1172,13 +1172,15 @@ export class MetricsRepository implements IMetricsRepository {
     activeVehicles: number;
     monthlyBookings: number;
   }> {
-    // Obtener IDs de status APROBADAS y COMPLETADAS
+    // Obtener IDs de status APROBADAS, COMPLETADAS y PENDIENTES
     const approvedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.APPROVED });
     const completedStatus = await this.statusModel.findOne({ name: BOOKING_STATUS.COMPLETED });
+    const pendingStatus = await this.statusModel.findOne({ name: 'PENDIENTE' });
 
     const statusIds = [];
     if (approvedStatus) statusIds.push(approvedStatus._id);
     if (completedStatus) statusIds.push(completedStatus._id);
+    if (pendingStatus) statusIds.push(pendingStatus._id);
 
     // Obtener IDs de categorías si se filtra por vehicleType (ahora soporta múltiples)
     let categoryIds: any[] = [];
@@ -1337,49 +1339,31 @@ export class MetricsRepository implements IMetricsRepository {
           _id: { $in: Array.from(bookingIdsToInclude).map(id => new mongoose.Types.ObjectId(id)) }
         }).lean();
 
-        // Calcular ingresos de los bookings filtrados
-        // IMPORTANTE: Filtrar por createdAt del booking Y por paymentDate del pago
+        // Usar totalPaid (dinero real cobrado incluyendo extensiones pagadas)
+        // Fallback a total si totalPaid no está registrado
         for (const booking of bookings) {
-          const payments = (booking as any).payments || [];
-          const bookingCreatedAt = new Date((booking as any).createdAt);
-
-
-          if (payments.length > 0) {
-            // Caso 1: Reservas con payments array
-            for (const payment of payments) {
-              if (payment.status === 'PAID') {
-                totalIncome += payment.amount || 0;
-              }
-            }
-          } else if ((booking as any).totalPaid > 0) {
-            // Caso 2: Reservas sin payments pero con totalPaid > 0
-            totalIncome += (booking as any).totalPaid;
-          }
+          const totalPaid = (booking as any).totalPaid;
+          const bookingValue = (totalPaid !== undefined && totalPaid !== null && totalPaid > 0)
+            ? totalPaid
+            : ((booking as any).total || 0);
+          totalIncome += bookingValue;
         }
       }
     } else {
       // Sin filtro de vehicleType, obtener bookings filtradas por fecha
       const bookings = await this.bookingModel.find({
         status: { $in: statusIds },
-        totalPaid: { $gt: 0 },
         ...(dateFilter && { createdAt: dateFilter })
       }).lean();
 
-      // Calcular ingresos de los bookings filtrados
+      // Usar totalPaid (dinero real cobrado incluyendo extensiones pagadas)
+      // Fallback a total si totalPaid no está registrado
       for (const booking of bookings) {
-        const payments = (booking as any).payments || [];
-
-        if (payments.length > 0) {
-          // Caso 1: Reservas con payments array - sumar TODOS los pagos PAID
-          for (const payment of payments) {
-            if (payment.status === 'PAID') {
-              totalIncome += payment.amount || 0;
-            }
-          }
-        } else if ((booking as any).totalPaid > 0) {
-          // Caso 2: Reservas sin payments pero con totalPaid > 0
-          totalIncome += (booking as any).totalPaid;
-        }
+        const totalPaid = (booking as any).totalPaid;
+        const bookingValue = (totalPaid !== undefined && totalPaid !== null && totalPaid > 0)
+          ? totalPaid
+          : ((booking as any).total || 0);
+        totalIncome += bookingValue;
       }
     }
 
@@ -1426,15 +1410,24 @@ export class MetricsRepository implements IMetricsRepository {
       totalExpenses = totalExpensesResult.length > 0 ? totalExpensesResult[0].total : 0;
     }
 
-    // Sumar comisiones (no canceladas) a los egresos del dashboard
-    const commissionExpenseFilter: any = { status: { $ne: 'CANCELLED' }, amount: { $gt: 0 } };
-    if (dateFilter) {
-      commissionExpenseFilter.createdAt = dateFilter;
-    }
-    const commissionExpenseResult = await this.commissionModel.aggregate([
-      { $match: commissionExpenseFilter },
+    // Sumar comisiones PAGADAS filtradas por fecha de creación del booking
+    const commissionPipeline: any[] = [
+      { $match: { status: 'PAID', amount: { $gt: 0 } } },
+      ...(dateFilter ? [{
+        $lookup: {
+          from: 'booking',
+          localField: 'booking',
+          foreignField: '_id',
+          as: 'bookingData'
+        }
+      }, {
+        $unwind: '$bookingData'
+      }, {
+        $match: { 'bookingData.createdAt': dateFilter }
+      }] : []),
       { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]);
+    ];
+    const commissionExpenseResult = await this.commissionModel.aggregate(commissionPipeline);
     const totalCommissions = commissionExpenseResult.length > 0 ? commissionExpenseResult[0].total : 0;
     totalExpenses += totalCommissions;
 
@@ -3031,7 +3024,6 @@ export class MetricsRepository implements IMetricsRepository {
         isDeleted: { $ne: true }
       };
       if (dateFilter) {
-        // Usamos 'date' para los movimientos, no 'createdAt'
         expenseMatch.date = dateFilter;
       }
 
@@ -3070,6 +3062,7 @@ export class MetricsRepository implements IMetricsRepository {
             description: '$detail',
             sourceId: '$_id',
             movementType: '$type',
+            beneficiaryModel: '$beneficiaryModel',
             services: {
               $cond: {
                 if: '$vehicleData',
@@ -3077,8 +3070,6 @@ export class MetricsRepository implements IMetricsRepository {
                 else: 'N/A'
               }
             },
-            // CORRECCIÓN: Usar paymentMethod del movement en lugar de metadata.paymentMedium
-            // El paymentMethod es un enum que contiene valores como 'EFECTIVO', 'TRANSFERENCIA', etc.
             paymentMedium: { $ifNull: ['$paymentMethod', 'N/A'] }
           }
         }
