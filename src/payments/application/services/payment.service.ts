@@ -200,7 +200,7 @@ export class PaymentService implements IPaymentService {
                                 const CatStatus = this.bookingRepository['bookingDB'].db.model('CatStatus');
                                 
                                 // Obtener el status APPROVED
-                                const approvedStatus = await CatStatus.findOne({ name: 'APPROVED' });
+                                const approvedStatus = await CatStatus.findOne({ name: 'APROBADO' });
                                 
                                 if (approvedStatus) {
                                     await BookingModel.updateOne(
