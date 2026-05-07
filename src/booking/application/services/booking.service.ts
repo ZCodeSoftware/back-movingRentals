@@ -472,12 +472,12 @@ export class BookingService implements IBookingService {
     const bookingModel = BookingModel.create(bookingData);
 
     // 7. Agregar status
-    // Si isReserve=true, el status debe ser PENDIENTE (independientemente del status enviado)
+    // Si isReserve=true (desde Dashboard), el status debe ser APROBADO (pago pendiente de saldo restante)
     // Si isReserve=false, usar el status enviado
     let status;
     if (bookingData.isReserve) {
-      console.log('[BookingService] isReserve=true, estableciendo status PENDIENTE');
-      status = await this.catStatusRepository.getStatusByName(TypeStatus.PENDING);
+      console.log('[BookingService] isReserve=true, estableciendo status APROBADO');
+      status = await this.catStatusRepository.getStatusByName(TypeStatus.APPROVED);
     } else {
       status = await this.catStatusRepository.getStatusById(body.status);
     }
