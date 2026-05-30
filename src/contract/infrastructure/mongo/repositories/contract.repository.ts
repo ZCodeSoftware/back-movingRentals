@@ -1656,6 +1656,8 @@ export class ContractRepository implements IContractRepository {
           const endOfDay = new Date();
           endOfDay.setHours(23, 59, 59, 999);
 
+          let skipMovementCreation = false;
+
           const existingMovement = await this.contractHistoryModel.findOne({
             contract: id,
             'eventMetadata.amount': contractUpdateData.extension.extensionAmount,
@@ -1675,49 +1677,57 @@ export class ContractRepository implements IContractRepository {
                 confirmDuplicate: confirmDuplicate,
               },
             );
-            
+
             // Verificar si el usuario confirmó explícitamente crear el duplicado
             // Usar el parámetro confirmDuplicate en lugar de buscarlo en contractData
             if (!confirmDuplicate) {
-              // Obtener detalles del movimiento existente para mostrar al usuario
-              const eventType = await this.catContractEventModel.findById(existingMovement.eventType);
-              
-              // Intentar obtener el vehículo usando el modelo de Mongoose primero
-              let vehicleName = vehicleId;
-              try {
-                const vehicleDoc = await this.vehicleModel.findById(vehicleId).session(session).lean();
-                if (vehicleDoc) {
-                  vehicleName = vehicleDoc.name || vehicleDoc.tag || vehicleId;
-                  console.log('[ContractRepository][update] Vehículo encontrado:', { id: vehicleId, name: vehicleName });
-                } else {
-                  console.warn('[ContractRepository][update] Vehículo no encontrado con ID:', vehicleId);
+              // Si hay un cambio de carrito (newCart), omitir el movimiento duplicado
+              // en lugar de bloquear toda la operación — el cambio de carrito es la intención principal
+              if (newCart) {
+                console.log(
+                  '[ContractRepository][update] ℹ️ Movimiento duplicado omitido - la operación principal es un cambio de carrito',
+                );
+                skipMovementCreation = true;
+              } else {
+                // Sin cambio de carrito: bloquear y requerir confirmación
+                const eventType = await this.catContractEventModel.findById(existingMovement.eventType);
+
+                let vehicleName = vehicleId;
+                try {
+                  const vehicleDoc = await this.vehicleModel.findById(vehicleId).session(session).lean();
+                  if (vehicleDoc) {
+                    vehicleName = vehicleDoc.name || vehicleDoc.tag || vehicleId;
+                    console.log('[ContractRepository][update] Vehículo encontrado:', { id: vehicleId, name: vehicleName });
+                  } else {
+                    console.warn('[ContractRepository][update] Vehículo no encontrado con ID:', vehicleId);
+                  }
+                } catch (vehicleError) {
+                  console.error('[ContractRepository][update] Error al buscar vehículo:', vehicleError);
                 }
-              } catch (vehicleError) {
-                console.error('[ContractRepository][update] Error al buscar vehículo:', vehicleError);
+
+                const error: any = new Error('DUPLICATE_MOVEMENT_DETECTED');
+                error.statusCode = 409;
+                error.duplicateDetails = {
+                  existingMovement: {
+                    _id: existingMovement._id,
+                    eventType: eventType ? (eventType as any).name : 'Desconocido',
+                    amount: existingMovement.eventMetadata.amount,
+                    vehicle: vehicleName,
+                    date: (existingMovement as any).createdAt,
+                    paymentMethod: existingMovement.eventMetadata.paymentMethod,
+                    paymentMedium: existingMovement.eventMetadata.paymentMedium,
+                  },
+                };
+                throw error;
               }
-              
-              const error: any = new Error('DUPLICATE_MOVEMENT_DETECTED');
-              error.statusCode = 409;
-              error.duplicateDetails = {
-                existingMovement: {
-                  _id: existingMovement._id,
-                  eventType: eventType ? (eventType as any).name : 'Desconocido',
-                  amount: existingMovement.eventMetadata.amount,
-                  vehicle: vehicleName,
-                  date: (existingMovement as any).createdAt,
-                  paymentMethod: existingMovement.eventMetadata.paymentMethod,
-                  paymentMedium: existingMovement.eventMetadata.paymentMedium,
-                },
-              };
-              throw error;
+            } else {
+              // Si confirmDuplicate es true, permitir la creación
+              console.log('[ContractRepository][update] ✅ Usuario confirmó crear duplicado - Continuando');
             }
-            
-            // Si confirmDuplicate es true, permitir la creación
-            console.log('[ContractRepository][update] ✅ Usuario confirmó crear duplicado - Continuando');
           }
-          
-          // Crear el movimiento (ya sea porque no hay duplicado o porque el usuario confirmó)
-          {
+
+          // Crear el movimiento (solo si no fue marcado para omitir)
+          if (!skipMovementCreation) {
             // CORRECCIÓN 3: Usar siempre new Date() para la fecha del movimiento
             // NO usar newEndDateTime que es la fecha de fin de la renta
             const nonExtensionMetadata = {
@@ -1758,9 +1768,8 @@ export class ContractRepository implements IContractRepository {
                 historyId: savedHistory._id
               }
             );
-          }
 
-          // NUEVA FUNCIONALIDAD: Sumar el monto al total y totalPaid del booking cuando se agrega un evento con monto
+            // NUEVA FUNCIONALIDAD: Sumar el monto al total y totalPaid del booking cuando se agrega un evento con monto
           // (como DELIVERY, CRASH, etc.) después de la creación inicial
           
           // Obtener el booking para actualizar totales
@@ -1888,6 +1897,7 @@ export class ContractRepository implements IContractRepository {
             await booking.save({ session });
           }
         }
+      }
       }
 
       if (newCart) {
